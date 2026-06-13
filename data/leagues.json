@@ -13,6 +13,17 @@
         "notes": "Champion: $500, Runner-up: $150, Most points scored (regular season): $50"
       },
       "notes": ""
+    },
+    {
+      "id": "league-2",
+      "name": "Dynasty League 2",
+      "sleeper_league_id": "1358966325422092288",
+      "buy_in": 0,
+      "currency": "USD",
+      "payouts": {
+        "notes": "TBD"
+      },
+      "notes": ""
     }
   ]
 }
