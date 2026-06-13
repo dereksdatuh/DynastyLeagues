@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynasty Leagues</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Dynasty Leagues</h1>
+    <p class="subtitle">Your leagues, formats, buy-ins, payouts, and 2026 dynasty values</p>
+  </header>
+
+  <main>
+    <section id="league-list">
+      <h2>Leagues</h2>
+      <div id="leagues-container">Loading leagues...</div>
+    </section>
+
+    <section id="league-detail" class="hidden">
+      <button id="back-btn">&larr; Back to leagues</button>
+      <h2 id="detail-title"></h2>
+
+      <div id="league-format"></div>
+      <div id="league-money"></div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="rosters">Team Rosters &amp; Values</button>
+        <button class="tab-btn" data-tab="rankings">Player Rankings</button>
+      </div>
+
+      <div id="rosters-tab" class="tab-content"></div>
+      <div id="rankings-tab" class="tab-content hidden"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

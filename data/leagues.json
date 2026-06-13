@@ -1,0 +1,20 @@
+{
+  "leagues": [
+    {
+      "id": "league-1",
+      "name": "PLACEHOLDER - My Dynasty League",
+      "sleeper_league_id": "PLACEHOLDER_SLEEPER_LEAGUE_ID",
+      "buy_in": 0,
+      "currency": "USD",
+      "payouts": {
+        "1st": 0,
+        "2nd": 0,
+        "3rd": 0,
+        "regular_season_champ": 0,
+        "toilet_bowl_penalty": 0,
+        "notes": "Fill in payout structure here"
+      },
+      "notes": "Replace sleeper_league_id with your real Sleeper league ID. You can find it in the URL when viewing your league on sleeper.com (the long number after /leagues/)."
+    }
+  ]
+}
