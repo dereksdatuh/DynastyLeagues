@@ -24,6 +24,17 @@
         "notes": "TBD"
       },
       "notes": ""
+    },
+    {
+      "id": "league-3",
+      "name": "Dynasty League 3",
+      "sleeper_league_id": "1354113258109280256",
+      "buy_in": 0,
+      "currency": "USD",
+      "payouts": {
+        "notes": "TBD"
+      },
+      "notes": ""
     }
   ]
 }
