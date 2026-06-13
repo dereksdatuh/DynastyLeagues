@@ -35,6 +35,17 @@
         "notes": "TBD"
       },
       "notes": ""
+    },
+    {
+      "id": "league-4",
+      "name": "Dynasty League 4",
+      "sleeper_league_id": "1313291882029158400",
+      "buy_in": 0,
+      "currency": "USD",
+      "payouts": {
+        "notes": "TBD"
+      },
+      "notes": ""
     }
   ]
 }
