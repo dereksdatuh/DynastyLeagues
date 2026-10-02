@@ -12,14 +12,35 @@ _ARRAY = re.compile(r"playersArray\s*=\s*\[")
 _TITLE = re.compile(r"<title>(.*?)</title>", re.S | re.I)
 
 
+def _decode_list_at(html: str, i: int):
+    try:
+        rows, _ = json.JSONDecoder().raw_decode(html, i)
+    except ValueError:
+        return None
+    if isinstance(rows, list) and rows and isinstance(rows[0], dict) and "playerName" in rows[0]:
+        return rows
+    return None
+
+
 def parse_players_array(html: str) -> list[dict]:
+    """The rankings page embeds every player as a JSON array in a script tag."""
     m = _ARRAY.search(html)
-    if not m:
-        title = _TITLE.search(html)
-        hint = title.group(1).strip()[:80] if title else html[:80].replace("\n", " ")
-        raise ValueError(f"playersArray not found on KTC page ({len(html)} bytes, title: {hint!r})")
-    rows, _ = json.JSONDecoder().raw_decode(html, m.end() - 1)
-    return rows
+    if m:
+        rows = _decode_list_at(html, m.end() - 1)
+        if rows:
+            return rows
+    # Variable renamed: find the first player object and back up to its array.
+    key = html.find('"playerName"')
+    if key != -1:
+        for i in range(key, max(key - 400, 0), -1):
+            if html[i] == "[":
+                rows = _decode_list_at(html, i)
+                if rows:
+                    return rows
+    title = _TITLE.search(html)
+    hint = title.group(1).strip()[:80] if title else html[:80].replace("\n", " ")
+    ctx = html[max(key - 120, 0): key + 80].replace("\n", " ") if key != -1 else ""
+    raise ValueError(f"player array not found on KTC page ({len(html)} bytes, title: {hint!r}, near: {ctx!r})")
 
 
 def _value(row: dict, superflex: bool):

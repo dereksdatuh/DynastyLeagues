@@ -159,3 +159,8 @@ def test_build_survives_a_blocked_market_source(offline):
     assert status["ktc"]["ok"] is False and "blocked" in status["ktc"]["error"]
     assert status["fantasycalc"]["ok"] and data["players"][0]["value"] > 0
     assert not any(p["pos"] in ("DL", "LB", "DB") for p in data["players"] if p["roster_id"] is None)
+
+
+def test_ktc_parser_finds_renamed_array():
+    html = '<script>window.__DATA__ = {"rankings": [{"playerName": "B", "superflexValues": {"value": 5}}]};</script>'
+    assert parse_players_array(html)[0]["playerName"] == "B"
