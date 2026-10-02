@@ -1,23 +1,33 @@
+"""Local/hosted server: the static site plus endpoints to rebuild and evaluate trades.
+
+The scheduled GitHub Action builds and publishes the same site without this
+server; run it when you want on-demand rebuilds or to edit league configs.
+"""
+
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import sleeper, storage, values
+from engine import build, trade
+
+from . import storage
 
 app = FastAPI(title="Dynasty Leagues")
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+SITE_DIR = Path(__file__).resolve().parent.parent / "site"
+DATA_DIR = SITE_DIR / "data"
 
 
 @app.get("/api/health")
-async def health():
+def health():
     return {"status": "ok"}
 
 
 @app.get("/api/leagues")
-async def list_leagues():
+def list_leagues():
     return storage.load_leagues()["leagues"]
 
 
@@ -32,124 +42,43 @@ class LeagueConfig(BaseModel):
 
 
 @app.put("/api/leagues/{league_id}")
-async def update_league(league_id: str, config: LeagueConfig):
+def update_league(league_id: str, config: LeagueConfig):
     if config.id != league_id:
         raise HTTPException(400, "id in body must match id in path")
     return storage.upsert_league_config(config.model_dump())
 
 
-@app.get("/api/leagues/{league_id}/sleeper")
-async def league_sleeper_info(league_id: str):
-    """Live Sleeper league settings, rosters, and users for a configured league."""
-    config = storage.get_league_config(league_id)
-    if not config:
+@app.post("/api/rebuild")
+def rebuild(league_id: str | None = None):
+    """Rebuild values (all leagues, or one) from live Sleeper and market data."""
+    if league_id and not storage.get_league_config(league_id):
         raise HTTPException(404, "League not configured")
-
-    sleeper_id = config.get("sleeper_league_id", "")
-    if not sleeper_id or sleeper_id.startswith("PLACEHOLDER"):
-        raise HTTPException(400, "Set a real sleeper_league_id for this league first")
-
     try:
-        bundle = await sleeper.get_league_bundle(sleeper_id)
-    except Exception as exc:
-        raise HTTPException(502, f"Failed to reach Sleeper: {exc}")
-
-    bundle["value_params"] = sleeper.derive_value_params(bundle["league"])
-    return bundle
+        build.main(["--out", str(DATA_DIR)] + (["--league", league_id] if league_id else []))
+    except SystemExit:
+        raise HTTPException(502, "Build failed for every league; see server logs")
+    return json.loads((DATA_DIR / "index.json").read_text())
 
 
-@app.get("/api/leagues/{league_id}/values")
-async def league_values(league_id: str):
-    """Dynasty player values adjusted for this league's scoring/roster format."""
-    config = storage.get_league_config(league_id)
-    if not config:
-        raise HTTPException(404, "League not configured")
-
-    sleeper_id = config.get("sleeper_league_id", "")
-    if not sleeper_id or sleeper_id.startswith("PLACEHOLDER"):
-        raise HTTPException(400, "Set a real sleeper_league_id for this league first")
-
-    try:
-        league = await sleeper.get_league(sleeper_id)
-    except Exception as exc:
-        raise HTTPException(502, f"Failed to reach Sleeper: {exc}")
-
-    value_params = sleeper.derive_value_params(league)
-
-    try:
-        player_values = await values.get_league_values(value_params)
-    except Exception as exc:
-        raise HTTPException(502, f"Failed to reach FantasyCalc: {exc}")
-
-    return {"value_params": value_params, "players": player_values}
+class TradeRequest(BaseModel):
+    league_id: str
+    a: list[str]  # asset ids (Sleeper player ids or pick ids) team A receives
+    b: list[str]
 
 
-@app.get("/api/leagues/{league_id}/rosters")
-async def league_rosters(league_id: str):
-    """Each team's roster with players valued under this league's settings."""
-    config = storage.get_league_config(league_id)
-    if not config:
-        raise HTTPException(404, "League not configured")
-
-    sleeper_id = config.get("sleeper_league_id", "")
-    if not sleeper_id or sleeper_id.startswith("PLACEHOLDER"):
-        raise HTTPException(400, "Set a real sleeper_league_id for this league first")
-
-    try:
-        bundle = await sleeper.get_league_bundle(sleeper_id)
-        players_db = await sleeper.get_players_db()
-    except Exception as exc:
-        raise HTTPException(502, f"Failed to reach Sleeper: {exc}")
-
-    value_params = sleeper.derive_value_params(bundle["league"])
-    player_values = await values.get_league_values(value_params)
-    value_by_sleeper_id = {v["sleeper_id"]: v for v in player_values if v["sleeper_id"]}
-
-    users_by_id = {u["user_id"]: u for u in bundle["users"]}
-
-    teams = []
-    for roster in bundle["rosters"]:
-        owner = users_by_id.get(roster.get("owner_id"), {})
-        team_name = (owner.get("metadata") or {}).get("team_name") or owner.get("display_name") or "Unknown"
-
-        roster_players = []
-        total_value = 0
-        for pid in roster.get("players") or []:
-            info = players_db.get(pid, {})
-            val_entry = value_by_sleeper_id.get(pid)
-            value = val_entry["league_value"] if val_entry else 0
-            total_value += value
-            roster_players.append(
-                {
-                    "sleeper_id": pid,
-                    "name": info.get("full_name", pid),
-                    "position": info.get("position"),
-                    "team": info.get("team"),
-                    "value": value,
-                    "league_rank": val_entry["league_rank"] if val_entry else None,
-                }
-            )
-
-        roster_players.sort(key=lambda p: p["value"], reverse=True)
-
-        teams.append(
-            {
-                "roster_id": roster.get("roster_id"),
-                "owner_id": roster.get("owner_id"),
-                "team_name": team_name,
-                "record": {
-                    "wins": roster.get("settings", {}).get("wins"),
-                    "losses": roster.get("settings", {}).get("losses"),
-                    "ties": roster.get("settings", {}).get("ties"),
-                },
-                "total_value": total_value,
-                "players": roster_players,
-            }
-        )
-
-    teams.sort(key=lambda t: t["total_value"], reverse=True)
-    return {"value_params": value_params, "teams": teams}
+@app.post("/api/trade")
+def evaluate_trade(req: TradeRequest):
+    path = DATA_DIR / f"{req.league_id}.json"
+    if not path.exists():
+        raise HTTPException(404, "No built data for this league; POST /api/rebuild first")
+    data = json.loads(path.read_text())
+    assets = {p["id"]: p for p in data["players"] + data["picks"]}
+    missing = [i for i in req.a + req.b if i not in assets]
+    if missing:
+        raise HTTPException(400, f"Unknown asset ids: {missing}")
+    side = lambda ids: [{"id": i, "name": assets[i].get("name") or assets[i].get("label"), "value": assets[i]["value"]} for i in ids]
+    a, b = side(req.a), side(req.b)
+    return {"a": a, "b": b, **trade.evaluate(a, b)}
 
 
-# Serve the simple frontend dashboard
-app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+app.mount("/", StaticFiles(directory=str(SITE_DIR), html=True), name="site")
