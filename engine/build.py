@@ -221,6 +221,11 @@ def main(argv=None):
         ok = [s["source"] for s in data["sources"] if s["ok"]]
         print(f"built {config['id']} ({lg['name']}): {len(data['players'])} players, "
               f"{len(data['picks'])} picks, sources ok: {', '.join(ok) or 'none'}")
+        for s in data["sources"]:
+            if not s["ok"]:
+                print(f"  {s['source']} failed: {s['error']}")
+        top = ", ".join(f"{p['name']} {p['pos']} {p['value']}" for p in data["players"][:12])
+        print(f"  top: {top}")
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "leagues": index}, indent=1))
     if failures == len(configs):
