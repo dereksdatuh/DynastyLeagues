@@ -103,8 +103,8 @@ def test_trade_consolidation_premium():
 
 
 def test_ktc_parser_reads_embedded_array():
-    html = '<script>\nvar playersArray = [{"playerName": "A", "superflexValues": {"value": 9}}];\nvar y;</script>'
-    assert parse_players_array(html)[0]["playerName"] == "A"
+    html = '<script>\nvar playersArray = [{"playerName": "A;]", "superflexValues": {"value": 9}}];var y = [1];</script>'
+    assert parse_players_array(html)[0]["playerName"] == "A;]"
     with pytest.raises(ValueError):
         parse_players_array("<html>blocked</html>")
 

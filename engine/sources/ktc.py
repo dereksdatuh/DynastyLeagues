@@ -8,14 +8,18 @@ from ..league import POSITION_GROUP
 from ..picks import parse_pick
 
 URL = "https://keeptradecut.com/dynasty-rankings"
-_ARRAY = re.compile(r"var\s+playersArray\s*=\s*(\[.*?\]);\s*\n", re.S)
+_ARRAY = re.compile(r"playersArray\s*=\s*\[")
+_TITLE = re.compile(r"<title>(.*?)</title>", re.S | re.I)
 
 
 def parse_players_array(html: str) -> list[dict]:
     m = _ARRAY.search(html)
     if not m:
-        raise ValueError("playersArray not found on KTC page (layout changed or request blocked)")
-    return json.loads(m.group(1))
+        title = _TITLE.search(html)
+        hint = title.group(1).strip()[:80] if title else html[:80].replace("\n", " ")
+        raise ValueError(f"playersArray not found on KTC page ({len(html)} bytes, title: {hint!r})")
+    rows, _ = json.JSONDecoder().raw_decode(html, m.end() - 1)
+    return rows
 
 
 def _value(row: dict, superflex: bool):
