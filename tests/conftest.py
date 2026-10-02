@@ -112,8 +112,17 @@ def fake_responses(world, league):
     for r in range(league["total_rosters"]):
         rosters.append({"roster_id": r + 1, "owner_id": f"u{r + 1}", "players": pool[r * per:(r + 1) * per],
                         "settings": {"wins": r % 4, "losses": 4 - r % 4, "ties": 0, "fpts": 400 + r}})
-    users = [{"user_id": f"u{r + 1}", "display_name": f"owner{r + 1}", "metadata": {"team_name": f"Team {r + 1}"}}
-             for r in range(league["total_rosters"])]
+    users = [{"user_id": f"u{r + 1}", "display_name": "DS107" if r == 0 else f"owner{r + 1}",
+              "metadata": {"team_name": f"Team {r + 1}"}} for r in range(league["total_rosters"])]
+    # Round-robin schedule: Sleeper returns future weeks with matchup_id set and no points.
+    n = league["total_rosters"]
+    order = list(range(1, n + 1))
+    schedule = {}
+    for week in range(1, 18):
+        rows = [{"roster_id": order[i], "matchup_id": i + 1, "points": 0} for i in range(n // 2)]
+        rows += [{"roster_id": order[n - 1 - i], "matchup_id": i + 1, "points": 0} for i in range(n // 2)]
+        schedule[f"/league/{league['league_id']}/matchups/{week}"] = rows
+        order = [order[0], order[-1]] + order[1:-1]
     traded = [{"season": "2027", "round": 1, "roster_id": 2, "previous_owner_id": 2, "owner_id": 5}]
 
     fc, ktc, dp = [], [], []
@@ -142,6 +151,7 @@ def fake_responses(world, league):
         f"/league/{lid}/users": users,
         f"/league/{lid}/traded_picks": traded,
         f"/league/{lid}": league,
+        **schedule,
         "/players/nfl": world.players,
         "/projections/nfl/2026/5": list(world.proj.values()),
         "/projections/nfl/2026": list(world.proj.values()),

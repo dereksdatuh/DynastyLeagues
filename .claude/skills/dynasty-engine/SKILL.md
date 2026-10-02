@@ -32,6 +32,11 @@ Values are built per league by `python -m engine.build` into `site/data/<league-
 - `engine/valuation.py`: scoring-fit premiums, model calibration, `MODEL_WEIGHT`,
   `UNPRICED_DISCOUNT` (IDP/K/DEF), tiers.
 - `engine/trade.py` and `site/app.js`: `CONSOLIDATION_POWER` (keep both in sync).
+- `engine/record.py` and `site/app.js` (`projectRecords`): projected records from
+  rest-of-season lineup ppg and the remaining schedule; `SIGMA_SHARE` (weekly score
+  spread) and `AVAILABILITY` (injury discounts). Keep both in sync.
+- `site/app.js` (`pitchFor`): owner trade messages; each reason is only included
+  when it holds for that owner.
 - New market source: add `engine/sources/<name>.py` with `fetch(fmt, index)` returning
   the entry shape documented in `engine/sources/__init__.py`, register it in `SOURCES`
   and `market.SOURCE_WEIGHTS`, and add a fake response in `tests/conftest.py`.

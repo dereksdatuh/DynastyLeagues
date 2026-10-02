@@ -93,3 +93,10 @@ td.up { color: var(--good); font-weight: 700; } td.down { color: var(--bad); fon
 #rooms td.down, .impact .down { color: var(--bad); font-weight: 600; }
 .impact td { vertical-align: top; white-space: normal; }
 .needs { margin-top: 6px; font-size: 13px; }
+
+.pitches { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.pitch { border: 1px solid var(--border, #2a3340); border-radius: 8px; padding: 10px; }
+.pitch-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.pitch-head .copy { margin-left: auto; }
+.pitch textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; resize: vertical; background: transparent; color: inherit; border: 1px solid var(--border, #2a3340); border-radius: 6px; padding: 8px; }
+.pitch p { margin: 4px 0 8px; }
