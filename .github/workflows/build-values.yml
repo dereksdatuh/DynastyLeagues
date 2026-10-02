@@ -28,6 +28,12 @@ jobs:
         run: python -m pytest -q
       - name: Build values for every league
         run: python -m engine.build --out site/data
+      - name: Check the site renders every league
+        run: |
+          npm install --no-save --silent playwright-core@1.56
+          python -m http.server 8000 -d site >/dev/null 2>&1 &
+          sleep 1
+          node tests/site_smoke.mjs http://localhost:8000/
       - name: Summarize
         run: |
           python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
