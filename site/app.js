@@ -246,6 +246,7 @@ function renderTrade() {
   fillDatalists();
   const gets = s.map(() => []), gives = s.map(() => []);
   const unassigned = [];
+  const baseRanks = leagueStrength().ranks;
   s.forEach((side, i) => {
     side.assets.map(assetById).filter(Boolean).forEach((a) => {
       gets[i].push(a.value);
@@ -268,7 +269,12 @@ function renderTrade() {
       b.addEventListener("click", () => { side.assets = side.assets.filter((id) => id !== b.dataset.id); renderTrade(); })
     );
     const raw = gets[i].reduce((t, x) => t + x, 0);
-    el.querySelector(".side-total").innerHTML = items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(gets[i]))}</strong>` : "";
+    let needLine = "";
+    if (side.team != null) {
+      const nd = needsOf(side.team, baseRanks);
+      needLine = `<div class="needs">Needs: ${nd.needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || "none"}${nd.strengths.length ? ` · Strong at ${nd.strengths.join(", ")}` : ""}</div>`;
+    }
+    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(gets[i]))}</strong>` : "") + needLine;
   });
 
   const out = $("#trade-result");
@@ -322,10 +328,140 @@ function renderTrade() {
     suggest = `<p>To even it out, ${esc(sideName(loser.i))} should also get about <strong>${fmt(need)}</strong> in value${multi ? ` from ${esc(sideName(winner.i))}` : ""}. Closest fits:</p>
       <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
   }
-  out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${detail}${suggest}`;
+  out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${detail}${suggest}${tradeImpact(s)}`;
   out.querySelectorAll(".suggest button").forEach((b) =>
     b.addEventListener("click", () => { s[Number(b.dataset.i)].assets.push(b.dataset.id); renderTrade(); })
   );
+}
+
+// ---------- roster strength: starters, position rooms, needs ----------
+// Mirrors engine/league.py SLOT_ELIGIBILITY.
+const SLOT_ELIGIBILITY = {
+  QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DEF: ["DEF"], DL: ["DL"], LB: ["LB"], DB: ["DB"],
+  FLEX: ["RB", "WR", "TE"], WRRB_FLEX: ["RB", "WR"], REC_FLEX: ["WR", "TE"],
+  SUPER_FLEX: ["QB", "RB", "WR", "TE"], IDP_FLEX: ["DL", "LB", "DB"],
+};
+const DEPTH_WEIGHT = 0.25; // bench players count a little toward a room (injury/bye cover)
+const DEPTH_COUNT = 2;
+
+function bestLineup(players) {
+  const slots = [...state.data.league.format.starting_slots].sort((a, b) => SLOT_ELIGIBILITY[a].length - SLOT_ELIGIBILITY[b].length);
+  const pool = players.filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
+  const used = new Set(), lineup = [];
+  for (const slot of slots) {
+    const p = pool.find((x) => !used.has(x.id) && SLOT_ELIGIBILITY[slot].includes(x.pos));
+    if (p) { used.add(p.id); lineup.push({ slot, p }); }
+  }
+  return lineup;
+}
+
+function roomPositions() {
+  const groups = new Set();
+  state.data.league.format.starting_slots.forEach((s) => SLOT_ELIGIBILITY[s].forEach((g) => groups.add(g)));
+  return POSITIONS.filter((p) => groups.has(p));
+}
+
+// Strength of one roster: starter value plus, per position, its starters' value
+// and a little credit for depth.
+function rosterStrength(players) {
+  const lineup = bestLineup(players);
+  const starters = new Set(lineup.map((x) => x.p.id));
+  const rooms = {};
+  for (const pos of roomPositions()) {
+    const atPos = players.filter((p) => p.pos === pos).sort((a, b) => b.value - a.value);
+    const start = atPos.filter((p) => starters.has(p.id));
+    const bench = atPos.filter((p) => !starters.has(p.id)).slice(0, DEPTH_COUNT);
+    rooms[pos] = start.reduce((t, p) => t + p.value, 0) + DEPTH_WEIGHT * bench.reduce((t, p) => t + p.value, 0);
+  }
+  return { starters: lineup.reduce((t, x) => t + x.p.value, 0), rooms };
+}
+
+function rosterOf(rid) {
+  return state.data.players.filter((p) => p.roster_id === rid);
+}
+
+// Rank every team by starters and by each room; `overrides` swaps in post-trade rosters.
+function leagueStrength(overrides = {}) {
+  const by = {};
+  for (const t of state.data.teams) by[t.roster_id] = rosterStrength(overrides[t.roster_id] || rosterOf(t.roster_id));
+  const rank = (key) => {
+    const order = Object.keys(by).sort((a, b) => key(by[b]) - key(by[a]));
+    const r = {};
+    order.forEach((rid, i) => (r[rid] = i + 1));
+    return r;
+  };
+  const ranks = { starters: rank((x) => x.starters) };
+  for (const pos of roomPositions()) ranks[pos] = rank((x) => x.rooms[pos] || 0);
+  return { by, ranks };
+}
+
+function needsOf(rid, ranks) {
+  const n = state.data.teams.length;
+  const needs = [], strengths = [];
+  for (const pos of roomPositions()) {
+    const r = ranks[pos][rid];
+    if (r > (2 * n) / 3) needs.push(pos);
+    else if (r <= n / 3) strengths.push(pos);
+  }
+  return { needs, strengths };
+}
+
+function rankCell(r, n) {
+  const cls = r <= n / 3 ? "up" : r > (2 * n) / 3 ? "down" : "";
+  return `<td class="num ${cls}">${r}</td>`;
+}
+
+function renderRooms() {
+  const { ranks } = leagueStrength();
+  const n = state.data.teams.length;
+  const pos = roomPositions();
+  const rows = [...state.data.teams]
+    .sort((a, b) => ranks.starters[a.roster_id] - ranks.starters[b.roster_id])
+    .map((t) => {
+      const { needs } = needsOf(t.roster_id, ranks);
+      return `<tr><td class="name">${esc(t.name)}</td>${rankCell(ranks.starters[t.roster_id], n)}${pos.map((p) => rankCell(ranks[p][t.roster_id], n)).join("")}
+        <td>${needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || '<span class="muted">none</span>'}</td></tr>`;
+    })
+    .join("");
+  $("#rooms").innerHTML = `<thead><tr><th>Team</th><th class="num">Starters</th>${pos.map((p) => `<th class="num">${p}</th>`).join("")}<th>Needs</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+// How a trade changes each involved team's starters and rooms, by league rank.
+function tradeImpact(s) {
+  const before = leagueStrength();
+  const overrides = {};
+  s.forEach((side) => { if (side.team != null) overrides[side.team] = rosterOf(side.team).slice(); });
+  s.forEach((side, i) => {
+    side.assets.map(assetById).filter((a) => a && a.kind === "player").forEach((a) => {
+      const from = senderOf(a, i);
+      const fromTeam = from >= 0 ? s[from].team : null;
+      if (fromTeam != null && overrides[fromTeam]) overrides[fromTeam] = overrides[fromTeam].filter((p) => p.id !== a.id);
+      if (side.team != null) overrides[side.team].push(a);
+    });
+  });
+  if (!Object.keys(overrides).length) return "";
+  const after = leagueStrength(overrides);
+  const arrow = (b, a) => (a < b ? `<span class="up">#${b} → #${a}</span>` : a > b ? `<span class="down">#${b} → #${a}</span>` : `<span class="muted">#${b}</span>`);
+  const rows = s.filter((x) => x.team != null).map((side) => {
+    const rid = side.team;
+    const sb = before.by[rid].starters, sa = after.by[rid].starters;
+    const diff = sa - sb;
+    const moved = roomPositions().filter((p) => before.ranks[p][rid] !== after.ranks[p][rid] || Math.round(before.by[rid].rooms[p]) !== Math.round(after.by[rid].rooms[p]));
+    const need = needsOf(rid, before.ranks).needs;
+    const filled = need.filter((p) => after.ranks[p][rid] < before.ranks[p][rid]);
+    const opened = needsOf(rid, after.ranks).needs.filter((p) => !need.includes(p));
+    const notes = [
+      filled.length ? `<span class="up">helps need at ${filled.join(", ")}</span>` : "",
+      opened.length ? `<span class="down">creates a need at ${opened.join(", ")}</span>` : "",
+    ].filter(Boolean).join(" · ");
+    return `<tr><td class="name">${esc(teamName(rid))}</td>
+      <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
+      <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
+      <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
+      <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
+  });
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.</p>`;
 }
 
 // ---------- teams ----------
@@ -343,6 +479,7 @@ function renderTeams() {
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
   );
+  renderRooms();
   renderTeamDetail();
 }
 
