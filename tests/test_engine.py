@@ -164,3 +164,21 @@ def test_build_survives_a_blocked_market_source(offline):
 def test_ktc_parser_finds_renamed_array():
     html = '<script>window.__DATA__ = {"rankings": [{"playerName": "B", "superflexValues": {"value": 5}}]};</script>'
     assert parse_players_array(html)[0]["playerName"] == "B"
+
+
+def test_three_team_trade_nets_and_balance():
+    # A sends 6000 to B; B sends 3000 to C; C sends 3000 to A.
+    teams = [
+        {"name": "A", "gets": [3000], "gives": [6000]},
+        {"name": "B", "gets": [6000], "gives": [3000]},
+        {"name": "C", "gets": [3000], "gives": [3000]},
+    ]
+    res = trade.evaluate_multi(teams)
+    nets = {t["name"]: t["net_pct"] for t in res["teams"]}
+    assert nets["A"] == -50 and nets["B"] == 50 and nets["C"] == 0
+    assert res["verdict"] == "uneven"
+    assert res["to_balance"]["receiver"] == "A" and res["to_balance"]["sender"] == "B"
+    assert res["to_balance"]["add_value"] > 3000
+    # Two-team results match the original calculator.
+    two = trade.evaluate_multi([{"name": "A", "gets": [5000], "gives": [4900]}, {"name": "B", "gets": [4900], "gives": [5000]}])
+    assert two["verdict"] == "fair"
