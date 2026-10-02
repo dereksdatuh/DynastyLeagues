@@ -468,7 +468,7 @@ function projectRecords(overrides = {}) {
   const ppg = {};
   for (const t of state.data.teams) ppg[t.roster_id] = teamPPG(overrides[t.roster_id] || rosterOf(t.roster_id));
   const vals = Object.values(ppg).filter((v) => v > 0);
-  const sigma = sch.sigma || (sch.sigma_share || 0.18) * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const sigma = sch.sigma || (sch.sigma_share || 0.21) * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
   const out = {};
   for (const t of state.data.teams) {
     const rid = t.roster_id;

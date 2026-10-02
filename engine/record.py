@@ -10,8 +10,9 @@ The same math runs in the browser (site/app.js) to re-project after a trade.
 
 from math import erf, sqrt
 
-# Weekly score spread as a share of the league's average weekly score.
-SIGMA_SHARE = 0.18
+# Spread of a team's weekly score as a share of the league average: about 0.18
+# week to week, widened to cover the error in each lineup's projection itself.
+SIGMA_SHARE = 0.21
 # Rest-of-season availability for injury designations.
 AVAILABILITY = {"IR": 0.35, "PUP": 0.35, "Sus": 0.35, "NFI": 0.35, "Out": 0.85, "Doubtful": 0.9}
 DEFAULT_PLAYOFF_WEEK = 15
