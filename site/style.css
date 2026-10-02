@@ -85,3 +85,11 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--tier
   #rankings .tier-row td { display: table-cell; }
   th, td { padding: 6px 6px; }
 }
+.trade-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.from { display: block; font-size: 12px; }
+table.net { margin: 10px 0; max-width: 520px; }
+td.up { color: var(--good); font-weight: 700; } td.down { color: var(--bad); font-weight: 700; }
+#rooms td.up, .impact .up { color: var(--good); font-weight: 600; }
+#rooms td.down, .impact .down { color: var(--bad); font-weight: 600; }
+.impact td { vertical-align: top; white-space: normal; }
+.needs { margin-top: 6px; font-size: 13px; }

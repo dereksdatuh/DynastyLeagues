@@ -43,3 +43,26 @@ def evaluate(side_a: list[dict], side_b: list[dict], p: float = CONSOLIDATION_PO
     if short:
         result["to_balance"] = {"side": short, "add_value": round(balance_needed(vb if short == "b" else va, target, p))}
     return result
+
+
+def evaluate_multi(teams: list[dict], p: float = CONSOLIDATION_POWER) -> dict:
+    """Trades among 2-4 teams. Each team is {"name", "gets": [values], "gives": [values]}.
+
+    A team's net is its adjusted value received minus adjusted value sent, as a share
+    of the larger of the two. The trade is fair when every team is within FAIR_MARGIN.
+    """
+    rows = []
+    for t in teams:
+        g, v = effective(t["gets"], p), effective(t["gives"], p)
+        rows.append({"name": t.get("name"), "gets": round(g), "gives": round(v),
+                     "net_pct": round((g - v) / (max(g, v) or 1) * 100, 1)})
+    fair = all(abs(r["net_pct"]) <= FAIR_MARGIN * 100 for r in rows)
+    result = {"teams": rows, "verdict": "fair" if fair else "uneven"}
+    if not fair:
+        loser = min(range(len(rows)), key=lambda i: rows[i]["net_pct"])
+        winner = max(range(len(rows)), key=lambda i: rows[i]["net_pct"])
+        result["to_balance"] = {
+            "receiver": rows[loser]["name"], "sender": rows[winner]["name"],
+            "add_value": round(balance_needed(teams[loser]["gets"], effective(teams[loser]["gives"], p), p)),
+        }
+    return result

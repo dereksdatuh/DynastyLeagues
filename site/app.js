@@ -55,7 +55,7 @@ async function loadLeague(id) {
   localStorageSet("league", id);
   state.data = await getJSON(`data/${id}.json`);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
-  state.trade = { a: [], b: [] };
+  state.trade = { sides: [newSide(), newSide()] };
   state.teamOpen = null;
   const when = new Date(state.data.generated_at);
   $("#updated").textContent = `Updated ${when.toLocaleString()}${state.data.league.week ? ` · Week ${state.data.league.week}` : ""}`;
@@ -140,6 +140,10 @@ function renderRankings() {
 }
 
 // ---------- trade calculator ----------
+// Each side lists what that team receives. An asset is sent by the team that
+// owns it; in a two-team trade with no teams picked, by the other side.
+const LETTERS = "ABCD";
+
 function effective(values) {
   const v = values.filter((x) => x > 0);
   return v.length ? Math.pow(v.reduce((s, x) => s + Math.pow(x, CONSOLIDATION_POWER), 0), 1 / CONSOLIDATION_POWER) : 0;
@@ -150,92 +154,314 @@ function balanceNeeded(values, target) {
   return need > 0 ? Math.pow(need, 1 / CONSOLIDATION_POWER) : 0;
 }
 
+const newSide = () => ({ team: null, assets: [] });
+const sides = () => state.trade.sides;
+const sideName = (i) => (sides()[i].team ? teamName(sides()[i].team) : `Team ${LETTERS[i]}`);
+
+function senderOf(asset, i) {
+  const s = sides();
+  if (asset.roster_id != null) {
+    const j = s.findIndex((x, k) => k !== i && x.team === asset.roster_id);
+    if (j >= 0) return j;
+  }
+  return s.length === 2 ? 1 - i : -1;
+}
+
 function setupTrade() {
-  const teamOpts = `<option value="">Any team</option>` + state.data.teams.map((t) => `<option value="${t.roster_id}">${esc(t.name)}</option>`).join("");
+  if (!state.trade || !state.trade.sides) state.trade = { sides: [newSide(), newSide()] };
+  renderTeamCount();
+  renderSides();
+}
+
+function renderTeamCount() {
+  const n = sides().length;
+  $("#team-count").innerHTML = [2, 3, 4].map((k) => `<button class="chip ${k === n ? "active" : ""}" data-n="${k}">${k} teams</button>`).join("");
+  $("#team-count").querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => {
+      const k = Number(b.dataset.n);
+      const s = sides().slice(0, k);
+      // Drop anything that was coming from a team that's no longer in the deal.
+      const gone = new Set(sides().slice(k).map((x) => x.team).filter((t) => t != null));
+      s.forEach((x) => (x.assets = x.assets.filter((id) => !gone.has((assetById(id) || {}).roster_id))));
+      while (s.length < k) s.push(newSide());
+      state.trade.sides = s;
+      renderTeamCount();
+      renderSides();
+    })
+  );
+}
+
+function renderSides() {
+  const s = sides();
+  const multi = s.length > 2;
+  const teamOpts = (sel) =>
+    (multi ? `<option value="">Pick a team</option>` : `<option value="">Any team</option>`) +
+    state.data.teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+  $("#trade-sides").innerHTML = s
+    .map((side, i) => `<div class="trade-side" data-i="${i}">
+        <h3>Team ${LETTERS[i]} gets</h3>
+        <select class="team-pick" aria-label="Team ${LETTERS[i]}">${teamOpts(side.team)}</select>
+        <input class="asset-search" type="search" placeholder="Add player or pick" list="assets-${i}" />
+        <datalist id="assets-${i}"></datalist>
+        <ul class="assets"></ul>
+        <div class="side-total"></div>
+      </div>`)
+    .join("");
   document.querySelectorAll(".trade-side").forEach((el) => {
-    const side = el.dataset.side;
-    const select = el.querySelector(".team-pick");
-    select.innerHTML = teamOpts;
-    select.onchange = () => { fillDatalist(); renderTrade(); };
+    const i = Number(el.dataset.i);
+    el.querySelector(".team-pick").onchange = (e) => {
+      sides()[i].team = e.target.value ? Number(e.target.value) : null;
+      renderTrade();
+    };
     const input = el.querySelector(".asset-search");
-    input.value = "";
     input.onchange = () => {
       const a = [...state.assetMap.values()].find((x) => x.label === input.value || x.name === input.value);
-      if (a && !state.trade[side].includes(a.id)) state.trade[side].push(a.id);
+      const taken = s.some((x) => x.assets.includes(a && a.id));
+      if (a && !taken) sides()[i].assets.push(a.id);
       input.value = "";
       renderTrade();
     };
   });
-  fillDatalist();
   renderTrade();
 }
 
-function sideTeam(side) {
-  const v = document.querySelector(`.trade-side[data-side="${side}"] .team-pick`).value;
-  return v ? Number(v) : null;
-}
-
-function fillDatalist() {
-  // What team A gets comes from team B's roster (and vice versa) when a team is chosen.
-  for (const side of ["a", "b"]) {
-    const giver = sideTeam(side === "a" ? "b" : "a");
+function fillDatalists() {
+  // A team can only receive what the other teams in the deal own.
+  const s = sides();
+  s.forEach((side, i) => {
+    const givers = s.filter((x, k) => k !== i && x.team != null).map((x) => x.team);
     const list = [...state.assetMap.values()]
-      .filter((x) => x.value > 0 && (giver == null || x.roster_id === giver))
+      .filter((x) => x.value > 0 && (givers.length === 0 || givers.includes(x.roster_id)) && (side.team == null || x.roster_id !== side.team))
       .sort((x, y) => y.value - x.value)
       .slice(0, 600);
-    document.getElementById(`assets-${side}`).innerHTML = list.map((x) => `<option value="${esc(x.label)}">${fmt(x.value)}</option>`).join("");
-  }
+    document.getElementById(`assets-${i}`).innerHTML = list
+      .map((x) => `<option value="${esc(x.label)}">${fmt(x.value)}${s.length > 2 && x.roster_id ? " · " + esc(teamName(x.roster_id)) : ""}</option>`)
+      .join("");
+  });
 }
 
 function renderTrade() {
-  const vals = {};
-  for (const side of ["a", "b"]) {
-    const el = document.querySelector(`.trade-side[data-side="${side}"]`);
-    const items = state.trade[side].map(assetById).filter(Boolean);
-    vals[side] = items.map((x) => x.value);
+  const s = sides();
+  const multi = s.length > 2;
+  fillDatalists();
+  const gets = s.map(() => []), gives = s.map(() => []);
+  const unassigned = [];
+  const baseRanks = leagueStrength().ranks;
+  s.forEach((side, i) => {
+    side.assets.map(assetById).filter(Boolean).forEach((a) => {
+      gets[i].push(a.value);
+      const from = senderOf(a, i);
+      if (from >= 0) gives[from].push(a.value);
+      else unassigned.push(a);
+    });
+  });
+  s.forEach((side, i) => {
+    const el = document.querySelector(`.trade-side[data-i="${i}"]`);
+    const items = side.assets.map(assetById).filter(Boolean);
     el.querySelector(".assets").innerHTML = items
-      .map((x) => `<li><span>${esc(x.label)}</span><span class="num">${fmt(x.value)}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`)
+      .map((x) => {
+        const from = senderOf(x, i);
+        const tag = multi ? `<span class="muted from">${from >= 0 ? "from " + esc(sideName(from)) : "sender not in trade"}</span>` : "";
+        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+      })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
-      b.addEventListener("click", () => { state.trade[side] = state.trade[side].filter((id) => id !== b.dataset.id); renderTrade(); })
+      b.addEventListener("click", () => { side.assets = side.assets.filter((id) => id !== b.dataset.id); renderTrade(); })
     );
-    const raw = vals[side].reduce((s, x) => s + x, 0);
-    el.querySelector(".side-total").innerHTML = items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(vals[side]))}</strong>` : "";
-  }
+    const raw = gets[i].reduce((t, x) => t + x, 0);
+    let needLine = "";
+    if (side.team != null) {
+      const nd = needsOf(side.team, baseRanks);
+      needLine = `<div class="needs">Needs: ${nd.needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || "none"}${nd.strengths.length ? ` · Strong at ${nd.strengths.join(", ")}` : ""}</div>`;
+    }
+    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(gets[i]))}</strong>` : "") + needLine;
+  });
+
   const out = $("#trade-result");
-  if (!state.trade.a.length && !state.trade.b.length) {
-    out.innerHTML = `<p class="muted">Add what each team receives. Values are this league's, and the adjusted total applies a consolidation premium: one great player is worth more than two good ones that add up to the same raw total.</p>`;
+  if (!s.some((x) => x.assets.length)) {
+    out.innerHTML = `<p class="muted">Add what each team receives${multi ? " (pick each team first, so the calculator knows who sends what)" : ""}. Values are this league's, and the adjusted total applies a consolidation premium: one great player is worth more than two good ones that add up to the same raw total.</p>`;
     return;
   }
-  const ea = effective(vals.a), eb = effective(vals.b);
-  const top = Math.max(ea, eb) || 1;
-  const pct = (ea - eb) / top;
-  const nameA = sideTeam("a") ? teamName(sideTeam("a")) : "Team A";
-  const nameB = sideTeam("b") ? teamName(sideTeam("b")) : "Team B";
-  let verdict, short = null, target = 0;
-  if (Math.abs(pct) <= FAIR_MARGIN) verdict = "Fair trade";
-  else if (pct > 0) { verdict = `${esc(nameA)} wins by ${Math.round(pct * 100)}%`; short = "b"; target = ea; }
-  else { verdict = `${esc(nameB)} wins by ${Math.round(-pct * 100)}%`; short = "a"; target = eb; }
-  const shareA = ea + eb ? (ea / (ea + eb)) * 100 : 50;
+  if (multi && s.some((x) => x.team == null)) {
+    out.innerHTML = `<p class="error">Pick a team for every side in a ${s.length}-team trade.</p>`;
+    return;
+  }
+  // Net for each team: adjusted value received minus adjusted value sent.
+  const rows = s.map((_, i) => {
+    const g = effective(gets[i]), v = effective(gives[i]);
+    const top = Math.max(g, v) || 1;
+    return { i, g, v, pct: (g - v) / top };
+  });
+  const fair = rows.every((r) => Math.abs(r.pct) <= FAIR_MARGIN);
+  const winner = rows.reduce((a, b) => (b.pct > a.pct ? b : a));
+  const loser = rows.reduce((a, b) => (b.pct < a.pct ? b : a));
+  let verdict;
+  if (fair) verdict = "Fair trade";
+  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}%`;
+  else verdict = `${esc(sideName(winner.i))} wins most (+${Math.round(winner.pct * 100)}%), ${esc(sideName(loser.i))} loses most (${Math.round(loser.pct * 100)}%)`;
+
+  let detail;
+  if (multi) {
+    detail = `<table class="net"><thead><tr><th>Team</th><th class="num">Gets</th><th class="num">Gives</th><th class="num">Net</th></tr></thead><tbody>${rows
+      .map((r) => `<tr><td>${esc(sideName(r.i))}</td><td class="num">${fmt(r.g)}</td><td class="num">${fmt(r.v)}</td>
+        <td class="num ${Math.abs(r.pct) <= FAIR_MARGIN ? "" : r.pct > 0 ? "up" : "down"}">${r.pct > 0 ? "+" : ""}${Math.round(r.pct * 100)}%</td></tr>`)
+      .join("")}</tbody></table>`;
+  } else {
+    const ea = rows[0].g, eb = rows[1].g;
+    detail = `<div class="bar"><div style="width:${ea + eb ? (ea / (ea + eb)) * 100 : 50}%"></div></div>`;
+  }
+  if (unassigned.length) {
+    detail += `<p class="error">Not counted as sent by anyone: ${unassigned.map((a) => esc(a.label)).join(", ")}. Their owner isn't one of the teams in this trade.</p>`;
+  }
+
   let suggest = "";
-  if (short) {
-    const need = balanceNeeded(vals[short], target);
-    const giver = sideTeam(short === "a" ? "b" : "a");
-    const taken = new Set([...state.trade.a, ...state.trade.b]);
+  if (!fair) {
+    // Close the biggest gap: the biggest loser gets more from the biggest winner.
+    const need = balanceNeeded(gets[loser.i], effective(gives[loser.i]));
+    const giver = s[winner.i].team;
+    const taken = new Set(s.flatMap((x) => x.assets));
     const cands = [...state.assetMap.values()]
       .filter((x) => !taken.has(x.id) && x.value > 0 && (giver == null || x.roster_id === giver))
       .sort((x, y) => Math.abs(x.value - need) - Math.abs(y.value - need))
       .slice(0, 6)
       .sort((x, y) => y.value - x.value);
-    const who = short === "a" ? nameA : nameB;
-    suggest = `<p>To even it out, ${esc(who)} should also get about <strong>${fmt(need)}</strong> in value. Closest fits:</p>
-      <ul class="suggest">${cands.map((x) => `<li><button data-side="${short}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
+    suggest = `<p>To even it out, ${esc(sideName(loser.i))} should also get about <strong>${fmt(need)}</strong> in value${multi ? ` from ${esc(sideName(winner.i))}` : ""}. Closest fits:</p>
+      <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
   }
-  out.innerHTML = `<div class="verdict ${short ? "uneven" : "fair"}">${verdict}</div>
-    <div class="bar"><div style="width:${shareA}%"></div></div>${suggest}`;
+  out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${detail}${suggest}${tradeImpact(s)}`;
   out.querySelectorAll(".suggest button").forEach((b) =>
-    b.addEventListener("click", () => { state.trade[b.dataset.side].push(b.dataset.id); renderTrade(); })
+    b.addEventListener("click", () => { s[Number(b.dataset.i)].assets.push(b.dataset.id); renderTrade(); })
   );
+}
+
+// ---------- roster strength: starters, position rooms, needs ----------
+// Mirrors engine/league.py SLOT_ELIGIBILITY.
+const SLOT_ELIGIBILITY = {
+  QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DEF: ["DEF"], DL: ["DL"], LB: ["LB"], DB: ["DB"],
+  FLEX: ["RB", "WR", "TE"], WRRB_FLEX: ["RB", "WR"], REC_FLEX: ["WR", "TE"],
+  SUPER_FLEX: ["QB", "RB", "WR", "TE"], IDP_FLEX: ["DL", "LB", "DB"],
+};
+const DEPTH_WEIGHT = 0.25; // bench players count a little toward a room (injury/bye cover)
+const DEPTH_COUNT = 2;
+
+function bestLineup(players) {
+  const slots = [...state.data.league.format.starting_slots].sort((a, b) => SLOT_ELIGIBILITY[a].length - SLOT_ELIGIBILITY[b].length);
+  const pool = players.filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
+  const used = new Set(), lineup = [];
+  for (const slot of slots) {
+    const p = pool.find((x) => !used.has(x.id) && SLOT_ELIGIBILITY[slot].includes(x.pos));
+    if (p) { used.add(p.id); lineup.push({ slot, p }); }
+  }
+  return lineup;
+}
+
+function roomPositions() {
+  const groups = new Set();
+  state.data.league.format.starting_slots.forEach((s) => SLOT_ELIGIBILITY[s].forEach((g) => groups.add(g)));
+  return POSITIONS.filter((p) => groups.has(p));
+}
+
+// Strength of one roster: starter value plus, per position, its starters' value
+// and a little credit for depth.
+function rosterStrength(players) {
+  const lineup = bestLineup(players);
+  const starters = new Set(lineup.map((x) => x.p.id));
+  const rooms = {};
+  for (const pos of roomPositions()) {
+    const atPos = players.filter((p) => p.pos === pos).sort((a, b) => b.value - a.value);
+    const start = atPos.filter((p) => starters.has(p.id));
+    const bench = atPos.filter((p) => !starters.has(p.id)).slice(0, DEPTH_COUNT);
+    rooms[pos] = start.reduce((t, p) => t + p.value, 0) + DEPTH_WEIGHT * bench.reduce((t, p) => t + p.value, 0);
+  }
+  return { starters: lineup.reduce((t, x) => t + x.p.value, 0), rooms };
+}
+
+function rosterOf(rid) {
+  return state.data.players.filter((p) => p.roster_id === rid);
+}
+
+// Rank every team by starters and by each room; `overrides` swaps in post-trade rosters.
+function leagueStrength(overrides = {}) {
+  const by = {};
+  for (const t of state.data.teams) by[t.roster_id] = rosterStrength(overrides[t.roster_id] || rosterOf(t.roster_id));
+  const rank = (key) => {
+    const order = Object.keys(by).sort((a, b) => key(by[b]) - key(by[a]));
+    const r = {};
+    order.forEach((rid, i) => (r[rid] = i + 1));
+    return r;
+  };
+  const ranks = { starters: rank((x) => x.starters) };
+  for (const pos of roomPositions()) ranks[pos] = rank((x) => x.rooms[pos] || 0);
+  return { by, ranks };
+}
+
+function needsOf(rid, ranks) {
+  const n = state.data.teams.length;
+  const needs = [], strengths = [];
+  for (const pos of roomPositions()) {
+    const r = ranks[pos][rid];
+    if (r > (2 * n) / 3) needs.push(pos);
+    else if (r <= n / 3) strengths.push(pos);
+  }
+  return { needs, strengths };
+}
+
+function rankCell(r, n) {
+  const cls = r <= n / 3 ? "up" : r > (2 * n) / 3 ? "down" : "";
+  return `<td class="num ${cls}">${r}</td>`;
+}
+
+function renderRooms() {
+  const { ranks } = leagueStrength();
+  const n = state.data.teams.length;
+  const pos = roomPositions();
+  const rows = [...state.data.teams]
+    .sort((a, b) => ranks.starters[a.roster_id] - ranks.starters[b.roster_id])
+    .map((t) => {
+      const { needs } = needsOf(t.roster_id, ranks);
+      return `<tr><td class="name">${esc(t.name)}</td>${rankCell(ranks.starters[t.roster_id], n)}${pos.map((p) => rankCell(ranks[p][t.roster_id], n)).join("")}
+        <td>${needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || '<span class="muted">none</span>'}</td></tr>`;
+    })
+    .join("");
+  $("#rooms").innerHTML = `<thead><tr><th>Team</th><th class="num">Starters</th>${pos.map((p) => `<th class="num">${p}</th>`).join("")}<th>Needs</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+// How a trade changes each involved team's starters and rooms, by league rank.
+function tradeImpact(s) {
+  const before = leagueStrength();
+  const overrides = {};
+  s.forEach((side) => { if (side.team != null) overrides[side.team] = rosterOf(side.team).slice(); });
+  s.forEach((side, i) => {
+    side.assets.map(assetById).filter((a) => a && a.kind === "player").forEach((a) => {
+      const from = senderOf(a, i);
+      const fromTeam = from >= 0 ? s[from].team : null;
+      if (fromTeam != null && overrides[fromTeam]) overrides[fromTeam] = overrides[fromTeam].filter((p) => p.id !== a.id);
+      if (side.team != null) overrides[side.team].push(a);
+    });
+  });
+  if (!Object.keys(overrides).length) return "";
+  const after = leagueStrength(overrides);
+  const arrow = (b, a) => (a < b ? `<span class="up">#${b} → #${a}</span>` : a > b ? `<span class="down">#${b} → #${a}</span>` : `<span class="muted">#${b}</span>`);
+  const rows = s.filter((x) => x.team != null).map((side) => {
+    const rid = side.team;
+    const sb = before.by[rid].starters, sa = after.by[rid].starters;
+    const diff = sa - sb;
+    const moved = roomPositions().filter((p) => before.ranks[p][rid] !== after.ranks[p][rid] || Math.round(before.by[rid].rooms[p]) !== Math.round(after.by[rid].rooms[p]));
+    const need = needsOf(rid, before.ranks).needs;
+    const filled = need.filter((p) => after.ranks[p][rid] < before.ranks[p][rid]);
+    const opened = needsOf(rid, after.ranks).needs.filter((p) => !need.includes(p));
+    const notes = [
+      filled.length ? `<span class="up">helps need at ${filled.join(", ")}</span>` : "",
+      opened.length ? `<span class="down">creates a need at ${opened.join(", ")}</span>` : "",
+    ].filter(Boolean).join(" · ");
+    return `<tr><td class="name">${esc(teamName(rid))}</td>
+      <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
+      <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
+      <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
+      <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
+  });
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.</p>`;
 }
 
 // ---------- teams ----------
@@ -253,6 +479,7 @@ function renderTeams() {
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
   );
+  renderRooms();
   renderTeamDetail();
 }
 

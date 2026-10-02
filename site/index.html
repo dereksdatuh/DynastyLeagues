@@ -37,29 +37,15 @@
     </section>
 
     <section id="tab-trade" class="tab hidden">
-      <div class="trade-grid">
-        <div class="trade-side" data-side="a">
-          <h3>Team A gets</h3>
-          <select class="team-pick" aria-label="Team A"></select>
-          <input class="asset-search" type="search" placeholder="Add player or pick" list="assets-a" />
-          <datalist id="assets-a"></datalist>
-          <ul class="assets"></ul>
-          <div class="side-total"></div>
-        </div>
-        <div class="trade-side" data-side="b">
-          <h3>Team B gets</h3>
-          <select class="team-pick" aria-label="Team B"></select>
-          <input class="asset-search" type="search" placeholder="Add player or pick" list="assets-b" />
-          <datalist id="assets-b"></datalist>
-          <ul class="assets"></ul>
-          <div class="side-total"></div>
-        </div>
-      </div>
+      <div class="toolbar"><span class="muted">Teams in trade</span><div id="team-count" class="chips"></div></div>
+      <div id="trade-sides" class="trade-grid"></div>
       <div id="trade-result"></div>
     </section>
 
     <section id="tab-teams" class="tab hidden">
       <div class="table-wrap"><table id="teams"></table></div>
+      <h3>Best rooms <span class="muted">(league rank by starters and by position; green = top third, red = bottom third)</span></h3>
+      <div class="table-wrap"><table id="rooms"></table></div>
       <div id="team-detail"></div>
     </section>
 
