@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynasty Leagues</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Dynasty Leagues</h1>
+      <span id="updated" class="muted"></span>
+    </div>
+    <select id="league-select" aria-label="League"></select>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="rankings" class="active">Rankings</button>
+    <button data-tab="trade">Trade Calculator</button>
+    <button data-tab="teams">Teams</button>
+    <button data-tab="league">League &amp; Sources</button>
+  </nav>
+
+  <main>
+    <section id="tab-rankings" class="tab">
+      <div class="toolbar">
+        <div id="pos-filter" class="chips"></div>
+        <input id="search" type="search" placeholder="Search players" />
+        <select id="owner-filter" aria-label="Owner filter">
+          <option value="all">All players</option>
+          <option value="rostered">Rostered</option>
+          <option value="fa">Free agents</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table id="rankings"></table></div>
+    </section>
+
+    <section id="tab-trade" class="tab hidden">
+      <div class="trade-grid">
+        <div class="trade-side" data-side="a">
+          <h3>Team A gets</h3>
+          <select class="team-pick" aria-label="Team A"></select>
+          <input class="asset-search" type="search" placeholder="Add player or pick" list="assets-a" />
+          <datalist id="assets-a"></datalist>
+          <ul class="assets"></ul>
+          <div class="side-total"></div>
+        </div>
+        <div class="trade-side" data-side="b">
+          <h3>Team B gets</h3>
+          <select class="team-pick" aria-label="Team B"></select>
+          <input class="asset-search" type="search" placeholder="Add player or pick" list="assets-b" />
+          <datalist id="assets-b"></datalist>
+          <ul class="assets"></ul>
+          <div class="side-total"></div>
+        </div>
+      </div>
+      <div id="trade-result"></div>
+    </section>
+
+    <section id="tab-teams" class="tab hidden">
+      <div class="table-wrap"><table id="teams"></table></div>
+      <div id="team-detail"></div>
+    </section>
+
+    <section id="tab-league" class="tab hidden">
+      <div id="league-info"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

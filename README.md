@@ -1,93 +1,68 @@
 # Dynasty Leagues
 
-Tracks your dynasty fantasy football leagues, formats, buy-ins/payouts, and produces
-2026 dynasty player values customized to each league's scoring and roster settings.
+A self-running dynasty fantasy football engine. For every league in
+`data/leagues.json` it pulls the league from Sleeper, prices every player and pick
+for that league's exact roster and scoring settings, and publishes rankings, team
+breakdowns and a trade calculator.
 
-## How it works
+## What it does
 
-1. **League sync** — pulls live league settings, rosters, and standings from the
-   [Sleeper API](https://docs.sleeper.com/) for each league you configure.
-2. **Baseline values** — pulls public dynasty trade values from
-   [FantasyCalc](https://fantasycalc.com), parameterized by your league's number of
-   teams, QB format (1QB vs Superflex), and PPR scoring.
-3. **League-specific adjustments** — applies further adjustments on top of the
-   baseline (currently: TE premium bonus boosts TE values), then re-ranks all
-   players to produce that league's own dynasty 2026 rankings.
-4. **Dashboard** — a simple web UI shows each league's format, money details, team
-   rosters with valuations, and full player rankings.
+- **Market values from several sites**: FantasyCalc (queried for the league's exact
+  team count, QB format and PPR), KeepTradeCut, and DynastyProcess (FantasyPros
+  consensus). Each source is quantile-mapped onto one value curve and averaged, and
+  the spread between sites is kept so you can see where the market disagrees.
+- **Exact-scoring fit**: every player's projected and recent stat lines are scored
+  under your league's real settings (6pt pass TDs, TE premium, rush attempt and
+  first-down points, IDP tackles and sacks, anything Sleeper supports) and compared
+  with generic scoring. Players and positions your scoring favors move up.
+- **League production model**: replacement level is found by filling every starting
+  lineup in your league (flex slots last), then points over replacement are projected
+  five years with positional age curves and year-to-year stability, and calibrated onto
+  the market scale. Positions no market prices (IDP, K, DEF) are valued from this.
+- **Final value** = 60% scoring-adjusted market + 40% model (tunable in
+  `engine/valuation.py`).
+- **Rankings**: overall and positional, with tiers, market vs. model, scoring fit,
+  points per game, this week's projected points (Sleeper) and owner.
+- **Trade calculator**: pick two teams, add players and picks, get a verdict with a
+  consolidation premium (one great player beats two good ones with the same raw total)
+  and suggested pieces to balance it.
+- **Teams**: power rankings by total value, optimal starting lineup value, pick
+  capital, projected points this week, starter age and contender/rebuilding outlook.
+- **Picks**: ownership comes from Sleeper (traded picks included); next year's picks
+  are tiered early/mid/late by projected finish.
 
-## Setup
+## Running it on its own
+
+`.github/workflows/build-values.yml` runs the engine every 6 hours and publishes the
+site to GitHub Pages. One-time setup: **Settings → Pages → Source: GitHub Actions**.
+Every run's summary page shows each league's source health and its top 25.
+
+## Running locally
 
 ```bash
 pip install -r requirements.txt
-uvicorn backend.main:app --reload
+python -m engine.build              # writes site/data/*.json
+uvicorn backend.main:app --reload   # serves the site at http://localhost:8000
 ```
 
-Then open http://localhost:8000
+The server also offers `POST /api/rebuild?league_id=...` and `POST /api/trade`
+(`{"league_id", "a": [asset ids], "b": [asset ids]}`), and `PUT /api/leagues/{id}` to
+edit buy-ins and payouts.
 
-## Configuring your leagues
+## Configuring leagues
 
-Edit `data/leagues.json`. For each league, fill in:
+Each entry in `data/leagues.json` needs an `id` and the `sleeper_league_id` (the number
+in your sleeper.com league URL); `buy_in`, `payouts` and `notes` are shown on the
+League tab.
 
-- `sleeper_league_id` — found in the URL when viewing your league on sleeper.com
-  (e.g. `https://sleeper.com/leagues/<this number>/...`)
-- `buy_in` — entry fee for the league
-- `payouts` — object describing how money is distributed (1st, 2nd, 3rd place,
-  regular season champ, last-place penalties, etc. — add whatever fields fit your
-  league)
-- `notes` — anything else worth remembering (side bets, rules quirks, etc.)
+## Tests
 
-Example:
+`python -m pytest -q` runs the whole pipeline offline against synthetic fixtures
+(including one built on league-1's real 14-team superflex TE-premium IDP settings).
 
-```json
-{
-  "id": "league-1",
-  "name": "The Dynasty Dome",
-  "sleeper_league_id": "1234567890123456789",
-  "buy_in": 100,
-  "currency": "USD",
-  "payouts": {
-    "1st": 500,
-    "2nd": 250,
-    "3rd": 100,
-    "regular_season_champ": 50,
-    "toilet_bowl_penalty": -50,
-    "notes": "Last place pays $50 to 1st place winner of toilet bowl game"
-  },
-  "notes": "12-team superflex, TE premium (+0.5)"
-}
-```
+## Layout
 
-You can add as many leagues as you want to the `leagues` array.
-
-## How dynasty values adjust to your settings
-
-- **QB format**: if your `roster_positions` include a `SUPER_FLEX` slot (or 2+ QB
-  starting slots), values are pulled using FantasyCalc's 2-QB/Superflex value set,
-  which significantly boosts QB values relative to 1-QB leagues.
-- **PPR**: your league's `rec` scoring setting is rounded to the nearest 0.5 and
-  passed to FantasyCalc (0 / 0.5 / 1 PPR value sets).
-- **TE Premium**: if your league awards bonus points per TE reception
-  (`bonus_rec_te`), TE values get an extra multiplier on top of the baseline, and
-  the whole player pool is re-ranked.
-
-This adjustment logic lives in `backend/values.py` (`apply_scoring_adjustments`) —
-extend it if you want to account for other settings (e.g. 6pt passing TDs, IDP,
-return yardage, etc.).
-
-## API endpoints
-
-- `GET /api/leagues` — list configured leagues (format/money metadata)
-- `PUT /api/leagues/{id}` — update a league's config (buy-in, payouts, notes)
-- `GET /api/leagues/{id}/sleeper` — raw Sleeper league/roster/user data
-- `GET /api/leagues/{id}/values` — full player pool with this league's dynasty values
-- `GET /api/leagues/{id}/rosters` — each team's roster valued under this league's settings
-
-## Notes / next steps
-
-- Player value cache (FantasyCalc) refreshes every 12 hours; Sleeper's full player
-  database is cached for 24 hours (`data/cache/`, gitignored).
-- The TE premium adjustment is a heuristic — tune the multiplier in
-  `apply_scoring_adjustments` to match how your league actually plays out.
-- To support a non-Sleeper league, add a client module similar to `sleeper.py` that
-  produces the same `value_params` / roster shape consumed by `main.py`.
+- `engine/` — Sleeper client, market sources, scoring, model, valuation, picks, trade math, build CLI
+- `site/` — static front end (reads `site/data/`)
+- `backend/` — optional FastAPI server
+- `.claude/skills/dynasty-engine/` — how a Claude session should use and extend the engine

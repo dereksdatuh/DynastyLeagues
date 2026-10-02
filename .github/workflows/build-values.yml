@@ -1,0 +1,69 @@
+name: Build dynasty values
+
+# Runs the engine against live Sleeper and market data and publishes the site.
+# Scheduled runs keep values fresh with no server to babysit.
+on:
+  schedule:
+    - cron: "23 */6 * * *" # every 6 hours
+  workflow_dispatch:
+  push:
+    paths: ["engine/**", "site/**", "data/leagues.json", ".github/workflows/build-values.yml"]
+  pull_request:
+
+concurrency:
+  group: build-values-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Build values for every league
+        run: python -m engine.build --out site/data
+      - name: Summarize
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          idx = json.loads(pathlib.Path("site/data/index.json").read_text())
+          print("| League | Teams | Format | Sources |\n|---|---|---|---|")
+          for lg in idx["leagues"]:
+              f = lg["format"]
+              fmt = f'{"SF" if f["superflex"] else "1QB"}, {f["ppr"]} PPR, TEP {f["te_premium"]}{", IDP" if f["idp"] else ""}'
+              src = ", ".join(f'{s["source"]} {"ok " + str(s.get("matched")) if s["ok"] else "FAILED"}' for s in lg["sources"])
+              print(f'| {lg["name"]} | {lg["teams"]} | {fmt} | {src} |')
+          data = json.loads(pathlib.Path(f'site/data/{idx["leagues"][0]["id"]}.json').read_text())
+          print("\nTop 25 in", idx["leagues"][0]["name"], "\n\n| # | Player | Pos | Value | Market | Model | Fit |\n|---|---|---|---|---|---|---|")
+          for p in data["players"][:25]:
+              print(f'| {p["rank"]} | {p["name"]} | {p["pos"]}{p["pos_rank"]} | {p["value"]} | {p["market"]} | {p["model"]} | {p["premium"]} |')
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-data
+          path: site/data
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    # Needs Settings > Pages > Source set to "GitHub Actions" (one-time).
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
