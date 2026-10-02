@@ -14,7 +14,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import ids, sleeper, valuation
+from . import ids, record, sleeper, valuation
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
 from .picks import PickValues, pick_label, pick_ownership
@@ -78,8 +78,22 @@ class Shared:
         return tables
 
 
-def build_league(config: dict, shared: Shared) -> dict:
+def season_schedule(lid: str, league: dict, state: dict):
+    """Remaining regular-season pairings {week: [[a, b], ...]}; a week Sleeper can't serve plays the field."""
+    schedule = {}
+    for week in record.remaining_weeks(league, state):
+        try:
+            schedule[week] = record.schedule_pairs(sleeper.matchups(lid, week))
+        except Exception as exc:
+            print(f"warning: matchups {lid} week {week} failed: {exc}", file=sys.stderr)
+            schedule[week] = []
+    median_game = bool((league.get("settings") or {}).get("league_average_match"))
+    return schedule, median_game
+
+
+def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     lid = config["sleeper_league_id"]
+    me = (me or "").lower()
     league = sleeper.league(lid)
     rosters = sleeper.rosters(lid)
     users = sleeper.users(lid)
@@ -111,6 +125,7 @@ def build_league(config: dict, shared: Shared) -> dict:
     )
     for p in players:
         p["roster_id"] = owner_of.get(p["id"])
+        p["ros_ppg"] = record.ros_ppg(p.get("ppg"), p.get("injury"))
     by_id = {p["id"]: p for p in players}
 
     users_by_id = {u["user_id"]: u for u in users}
@@ -132,13 +147,23 @@ def build_league(config: dict, shared: Shared) -> dict:
             "player_value": sum(p["value"] for p in roster_players),
             "lineup": best_lineup(roster_players, fmt.slots, "value"),
             "week_lineup": best_lineup(roster_players, fmt.slots, "proj_week"),
+            "ros_lineup": best_lineup(roster_players, fmt.slots, "ros_ppg"),
+            "is_me": bool(me) and me in {(owner.get("display_name") or "").lower(), (owner.get("username") or "").lower()},
         })
     for t in teams:
         t["starter_value"] = round(sum(x["value"] for x in t["lineup"]))
         t["proj_week_points"] = round(sum(x["proj_week"] for x in t["week_lineup"]), 2)
+        t["ros_ppg"] = round(sum(x["ros_ppg"] for x in t["ros_lineup"]), 2)
         starters = [by_id[x["id"]] for x in t["lineup"]]
         ages = [(p["age"], p["value"]) for p in starters if p.get("age")]
         t["starter_age"] = round(sum(a * v for a, v in ages) / sum(v for _, v in ages), 1) if ages else None
+
+    schedule, median_game = season_schedule(lid, league, shared.state)
+    ppg = {t["roster_id"]: t["ros_ppg"] for t in teams}
+    sigma = record.sigma_for(ppg)
+    projected = record.project(ppg, {t["roster_id"]: t["record"] for t in teams}, schedule, median_game, sigma)
+    for t in teams:
+        t["projection"] = projected[t["roster_id"]]
 
     # Projected finish (weakest lineup picks first) sets next year's pick tiers.
     n = len(teams)
@@ -184,6 +209,8 @@ def build_league(config: dict, shared: Shared) -> dict:
             "payouts": config.get("payouts"), "notes": config.get("notes"),
             "format": fmt.summary(), "scoring": fmt.scoring, "week": tables["week"],
         },
+        "schedule": {"weeks": schedule, "median_game": median_game, "sigma": round(sigma, 2),
+                     "sigma_share": record.SIGMA_SHARE},
         "sources": source_status,
         "model": model_info,
         "players": players,
@@ -200,14 +227,15 @@ def main(argv=None):
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    configs = json.loads(LEAGUES_FILE.read_text())["leagues"]
+    settings = json.loads(LEAGUES_FILE.read_text())
+    configs = settings["leagues"]
     if args.league:
         configs = [c for c in configs if c["id"] == args.league]
     shared = Shared()
     index, failures = [], 0
     for config in configs:
         try:
-            data = build_league(config, shared)
+            data = build_league(config, shared, settings.get("sleeper_username"))
         except Exception:
             failures += 1
             print(f"error: league {config['id']} failed", file=sys.stderr)
@@ -226,6 +254,9 @@ def main(argv=None):
                 print(f"  {s['source']} failed: {s['error']}")
         top = ", ".join(f"{p['name']} {p['pos']} {p['value']}" for p in data["players"][:12])
         print(f"  top: {top}")
+        recs = ", ".join(f"{t['name']} {t['projection']['wins']:.1f}-{t['projection']['losses']:.1f}"
+                         for t in sorted(data["teams"], key=lambda t: t["projection"]["rank"]))
+        print(f"  projected: {recs} ({sum(len(w) for w in data['schedule']['weeks'].values())} scheduled games)")
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "leagues": index}, indent=1))
     if failures == len(configs):

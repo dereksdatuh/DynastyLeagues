@@ -182,3 +182,48 @@ def test_three_team_trade_nets_and_balance():
     # Two-team results match the original calculator.
     two = trade.evaluate_multi([{"name": "A", "gets": [5000], "gives": [4900]}, {"name": "B", "gets": [4900], "gives": [5000]}])
     assert two["verdict"] == "fair"
+
+
+def test_win_probability_and_projected_record():
+    from engine import record
+    assert record.win_prob(100, 100, 20) == pytest.approx(0.5)
+    assert record.win_prob(120, 100, 20) == pytest.approx(0.760, abs=0.002)  # Φ(20 / (20·√2))
+    ppg = {1: 130.0, 2: 100.0, 3: 100.0, 4: 70.0}
+    schedule = {5: [[1, 4], [2, 3]], 6: [[1, 2], [3, 4]], 7: []}  # week 7 has no pairing: play the field
+    cur = {r: {"wins": 2, "losses": 2, "ties": 0} for r in ppg}
+    out = record.project(ppg, cur, schedule, sigma=20)
+    assert all(o["remaining_games"] == 3 for o in out.values())
+    assert out[1]["rank"] == 1 and out[4]["rank"] == 4
+    assert out[2]["wins"] == pytest.approx(2 + 0.5 + record.win_prob(100, 130, 20) + record.vs_field(2, ppg, 20), abs=0.01)
+    # Expected wins across the league add up to games played.
+    assert sum(o["remaining_wins"] for o in out.values()) == pytest.approx(6, abs=0.02)
+    med = record.project(ppg, cur, schedule, median_game=True, sigma=20)
+    assert med[1]["remaining_games"] == 6 and med[1]["wins"] > out[1]["wins"]
+
+
+def test_schedule_pairs_and_remaining_weeks():
+    from engine import record
+    rows = [{"roster_id": 1, "matchup_id": 2}, {"roster_id": 3, "matchup_id": 2}, {"roster_id": 2, "matchup_id": None}]
+    assert record.schedule_pairs(rows) == [[1, 3]]
+    lg = {"season": "2026", "status": "in_season", "settings": {"playoff_week_start": 15}}
+    assert record.remaining_weeks(lg, {"season": "2026", "week": 5, "season_type": "regular"}) == list(range(5, 15))
+    assert record.remaining_weeks({**lg, "status": "pre_draft", "season": "2027"}, {"season": "2026", "week": 5}) == list(range(1, 15))
+    assert record.remaining_weeks({**lg, "status": "complete"}, {}) == []
+
+
+def test_build_projects_records_from_schedule(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    weeks = data["schedule"]["weeks"]
+    assert list(weeks) == list(range(5, 15)) and all(len(w) == 6 for w in weeks.values())
+    teams = data["teams"]
+    assert sorted(t["projection"]["rank"] for t in teams) == list(range(1, 13))
+    for t in teams:
+        pr = t["projection"]
+        assert pr["remaining_games"] == 10 and t["ros_ppg"] > 0
+        assert pr["wins"] + pr["losses"] == pytest.approx(t["record"]["wins"] + t["record"]["losses"] + 10)
+    assert sum(t["projection"]["remaining_wins"] for t in teams) == pytest.approx(60, abs=0.1)
+    best = max(teams, key=lambda t: t["ros_ppg"])
+    assert best["projection"]["remaining_wins"] > 5
+    assert [t["is_me"] for t in teams].count(True) == 0  # no username passed
+    mine = build.build_league({"id": "t", "name": "t", "sleeper_league_id": "L2"}, build.Shared(), "ds107")
+    assert [t["owner"] for t in mine["teams"] if t["is_me"]] == ["DS107"]

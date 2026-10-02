@@ -26,6 +26,16 @@ breakdowns and a trade calculator.
 - **Trade calculator**: pick two teams, add players and picks, get a verdict with a
   consolidation premium (one great player beats two good ones with the same raw total)
   and suggested pieces to balance it.
+- **Projected records**: each team's best lineup by rest-of-season points per game
+  (injured players discounted) plays its real remaining Sleeper schedule, including a
+  league-median game if the league uses one. Projected record = current record plus
+  expected wins. The trade calculator shows how each team's projected record and
+  standing change if the trade goes through.
+- **Owner messages**: for every other owner in a trade, the calculator writes a
+  ready-to-send pitch that lists only the reasons that are true for them (value edge,
+  needs filled, lineup rank, projected wins, picks, age, scoring fit), with a copy
+  button. You send it yourself in Sleeper; nothing is sent automatically. Your own
+  team is recognized from `sleeper_username` in `data/leagues.json`.
 - **Teams**: power rankings by total value, optimal starting lineup value, pick
   capital, projected points this week, starter age and contender/rebuilding outlook.
 - **Picks**: ownership comes from Sleeper (traded picks included); next year's picks

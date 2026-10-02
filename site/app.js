@@ -246,7 +246,8 @@ function renderTrade() {
   fillDatalists();
   const gets = s.map(() => []), gives = s.map(() => []);
   const unassigned = [];
-  const baseRanks = leagueStrength().ranks;
+  const base = leagueStrength();
+  const baseRanks = base.ranks;
   s.forEach((side, i) => {
     side.assets.map(assetById).filter(Boolean).forEach((a) => {
       gets[i].push(a.value);
@@ -328,9 +329,22 @@ function renderTrade() {
     suggest = `<p>To even it out, ${esc(sideName(loser.i))} should also get about <strong>${fmt(need)}</strong> in value${multi ? ` from ${esc(sideName(winner.i))}` : ""}. Closest fits:</p>
       <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
   }
-  out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${detail}${suggest}${tradeImpact(s)}`;
+  const overrides = tradeOverrides(s);
+  const after = leagueStrength(overrides);
+  const recBefore = projectRecords(), recAfter = projectRecords(overrides);
+  const ctx = { s, rows, gets, before: base, after, recBefore, recAfter };
+  out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${detail}${suggest}`
+    + tradeImpact(s, overrides, ctx.before, after, recBefore, recAfter) + renderPitches(ctx);
   out.querySelectorAll(".suggest button").forEach((b) =>
     b.addEventListener("click", () => { s[Number(b.dataset.i)].assets.push(b.dataset.id); renderTrade(); })
+  );
+  out.querySelectorAll(".pitch button.copy").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const ta = b.closest(".pitch").querySelector("textarea");
+      try { await navigator.clipboard.writeText(ta.value); } catch { ta.select(); document.execCommand("copy"); }
+      b.textContent = "Copied";
+      setTimeout(() => (b.textContent = "Copy"), 1500);
+    })
   );
 }
 
@@ -344,9 +358,9 @@ const SLOT_ELIGIBILITY = {
 const DEPTH_WEIGHT = 0.25; // bench players count a little toward a room (injury/bye cover)
 const DEPTH_COUNT = 2;
 
-function bestLineup(players) {
+function bestLineup(players, key = "value") {
   const slots = [...state.data.league.format.starting_slots].sort((a, b) => SLOT_ELIGIBILITY[a].length - SLOT_ELIGIBILITY[b].length);
-  const pool = players.filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
+  const pool = players.filter((p) => p[key] > 0).sort((a, b) => b[key] - a[key]);
   const used = new Set(), lineup = [];
   for (const slot of slots) {
     const p = pool.find((x) => !used.has(x.id) && SLOT_ELIGIBILITY[slot].includes(x.pos));
@@ -426,9 +440,56 @@ function renderRooms() {
   $("#rooms").innerHTML = `<thead><tr><th>Team</th><th class="num">Starters</th>${pos.map((p) => `<th class="num">${p}</th>`).join("")}<th>Needs</th></tr></thead><tbody>${rows}</tbody>`;
 }
 
-// How a trade changes each involved team's starters and rooms, by league rank.
-function tradeImpact(s) {
-  const before = leagueStrength();
+// ---------- projected records (mirrors engine/record.py) ----------
+function erf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+const winProb = (a, b, sigma) => 0.5 * (1 + erf((a - b) / (sigma * 2)));
+const teamPPG = (players) => bestLineup(players, "ros_ppg").reduce((t, x) => t + x.p.ros_ppg, 0);
+
+function vsField(rid, ppg, sigma) {
+  const others = Object.keys(ppg).filter((k) => k != rid).map((k) => ppg[k]);
+  return others.length ? others.reduce((t, v) => t + winProb(ppg[rid], v, sigma), 0) / others.length : 0.5;
+}
+function vsMedian(rid, ppg, sigma) {
+  const o = Object.keys(ppg).filter((k) => k != rid).map((k) => ppg[k]).sort((a, b) => a - b);
+  if (!o.length) return 0.5;
+  const h = Math.floor(o.length / 2);
+  const mid = o.length % 2 ? o[h] : (o[h - 1] + o[h]) / 2;
+  return 0.5 * (1 + erf((ppg[rid] - mid) / (sigma * Math.SQRT2)));
+}
+
+// Projected record for every team; `overrides` swaps in post-trade rosters.
+// The weekly spread stays at the league's pre-trade value so a trade moves only the means.
+function projectRecords(overrides = {}) {
+  const sch = state.data.schedule || { weeks: {}, median_game: false, sigma: 0 };
+  const ppg = {};
+  for (const t of state.data.teams) ppg[t.roster_id] = teamPPG(overrides[t.roster_id] || rosterOf(t.roster_id));
+  const vals = Object.values(ppg).filter((v) => v > 0);
+  const sigma = sch.sigma || (sch.sigma_share || 0.18) * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const out = {};
+  for (const t of state.data.teams) {
+    const rid = t.roster_id;
+    let w = 0, g = 0;
+    for (const pairs of Object.values(sch.weeks)) {
+      const m = pairs.find((p) => p.includes(rid));
+      const opp = m ? (m[0] === rid ? m[1] : m[0]) : null;
+      w += opp != null && ppg[opp] != null ? winProb(ppg[rid], ppg[opp], sigma) : vsField(rid, ppg, sigma);
+      g += 1;
+      if (sch.median_game) { w += vsMedian(rid, ppg, sigma); g += 1; }
+    }
+    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g };
+  }
+  Object.keys(out).sort((a, b) => out[b].wins - out[a].wins || out[b].ppg - out[a].ppg).forEach((rid, i) => (out[rid].rank = i + 1));
+  return out;
+}
+const recordText = (r) => `${Math.round(r.wins)}-${Math.round(r.losses)}${r.ties ? "-" + r.ties : ""}`;
+const ordinal = (n) => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
+
+// Rosters for the teams in a trade, after it goes through.
+function tradeOverrides(s) {
   const overrides = {};
   s.forEach((side) => { if (side.team != null) overrides[side.team] = rosterOf(side.team).slice(); });
   s.forEach((side, i) => {
@@ -439,8 +500,12 @@ function tradeImpact(s) {
       if (side.team != null) overrides[side.team].push(a);
     });
   });
+  return overrides;
+}
+
+// How a trade changes each involved team's starters and rooms, by league rank.
+function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
   if (!Object.keys(overrides).length) return "";
-  const after = leagueStrength(overrides);
   const arrow = (b, a) => (a < b ? `<span class="up">#${b} → #${a}</span>` : a > b ? `<span class="down">#${b} → #${a}</span>` : `<span class="muted">#${b}</span>`);
   const rows = s.filter((x) => x.team != null).map((side) => {
     const rid = side.team;
@@ -454,31 +519,121 @@ function tradeImpact(s) {
       filled.length ? `<span class="up">helps need at ${filled.join(", ")}</span>` : "",
       opened.length ? `<span class="down">creates a need at ${opened.join(", ")}</span>` : "",
     ].filter(Boolean).join(" · ");
+    const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
+    const recCell = `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk</span>`;
     return `<tr><td class="name">${esc(teamName(rid))}</td>
+      <td>${recCell}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
       <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
       <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
   });
-  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
-    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.</p>`;
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.
+    ${recordNote()}</p>`;
+}
+
+function recordNote() {
+  const sch = state.data.schedule;
+  const games = sch ? Object.keys(sch.weeks).length : 0;
+  return games
+    ? `Projected record = current record plus expected wins over the ${games} remaining regular-season week${games === 1 ? "" : "s"} against the real schedule${sch.median_game ? " (plus the weekly league-median game)" : ""}, from each lineup's rest-of-season points per game in this league's scoring.`
+    : "No regular-season games left, so projected records equal current records.";
+}
+
+// ---------- owner messages ----------
+// A ready-to-send pitch for each other owner in the trade, built only from the
+// reasons that actually favor them. Derek copies and sends it himself.
+const listNames = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const avgAge = (ps) => { const a = ps.filter((p) => p.age); return a.length ? a.reduce((t, p) => t + p.age, 0) / a.length : null; };
+
+function pitchFor(i, ctx) {
+  const { s, rows, before, after, recBefore, recAfter } = ctx;
+  const rid = s[i].team;
+  const team = state.data.teams.find((t) => t.roster_id === rid);
+  const getsA = s[i].assets.map(assetById).filter(Boolean);
+  const sendsA = s.flatMap((side, k) => side.assets.map(assetById).filter((a) => a && k !== i && senderOf(a, k) === i));
+  const others = s.filter((x, k) => k !== i && x.team != null).map((x) => teamName(x.team));
+  const reasons = [];
+  const pct = rows[i].pct;
+  if (pct > FAIR_MARGIN) reasons.push(`On values built for this league's exact scoring and roster settings, you come out ahead by about ${Math.round(pct * 100)}%.`);
+  else if (pct >= -FAIR_MARGIN) reasons.push(`Value-wise it's basically even (within ${Math.round(Math.abs(pct) * 100)}% on league-adjusted values), so it comes down to fit.`);
+
+  const needs = needsOf(rid, before.ranks).needs;
+  for (const pos of needs) {
+    const b = before.ranks[pos][rid], a = after.ranks[pos][rid];
+    if (a < b) {
+      const who = getsA.filter((x) => x.kind === "player" && x.pos === pos).map((x) => x.name);
+      reasons.push(`It fixes your ${pos} room${who.length ? ` with ${listNames(who)}` : ""}: you go from ${ordinal(b)} to ${ordinal(a)} in the league at ${pos}.`);
+    }
+  }
+  const sb = before.ranks.starters[rid], sa = after.ranks.starters[rid];
+  if (sa < sb) reasons.push(`Your starting lineup moves from ${ordinal(sb)} to ${ordinal(sa)} in the league.`);
+  const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
+  if (dw >= 0.15 && Object.keys(state.data.schedule?.weeks || {}).length) {
+    const moves = [recordText(rb) !== recordText(ra) ? `${recordText(rb)} → ${recordText(ra)}` : "",
+      ra.rank < rb.rank ? `${ordinal(rb.rank)} → ${ordinal(ra.rank)} in projected standings` : ""].filter(Boolean).join(", ");
+    reasons.push(`It projects to about ${dw.toFixed(1)} more wins the rest of the way${moves ? ` (${moves})` : ""}.`);
+  }
+  const picks = getsA.filter((x) => x.kind === "pick");
+  if (picks.length && team.outlook !== "contender") reasons.push(`You add future capital: ${listNames(picks.map((x) => x.label))}.`);
+  const ageIn = avgAge(getsA.filter((x) => x.kind === "player")), ageOut = avgAge(sendsA.filter((x) => x.kind === "player"));
+  if (ageIn != null && ageOut != null && ageOut - ageIn >= 2) reasons.push(`You get younger: the players you get average ${ageIn.toFixed(1)} years old vs ${ageOut.toFixed(1)} for the ones you send.`);
+  else if (ageIn == null && ageOut != null && ageOut >= 28 && picks.length) reasons.push(`You turn ${ageOut >= 30 ? "older" : "aging"} talent into picks before the value drops.`);
+  const fit = getsA.filter((x) => x.kind === "player" && x.premium >= 1.08).map((x) => x.name);
+  if (fit.length) reasons.push(`${listNames(fit)} ${fit.length > 1 ? "score" : "scores"} better in our scoring settings than in standard scoring, so ${fit.length > 1 ? "they're" : "he's"} worth more here than most trade charts say.`);
+
+  const owner = team.owner || team.name;
+  const deal = others.length > 1 ? ` It's a ${s.length}-team deal with ${listNames(others)}.` : "";
+  const text = [
+    `Hey ${owner}, I've got a trade idea for you.${deal}`,
+    "",
+    `You get: ${listNames(getsA.map((x) => x.name || x.label)) || "nothing yet"}`,
+    `You send: ${listNames(sendsA.map((x) => x.name || x.label)) || "nothing"}`,
+    "",
+    ...(reasons.length ? ["Why it works for you:", ...reasons.map((r) => `- ${r}`), ""] : []),
+    "Let me know what you think!",
+  ].join("\n");
+  return { rid, owner, text, strong: reasons.length };
+}
+
+function renderPitches(ctx) {
+  const { s } = ctx;
+  const inTrade = s.map((x, i) => i).filter((i) => s[i].team != null);
+  if (!inTrade.length) return `<h3>Messages to owners</h3><p class="muted">Pick the teams in the trade to get a ready-to-send message for each owner.</p>`;
+  const me = new Set(state.data.teams.filter((t) => t.is_me).map((t) => t.roster_id));
+  const targets = inTrade.filter((i) => !me.has(s[i].team));
+  if (!targets.length) return "";
+  const link = `https://sleeper.com/leagues/${encodeURIComponent(state.data.league.sleeper_league_id)}`;
+  const cards = targets.map((i) => {
+    const p = pitchFor(i, ctx);
+    return `<div class="pitch"><div class="pitch-head"><strong>To ${esc(p.owner)}</strong> <span class="muted">${esc(teamName(p.rid))}</span><button class="copy">Copy</button></div>
+      ${p.strong ? "" : `<p class="down">Nothing in this deal clearly helps them on value, needs or record, so expect a tough sell.</p>`}
+      <textarea readonly rows="${Math.min(14, p.text.split("\n").length + 1)}">${esc(p.text)}</textarea></div>`;
+  });
+  return `<h3>Messages to owners</h3>
+    <p class="muted">Each message only lists reasons that are true for that owner. Copy it and send it in Sleeper yourself (<a href="${link}" target="_blank" rel="noopener">open league</a>); nothing is sent automatically.</p>
+    <div class="pitches">${cards.join("")}</div>`;
 }
 
 // ---------- teams ----------
 function renderTeams() {
+  const recs = projectRecords();
   const rows = state.data.teams
     .map((t) => `<tr class="clickable" data-rid="${t.roster_id}">
       <td>${t.power_rank}</td><td class="name">${esc(t.name)}</td>
       <td>${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
+      <td>${recs[t.roster_id] ? `${recordText(recs[t.roster_id])} <span class="muted">(${ordinal(recs[t.roster_id].rank)})</span>` : ""}</td>
       <td class="num strong">${fmt(t.total_value)}</td><td class="num">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
       <td class="num">${fmt(t.pick_value)}</td><td class="num">${t.proj_week_points || ""}</td>
       <td class="num">${t.starter_age ?? ""}</td><td><span class="outlook ${t.outlook}">${t.outlook}</span></td></tr>`)
     .join("");
-  $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th class="num">Total value</th>
+  $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th>Projected</th><th class="num">Total value</th>
     <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Outlook</th></tr></thead><tbody>${rows}</tbody>`;
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
   );
+  $("#record-note").textContent = recordNote();
   renderRooms();
   renderTeamDetail();
 }
