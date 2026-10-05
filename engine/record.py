@@ -72,11 +72,16 @@ def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False,
                 games += 1
         wins = cur.get("wins", 0) + exp_w
         losses = cur.get("losses", 0) + games - exp_w
+        # Max PF to date plus the best lineup's projected points for each week left.
+        max_pf = (cur.get("max_pf") or 0) + ppg[rid] * len(schedule)
         out[rid] = {"ppg": round(ppg[rid], 2), "wins": round(wins, 2), "losses": round(losses, 2),
-                    "ties": cur.get("ties", 0), "remaining_wins": round(exp_w, 2), "remaining_games": int(games)}
+                    "ties": cur.get("ties", 0), "remaining_wins": round(exp_w, 2), "remaining_games": int(games),
+                    "max_pf": round(max_pf, 1)}
     order = sorted(out, key=lambda r: (-out[r]["wins"], -out[r]["ppg"]))
     for i, rid in enumerate(order, 1):
         out[rid]["rank"] = i
+    for i, rid in enumerate(sorted(out, key=lambda r: -out[r]["max_pf"]), 1):
+        out[rid]["max_pf_rank"] = i
     return out
 
 

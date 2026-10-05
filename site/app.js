@@ -480,9 +480,12 @@ function projectRecords(overrides = {}) {
       g += 1;
       if (sch.median_game) { w += vsMedian(rid, ppg, sigma); g += 1; }
     }
-    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g };
+    // Max PF to date plus the best lineup's projected points for each week left.
+    const maxPF = (t.record.max_pf || 0) + ppg[rid] * Object.keys(sch.weeks).length;
+    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g, maxPF };
   }
   Object.keys(out).sort((a, b) => out[b].wins - out[a].wins || out[b].ppg - out[a].ppg).forEach((rid, i) => (out[rid].rank = i + 1));
+  Object.keys(out).sort((a, b) => out[b].maxPF - out[a].maxPF).forEach((rid, i) => (out[rid].maxPFRank = i + 1));
   return out;
 }
 const recordText = (r) => `${Math.round(r.wins)}-${Math.round(r.losses)}${r.ties ? "-" + r.ties : ""}`;
@@ -520,7 +523,7 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
       opened.length ? `<span class="down">creates a need at ${opened.join(", ")}</span>` : "",
     ].filter(Boolean).join(" · ");
     const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
-    const recCell = `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk</span>`;
+    const recCell = `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk · max PF ${fmt(rb.maxPF)} → ${fmt(ra.maxPF)}</span>`;
     return `<tr><td class="name">${esc(teamName(rid))}</td>
       <td>${recCell}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
@@ -537,7 +540,7 @@ function recordNote() {
   const sch = state.data.schedule;
   const games = sch ? Object.keys(sch.weeks).length : 0;
   return games
-    ? `Projected record = current record plus expected wins over the ${games} remaining regular-season week${games === 1 ? "" : "s"} against the real schedule${sch.median_game ? " (plus the weekly league-median game)" : ""}, from each lineup's rest-of-season points per game in this league's scoring.`
+    ? `Projected record = current record plus expected wins over the ${games} remaining regular-season week${games === 1 ? "" : "s"} against the real schedule${sch.median_game ? " (plus the weekly league-median game)" : ""}, from each lineup's rest-of-season points per game in this league's scoring. Projected max PF = max PF so far (Sleeper's best possible lineup each week played) plus the best lineup's projected points for each week left. Click any column header to sort.`
     : "No regular-season games left, so projected records equal current records.";
 }
 
@@ -622,13 +625,14 @@ function renderTeams() {
   const rows = state.data.teams
     .map((t) => `<tr class="clickable" data-rid="${t.roster_id}">
       <td>${t.power_rank}</td><td class="name">${esc(t.name)}</td>
-      <td>${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
-      <td>${recs[t.roster_id] ? `${recordText(recs[t.roster_id])} <span class="muted">(${ordinal(recs[t.roster_id].rank)})</span>` : ""}</td>
-      <td class="num strong">${fmt(t.total_value)}</td><td class="num">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
+      <td data-sort="${t.record.wins + 0.5 * (t.record.ties || 0) - t.record.losses / 1000}">${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
+      <td data-sort="${recs[t.roster_id] ? recs[t.roster_id].wins : ""}">${recs[t.roster_id] ? `${recordText(recs[t.roster_id])} <span class="muted">(${ordinal(recs[t.roster_id].rank)})</span>` : ""}</td>
+      <td class="num" data-sort="${recs[t.roster_id] ? recs[t.roster_id].maxPF : ""}" title="Max PF so far: ${fmt(t.record.max_pf || 0)}">${recs[t.roster_id] ? `${fmt(recs[t.roster_id].maxPF)} <span class="muted">(${ordinal(recs[t.roster_id].maxPFRank)})</span>` : ""}</td>
+      <td class="num strong">${fmt(t.total_value)}</td><td class="num" data-sort="${t.starter_value}">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
       <td class="num">${fmt(t.pick_value)}</td><td class="num">${t.proj_week_points || ""}</td>
       <td class="num">${t.starter_age ?? ""}</td><td><span class="outlook ${t.outlook}">${t.outlook}</span></td></tr>`)
     .join("");
-  $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th>Projected</th><th class="num">Total value</th>
+  $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th>Projected</th><th class="num" title="Projected end-of-season max PF: max PF so far plus the best lineup's projected points for each regular-season week left">Proj. max PF</th><th class="num">Total value</th>
     <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Outlook</th></tr></thead><tbody>${rows}</tbody>`;
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
@@ -691,5 +695,79 @@ function renderLeague() {
       <li>Final value blends the scoring-adjusted market (60%) and the model (40%).</li>
     </ol>`;
 }
+
+// ---------- sortable tables ----------
+// Click any column header to sort; click again to flip, a third time to go back
+// to the original order. Each table keeps its sort when it re-renders.
+const sortState = {}; // table key -> { col, dir }
+const tableKey = (t) => t.id || t.className || "table";
+
+function cellValue(td) {
+  if (!td) return null;
+  const raw = (td.dataset.sort ?? td.textContent).trim();
+  if (raw === "" || raw === "–") return null;
+  if (td.dataset.sort == null) {
+    const rec = /^(\d+)-(\d+)(?:-(\d+))?(\s|$)/.exec(raw); // a W-L(-T) record
+    if (rec) {
+      const [w, l, t] = [Number(rec[1]), Number(rec[2]), Number(rec[3] || 0)];
+      return w + l + t ? (w + t / 2) / (w + l + t) + w / 1e4 : 0;
+    }
+  }
+  const num = /^[#$+]?\s*(-?[\d,]*\.?\d+)(?![\w])/.exec(raw);
+  return num ? parseFloat(num[1].replace(/,/g, "")) : raw.toLowerCase();
+}
+
+function sortTable(table, col, dir) {
+  const tbody = table.tBodies[0];
+  if (!tbody) return;
+  const rows = [...tbody.rows];
+  rows.forEach((r, i) => { if (r.dataset.order == null) r.dataset.order = i; });
+  const isGap = (r) => r.classList.contains("tier-row");
+  if (!dir) {
+    rows.sort((a, b) => a.dataset.order - b.dataset.order).forEach((r) => { r.hidden = false; tbody.appendChild(r); });
+  } else {
+    const keyed = rows.filter((r) => !isGap(r)).map((r) => [r, cellValue(r.cells[col])]);
+    keyed.sort(([, a], [, b]) => {
+      if (a == null || b == null) return (a == null) - (b == null); // blanks last either way
+      const c = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true });
+      return dir === "asc" ? c : -c;
+    });
+    rows.filter(isGap).forEach((r) => (r.hidden = true)); // tier breaks only make sense in value order
+    keyed.forEach(([r]) => tbody.appendChild(r));
+  }
+  tbody.dataset.sorted = `${col}:${dir || ""}`;
+  table.querySelectorAll("thead th").forEach((th, i) => {
+    if (i === col && dir) th.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
+    else th.removeAttribute("aria-sort");
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const th = e.target.closest("thead th");
+  const table = th && th.closest("table");
+  if (!table) return;
+  const col = [...th.parentNode.children].indexOf(th);
+  const key = tableKey(table);
+  const cur = sortState[key];
+  let dir;
+  if (!cur || cur.col !== col) {
+    // Numbers start high-to-low, text A-Z.
+    const first = [...(table.tBodies[0]?.rows || [])].map((r) => cellValue(r.cells[col])).find((v) => v != null);
+    dir = typeof first === "number" ? "desc" : "asc";
+  } else {
+    dir = cur.dir === "desc" && cur.first === "desc" ? "asc" : cur.dir === "asc" && cur.first === "asc" ? "desc" : null;
+  }
+  sortState[key] = dir ? { col, dir, first: cur && cur.col === col ? cur.first : dir } : undefined;
+  sortTable(table, col, dir);
+});
+
+// Tables are rebuilt with innerHTML; put each one's chosen sort back after that.
+new MutationObserver(() => {
+  document.querySelectorAll("table").forEach((table) => {
+    const st = sortState[tableKey(table)];
+    const tbody = table.tBodies[0];
+    if (st && tbody && tbody.rows.length && !tbody.dataset.sorted) sortTable(table, st.col, st.dir);
+  });
+}).observe(document.body, { childList: true, subtree: true });
 
 init();

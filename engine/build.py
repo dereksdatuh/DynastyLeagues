@@ -140,7 +140,9 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "owner": owner.get("display_name"),
             "avatar": owner.get("avatar"),
             "record": {"wins": st.get("wins", 0), "losses": st.get("losses", 0), "ties": st.get("ties", 0),
-                       "fpts": st.get("fpts", 0) + (st.get("fpts_decimal", 0) or 0) / 100},
+                       "fpts": st.get("fpts", 0) + (st.get("fpts_decimal", 0) or 0) / 100,
+                       # Sleeper's "potential points": best possible lineup each week played.
+                       "max_pf": round((st.get("ppts", 0) or 0) + (st.get("ppts_decimal", 0) or 0) / 100, 2)},
             "players": [p["id"] for p in sorted(roster_players, key=lambda p: p["value"], reverse=True)],
             "taxi": r.get("taxi") or [],
             "reserve": r.get("reserve") or [],

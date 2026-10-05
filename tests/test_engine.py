@@ -227,3 +227,18 @@ def test_build_projects_records_from_schedule(offline):
     assert [t["is_me"] for t in teams].count(True) == 0  # no username passed
     mine = build.build_league({"id": "t", "name": "t", "sleeper_league_id": "L2"}, build.Shared(), "ds107")
     assert [t["owner"] for t in mine["teams"] if t["is_me"]] == ["DS107"]
+
+
+def test_projected_max_pf_adds_best_lineup_for_each_week_left(offline):
+    from engine import record
+    ppg = {1: 130.0, 2: 100.0}
+    cur = {1: {"wins": 1, "losses": 1, "max_pf": 300.0}, 2: {"wins": 1, "losses": 1, "max_pf": 320.0}}
+    out = record.project(ppg, cur, {5: [[1, 2]], 6: [[1, 2]]}, median_game=True, sigma=20)
+    # Two weeks left; the median game adds a result, not points.
+    assert out[1]["max_pf"] == pytest.approx(560) and out[2]["max_pf"] == pytest.approx(520)
+    assert out[1]["max_pf_rank"] == 1
+    data = _build(STANDARD_LEAGUE, offline)
+    for t in data["teams"]:
+        assert t["record"]["max_pf"] == pytest.approx(480.5 + t["roster_id"] - 1)
+        assert t["projection"]["max_pf"] == pytest.approx(t["record"]["max_pf"] + t["ros_ppg"] * 10, abs=0.1)
+    assert sorted(t["projection"]["max_pf_rank"] for t in data["teams"]) == list(range(1, 13))
