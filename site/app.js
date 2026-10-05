@@ -746,9 +746,11 @@ async function refreshLive() {
   if (!L.week) return;
   const leagueId = lg.sleeper_league_id;
   try {
+    // A hung request must not hold up the other one or the next poll.
+    const get = (u) => fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined });
     const [rows, board] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${L.week}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
-      fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${L.week}&dates=${state.data.week.season}`)
+      get(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${L.week}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
+      get(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${L.week}&dates=${state.data.week.season}`)
         .then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     if (state.live !== L) return; // league switched meanwhile

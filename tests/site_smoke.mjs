@@ -22,9 +22,15 @@ await page.goto(url);
 await page.waitForSelector("#league-select option", { state: "attached" });
 const leagues = await page.$$eval("#league-select option", (os) => os.map((o) => o.value));
 for (const id of leagues) {
-  await page.selectOption("#league-select", id);
-  await page.waitForLoadState("networkidle");
-  await page.waitForSelector("#rankings tbody tr", { state: "attached" });
+  // Wait for this league's data rather than an idle network: the page's live
+  // Sleeper/ESPN calls can stay open.
+  if ((await page.$eval("#league-select", (s) => s.value)) !== id) {
+    const loaded = page.waitForResponse((r) => r.url().includes(`data/${id}.json`));
+    await page.selectOption("#league-select", id);
+    await loaded;
+  }
+  await page.waitForFunction((id) => document.querySelector("#rankings tbody tr") && document.querySelector("#league-select").value === id, id);
+  await page.waitForTimeout(500);
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
   await page.click('button[data-tab="teams"]');
   const teams = await page.$$eval("#teams tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim())));
