@@ -9,6 +9,7 @@ read its output.
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -260,7 +261,8 @@ def main(argv=None):
                          for t in sorted(data["teams"], key=lambda t: t["projection"]["rank"]))
         print(f"  projected: {recs} ({sum(len(w) for w in data['schedule']['weeks'].values())} scheduled games)")
     (out / "index.json").write_text(json.dumps({
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "leagues": index}, indent=1))
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))
     if failures == len(configs):
         sys.exit(1)
 
