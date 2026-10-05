@@ -224,7 +224,9 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     for i, t in enumerate(weakest_first):
         finish_tier[t["roster_id"]] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
     pick_values = PickValues(pick_entries)
-    name_of = {t["roster_id"]: t["name"] for t in teams}
+    # Team name plus manager, so "via" picks name the person too.
+    name_of = {t["roster_id"]: t["name"] + (f", {t['owner']}" if t.get("owner") and t["owner"] != t["name"] else "")
+               for t in teams}
     picks = []
     owned = pick_ownership(league, rosters, traded, tables["season"])
     first_year = min((p["year"] for p in owned), default=None)
