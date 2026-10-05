@@ -43,6 +43,8 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .strong { font-weight: 700; }
 .name { font-weight: 600; }
+.manager { color: var(--muted); font-weight: 400; font-size: 0.9em; }
+.manager::before { content: "· "; }
 .tier-row td { background: var(--tier); font-size: 11px; font-weight: 700; color: var(--muted); padding: 3px 10px; letter-spacing: .04em; text-transform: uppercase; }
 .pos { display: inline-block; min-width: 42px; padding: 1px 6px; border-radius: 5px; color: #fff; font-size: 12px; font-weight: 600; text-align: center; background: var(--K); }
 .pos-QB { background: var(--QB); } .pos-RB { background: var(--RB); } .pos-WR { background: var(--WR); } .pos-TE { background: var(--TE); }

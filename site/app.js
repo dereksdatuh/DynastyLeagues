@@ -16,15 +16,26 @@ async function getJSON(path) {
 }
 
 // ---------- data helpers ----------
+// Team name with its manager's Sleeper name, so trades can be matched to people.
+const teamOf = (rid) => state.data.teams.find((t) => t.roster_id === rid);
+const managerOf = (t) => (t && t.owner && t.owner !== t.name ? t.owner : "");
 function teamName(rid) {
-  const t = state.data.teams.find((t) => t.roster_id === rid);
-  return t ? t.name : "";
+  const t = teamOf(rid);
+  return t ? (managerOf(t) ? `${t.name} (${managerOf(t)})` : t.name) : "";
+}
+function pickOwner(rid) {
+  const t = teamOf(rid);
+  return t ? t.name + (managerOf(t) ? `, ${managerOf(t)}` : "") : "";
+}
+function teamHtml(rid) {
+  const t = teamOf(rid);
+  return t ? `${esc(t.name)}${managerOf(t) ? ` <span class="manager">${esc(managerOf(t))}</span>` : ""}` : "";
 }
 function assets() {
   const players = state.data.players.map((p) => ({ ...p, kind: "player", label: `${p.name} (${p.pos}${p.team ? ", " + p.team : ""})` }));
   const picks = state.data.picks.map((p) => ({
     ...p, kind: "pick", name: p.label, pos: "PICK",
-    label: p.label.includes("(via") ? p.label : `${p.label} (${teamName(p.original_roster_id)})`,
+    label: p.label.includes("(via") ? p.label : `${p.label} (${pickOwner(p.original_roster_id)})`,
   }));
   return players.concat(picks);
 }
@@ -120,7 +131,7 @@ function renderRankings() {
     const picks = [...state.data.picks].sort((a, b) => b.value - a.value);
     table.innerHTML = `<thead><tr><th>#</th><th>Pick</th><th>Owner</th><th class="num">Value</th></tr></thead><tbody>${picks
       .filter((p) => !q || p.label.toLowerCase().includes(q) || teamName(p.roster_id).toLowerCase().includes(q))
-      .map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.label)}</td><td>${esc(teamName(p.roster_id))}</td><td class="num strong">${fmt(p.value)}</td></tr>`)
+      .map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.label)}</td><td>${teamHtml(p.roster_id)}</td><td class="num strong">${fmt(p.value)}</td></tr>`)
       .join("")}</tbody>`;
     return;
   }
@@ -148,7 +159,7 @@ function renderRankings() {
         <td class="num muted">${p.model ? fmt(p.model) : "–"}</td>
         <td>${fitBadge(p.premium)}</td>
         <td class="num">${p.ppg ?? ""}${p.proj_week != null ? ` <span class="muted">/ ${p.proj_week}</span>` : ""}</td>
-        <td class="muted">${esc(p.roster_id ? teamName(p.roster_id) : "FA")}</td>
+        <td class="muted">${p.roster_id ? teamHtml(p.roster_id) : "FA"}</td>
       </tr>`;
     })
     .join("");
@@ -215,7 +226,7 @@ function renderSides() {
   const multi = s.length > 2;
   const teamOpts = (sel) =>
     (multi ? `<option value="">Pick a team</option>` : `<option value="">Any team</option>`) +
-    state.data.teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+    state.data.teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("");
   $("#trade-sides").innerHTML = s
     .map((side, i) => `<div class="trade-side" data-i="${i}">
         <h3>Team ${LETTERS[i]} gets</h3>
@@ -452,7 +463,7 @@ function renderRooms() {
     .sort((a, b) => ranks.starters[a.roster_id] - ranks.starters[b.roster_id])
     .map((t) => {
       const { needs } = needsOf(t.roster_id, ranks);
-      return `<tr><td class="name">${esc(t.name)}</td>${rankCell(ranks.starters[t.roster_id], n)}${pos.map((p) => rankCell(ranks[p][t.roster_id], n)).join("")}
+      return `<tr><td class="name">${teamHtml(t.roster_id)}</td>${rankCell(ranks.starters[t.roster_id], n)}${pos.map((p) => rankCell(ranks[p][t.roster_id], n)).join("")}
         <td>${needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || '<span class="muted">none</span>'}</td></tr>`;
     })
     .join("");
@@ -543,7 +554,7 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
     ].filter(Boolean).join(" · ");
     const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
     const recCell = `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk · max PF ${fmt(rb.maxPF)} → ${fmt(ra.maxPF)}</span>`;
-    return `<tr><td class="name">${esc(teamName(rid))}</td>
+    return `<tr><td class="name">${teamHtml(rid)}</td>
       <td>${recCell}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
@@ -629,7 +640,7 @@ function renderPitches(ctx) {
   const link = `https://sleeper.com/leagues/${encodeURIComponent(state.data.league.sleeper_league_id)}`;
   const cards = targets.map((i) => {
     const p = pitchFor(i, ctx);
-    return `<div class="pitch"><div class="pitch-head"><strong>To ${esc(p.owner)}</strong> <span class="muted">${esc(teamName(p.rid))}</span><button class="copy">Copy</button></div>
+    return `<div class="pitch"><div class="pitch-head"><strong>To ${esc(p.owner)}</strong> <span class="muted">${esc(teamOf(p.rid).name)}</span><button class="copy">Copy</button></div>
       ${p.strong ? "" : `<p class="down">Nothing in this deal clearly helps them on value, needs or record, so expect a tough sell.</p>`}
       <textarea readonly rows="${Math.min(14, p.text.split("\n").length + 1)}">${esc(p.text)}</textarea></div>`;
   });
@@ -643,7 +654,7 @@ function renderTeams() {
   const recs = projectRecords();
   const rows = state.data.teams
     .map((t) => `<tr class="clickable" data-rid="${t.roster_id}">
-      <td>${t.power_rank}</td><td class="name">${esc(t.name)}</td>
+      <td>${t.power_rank}</td><td class="name">${teamHtml(t.roster_id)}</td>
       <td data-sort="${t.record.wins + 0.5 * (t.record.ties || 0) - t.record.losses / 1000}">${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
       <td data-sort="${recs[t.roster_id] ? recs[t.roster_id].wins : ""}">${recs[t.roster_id] ? `${recordText(recs[t.roster_id])} <span class="muted">(${ordinal(recs[t.roster_id].rank)})</span>` : ""}</td>
       <td class="num" data-sort="${recs[t.roster_id] ? recs[t.roster_id].maxPF : ""}" title="Max PF so far: ${fmt(t.record.max_pf || 0)}">${recs[t.roster_id] ? `${fmt(recs[t.roster_id].maxPF)} <span class="muted">(${ordinal(recs[t.roster_id].maxPFRank)})</span>` : ""}</td>
@@ -725,7 +736,7 @@ function playerOf(id) {
   return state.assetMap.get(id) || { id, name: /^[A-Z]{2,3}$/.test(id) ? `${id} D/ST` : id, pos: /^[A-Z]{2,3}$/.test(id) ? "DEF" : "", team: /^[A-Z]{2,3}$/.test(id) ? id : null };
 }
 const myTeam = () => state.data.teams.find((t) => t.is_me);
-const ownerTag = (rid) => (rid ? esc(teamName(rid)) : '<span class="muted">FA</span>');
+const ownerTag = (rid) => (rid ? teamHtml(rid) : '<span class="muted">FA</span>');
 const starMine = (rid) => (myTeam() && rid === myTeam().roster_id ? ' <span class="mine" title="Your player">★</span>' : "");
 
 function setupWeek() {
@@ -846,7 +857,7 @@ function renderMatchups() {
   if (!L.week) { el.innerHTML = `<p class="muted">No regular-season week in progress.</p>`; return; }
   const pairs = matchupPairs();
   const when = L.at ? `live from Sleeper, updated ${L.at.toLocaleTimeString()}` : `snapshot from ${new Date(state.data.generated_at).toLocaleString()} (live scores load when Sleeper is reachable)`;
-  const sideHtml = (s, odds) => `<div class="side"><div class="team">${esc(teamName(s.rid))}${starMine(s.rid)}</div>
+  const sideHtml = (s, odds) => `<div class="side"><div class="team">${teamHtml(s.rid)}${starMine(s.rid)}</div>
       <div class="score">${s.points.toFixed(2)}</div>
       <div class="muted">proj ${s.proj.toFixed(1)} · ${s.left} left · ${Math.round(odds * 100)}% to win</div></div>`;
   const lineup = (s) => `<div><table class="lineup"><thead><tr><th>Player</th><th>Game</th><th class="num">Pts</th><th class="num">Proj</th><th class="num">Left</th></tr></thead><tbody>${s.starters

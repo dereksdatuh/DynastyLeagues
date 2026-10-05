@@ -135,7 +135,8 @@ def test_full_build_idp_league(offline):
     assert all(t["proj_week_points"] > 0 for t in data["teams"])
     # Traded pick shows up with its new owner and a "via" label.
     via = [p for p in data["picks"] if p["original_roster_id"] == 2 and p["year"] == 2027 and p["round"] == 1]
-    assert via[0]["roster_id"] == 5 and "via" in via[0]["label"] and via[0]["value"] > 0
+    assert via[0]["roster_id"] == 5 and via[0]["value"] > 0
+    assert via[0]["label"].endswith("(via Team 2, owner2)")  # team and manager
     assert data["league"]["week"] == 5
 
 
