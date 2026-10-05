@@ -31,6 +31,11 @@ breakdowns and a trade calculator.
   league-median game if the league uses one. Projected record = current record plus
   expected wins. The trade calculator shows how each team's projected record and
   standing change if the trade goes through.
+- **Projected max PF**: max PF so far (Sleeper's potential points) plus the best
+  lineup's projected points for each regular-season week left, with its league rank,
+  on the Teams tab and before/after in the trade calculator.
+- **Sorting**: every table sorts by clicking a column header (again to flip, a third
+  time to restore the default order).
 - **Owner messages**: for every other owner in a trade, the calculator writes a
   ready-to-send pitch that lists only the reasons that are true for them (value edge,
   needs filled, lineup rank, projected wins, picks, age, scoring fit), with a copy

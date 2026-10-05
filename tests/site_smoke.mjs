@@ -22,6 +22,13 @@ for (const id of leagues) {
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
   await page.click('button[data-tab="teams"]');
   const teams = await page.$$eval("#teams tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim())));
+  // Sorting: click "Proj. max PF" and check the column comes out high to low.
+  const maxCol = await page.$$eval("#teams thead th", (ths) => ths.findIndex((th) => th.textContent.includes("max PF")));
+  await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
+  const maxPF = await page.$$eval("#teams tbody tr", (rs, c) => rs.map((r) => Number(r.cells[c].dataset.sort)), maxCol);
+  if (maxCol < 0 || maxPF.some((v, i) => i && v > maxPF[i - 1]) || maxPF.some((v) => !(v > 0))) errors.push(`${id}: max PF column missing or not sorted: ${maxPF}`);
+  await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
+  await page.click(`#teams thead th:nth-child(${maxCol + 1})`); // back to original order
   await page.click('button[data-tab="trade"]');
   const picks = await page.$$(".team-pick");
   const optA = await picks[0].$$eval("option", (os) => os.filter((o) => o.value).map((o) => o.value));
@@ -36,7 +43,7 @@ for (const id of leagues) {
   const impact = await page.$$eval(".impact tbody tr", (r) => r.length);
   const pitches = await page.$$eval(".pitch textarea", (ts) => ts.map((t) => t.value));
   await page.click('button[data-tab="rankings"]');
-  console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 4).join(" | ")}, impact rows ${impact}, owner messages ${pitches.length}`);
+  console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 5).join(" | ")}, max PF high ${maxPF[0]?.toFixed(0)}, impact rows ${impact}, owner messages ${pitches.length}`);
   if (pitches[0]) console.log(pitches[0].split("\n").map((l) => "    " + l).join("\n"));
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);
 }

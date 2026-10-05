@@ -111,7 +111,7 @@ def fake_responses(world, league):
     per = 28
     for r in range(league["total_rosters"]):
         rosters.append({"roster_id": r + 1, "owner_id": f"u{r + 1}", "players": pool[r * per:(r + 1) * per],
-                        "settings": {"wins": r % 4, "losses": 4 - r % 4, "ties": 0, "fpts": 400 + r}})
+                        "settings": {"wins": r % 4, "losses": 4 - r % 4, "ties": 0, "fpts": 400 + r, "ppts": 480 + r, "ppts_decimal": 50}})
     users = [{"user_id": f"u{r + 1}", "display_name": "DS107" if r == 0 else f"owner{r + 1}",
               "metadata": {"team_name": f"Team {r + 1}"}} for r in range(league["total_rosters"])]
     # Round-robin schedule: Sleeper returns future weeks with matchup_id set and no points.

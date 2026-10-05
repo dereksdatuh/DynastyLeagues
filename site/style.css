@@ -100,3 +100,8 @@ td.up { color: var(--good); font-weight: 700; } td.down { color: var(--bad); fon
 .pitch-head .copy { margin-left: auto; }
 .pitch textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; resize: vertical; background: transparent; color: inherit; border: 1px solid var(--border, #2a3340); border-radius: 6px; padding: 8px; }
 .pitch p { margin: 4px 0 8px; }
+
+thead th { cursor: pointer; user-select: none; white-space: nowrap; }
+thead th:hover { color: var(--text); }
+thead th[aria-sort]::after { content: " ▼"; font-size: 0.75em; }
+thead th[aria-sort="ascending"]::after { content: " ▲"; }
