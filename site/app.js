@@ -731,7 +731,7 @@ const starMine = (rid) => (myTeam() && rid === myTeam().roster_id ? ' <span clas
 function setupWeek() {
   const wk = state.data.week || {};
   if (state.live) clearTimeout(state.live.timer); // previous league's polling
-  state.live = { week: wk.week, matchups: wk.matchups || [], games: wk.games || {}, at: null, source: "snapshot", open: new Set() };
+  state.live = { week: wk.week, matchups: wk.matchups || [], games: clockFromKickoff(wk.games || {}), at: null, source: "snapshot", open: new Set() };
   const mine = myTeam();
   if (mine) state.live.open.add(mine.roster_id);
   renderMatchups();
@@ -753,11 +753,12 @@ async function refreshLive() {
     ]);
     if (state.live !== L) return; // league switched meanwhile
     L.matchups = rows.map((r) => ({ roster_id: r.roster_id, matchup_id: r.matchup_id, points: r.points, starters: r.starters, players_points: r.players_points }));
-    if (board) L.games = gameStatus(board);
+    L.games = board ? gameStatus(board) : clockFromKickoff(state.data.week.games || {});
     L.at = new Date();
     L.source = "live";
   } catch (e) {
     L.source = "snapshot";
+    L.games = clockFromKickoff(state.data.week.games || {});
   }
   renderMatchups();
   renderPlayersOfWeek();
@@ -782,6 +783,23 @@ function gameStatus(board) {
     }
     const teams = (comp.competitors || []).map((c) => (c.team.abbreviation === "WSH" ? "WAS" : c.team.abbreviation));
     teams.forEach((t, i) => (out[t] = { state: state_, left, label: (st.type || {}).shortDetail || "", kickoff: ev.date, opp: teams[1 - i] }));
+  }
+  return out;
+}
+
+// When ESPN can't be reached from the browser, the build's game status goes stale
+// during games, so estimate what's left from kickoff time (a game runs ~3h10m).
+const GAME_WALL_MS = 190 * 60000;
+function clockFromKickoff(games) {
+  const out = {}, now = Date.now();
+  for (const [team, g] of Object.entries(games)) {
+    const k = Date.parse(g.kickoff);
+    if (g.state === "post" || !k || now < k) { out[team] = g; continue; }
+    const est = Math.max(0, 1 - (now - k) / GAME_WALL_MS);
+    const left = g.state === "in" ? Math.min(g.left, est) : est;
+    out[team] = left > 0
+      ? { ...g, state: "in", left, label: `in progress (est. ${Math.round(left * 100)}% left)` }
+      : { ...g, state: "post", left: 0, label: "Final (est.)" };
   }
   return out;
 }
