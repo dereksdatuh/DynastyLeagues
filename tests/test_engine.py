@@ -242,3 +242,47 @@ def test_projected_max_pf_adds_best_lineup_for_each_week_left(offline):
         assert t["record"]["max_pf"] == pytest.approx(480.5 + t["roster_id"] - 1)
         assert t["projection"]["max_pf"] == pytest.approx(t["record"]["max_pf"] + t["ros_ppg"] * 10, abs=0.1)
     assert sorted(t["projection"]["max_pf_rank"] for t in data["teams"]) == list(range(1, 13))
+
+
+def test_game_status_reads_espn_clock():
+    from engine import weekly
+    board = {"events": [
+        {"competitions": [{"status": {"period": 3, "clock": 450, "type": {"state": "in"}},
+                           "competitors": [{"team": {"abbreviation": "KC"}}, {"team": {"abbreviation": "WSH"}}]}]},
+        {"competitions": [{"status": {"type": {"state": "post"}},
+                           "competitors": [{"team": {"abbreviation": "BUF"}}, {"team": {"abbreviation": "MIA"}}]}]},
+    ]}
+    g = weekly.game_status(board)
+    assert g["KC"]["left"] == pytest.approx((900 + 450) / 3600, abs=0.001) and g["WAS"]["opp"] == "KC"
+    assert g["BUF"]["left"] == 0 and g["MIA"]["state"] == "post"
+
+
+def test_history_and_movers():
+    from engine import weekly
+    players = [{"id": "a", "value": 5000, "rank": 1, "roster_id": 1, "trend": 300, "market": 5100},
+               {"id": "b", "value": 3000, "rank": 2, "roster_id": None, "trend": -200, "market": 3000}]
+    fresh = weekly.update_history({}, players, today="2026-10-05")
+    mv = weekly.movers(fresh, players)
+    assert mv["source"]["kind"] == "market_trend" and mv["risers"][0]["id"] == "a" and mv["fallers"][0]["id"] == "b"
+    old = {"days": {"2026-09-27": {"a": 1}, "2026-09-29": {"a": 4000, "b": 3500}, "2026-10-04": {"a": 4900}}}
+    hist = weekly.update_history(old, players, today="2026-10-05", keep=3)
+    assert sorted(hist["days"]) == ["2026-09-29", "2026-10-04", "2026-10-05"]
+    mv = weekly.movers(hist, players)
+    assert mv["source"] == {"kind": "history", "since": "2026-09-29", "days": 6}
+    assert mv["risers"][0] == {"id": "a", "change": 1000, "pct": 25.0, "was": 4000, "now": 5000}
+    assert mv["fallers"][0]["id"] == "b" and mv["fallers"][0]["change"] == -500
+
+
+def test_build_week_data(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    wk = data["week"]
+    assert wk["week"] == 5 and len(wk["matchups"]) == 12 and all(m["starters"] for m in wk["matchups"])
+    assert wk["games"]["WAS"]["state"] == "in" and wk["games"]["KC"]["left"] > 0
+    assert wk["potw"]["overall"] and wk["last_week"] == 4 and wk["potw_last"]["overall"][0]["pts"] > 0
+    pts = [r["pts"] for r in wk["potw_last"]["overall"]]
+    assert pts == sorted(pts, reverse=True) and set(wk["potw_last"]["by_position"]) <= {"QB", "RB", "WR", "TE"}
+    rostered = {pid for t in data["teams"] for pid in t["players"]}
+    assert wk["news"] and all(set(n["players"]) <= rostered for n in wk["news"])
+    assert all(i["status"] == "Questionable" for i in wk["injuries"])
+    assert wk["movers"]["source"]["kind"] == "market_trend" and wk["movers"]["risers"]
+    assert data["history"]["days"]

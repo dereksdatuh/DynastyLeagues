@@ -73,3 +73,9 @@ def season_stats(season: str | int, include_idp: bool) -> dict:
 def matchups(league_id: str, week: int) -> list:
     """One week's matchup rows (roster_id, matchup_id, points); future weeks carry the schedule."""
     return get_json(f"sleeper_matchups_{league_id}_w{week}", f"{V1}/league/{league_id}/matchups/{week}", ttl=HOUR)
+
+
+def week_stats(season: str | int, week: int, include_idp: bool) -> dict:
+    params = {"season_type": "regular", "position[]": _positions(include_idp), "order_by": "pts_ppr"}
+    rows = get_json(f"sleeper_stats_{season}_w{week}_{int(include_idp)}", f"{STATS}/{season}/{week}", params, ttl=HOUR)
+    return _by_player(rows)

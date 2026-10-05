@@ -7,7 +7,7 @@ description: Use when evaluating a trade, ranking players, checking a team, or c
 
 Values are built per league by `python -m engine.build` into `site/data/<league-id>.json`
 (leagues live in `data/leagues.json`). The GitHub Action `build-values.yml` runs it every
-6 hours and publishes the site; its run summary and `site-data` artifact hold the latest JSON.
+hour and publishes the site; its run summary and `site-data` artifact hold the latest JSON.
 
 ## Answering questions with real numbers
 
@@ -37,6 +37,9 @@ Values are built per league by `python -m engine.build` into `site/data/<league-
   spread) and `AVAILABILITY` (injury discounts). Keep both in sync.
 - `site/app.js` (`pitchFor`): owner trade messages; each reason is only included
   when it holds for that owner.
+- `engine/weekly.py` and `site/app.js` (week block): matchup snapshot, ESPN game
+  status (`game_status` mirrors JS `gameStatus`), players of the week, value history
+  and movers, ESPN news and the injury report. The browser refreshes matchups live.
 - New market source: add `engine/sources/<name>.py` with `fetch(fmt, index)` returning
   the entry shape documented in `engine/sources/__init__.py`, register it in `SOURCES`
   and `market.SOURCE_WEIGHTS`, and add a fake response in `tests/conftest.py`.

@@ -43,12 +43,27 @@ breakdowns and a trade calculator.
   team is recognized from `sleeper_username` in `data/leagues.json`.
 - **Teams**: power rankings by total value, optimal starting lineup value, pick
   capital, projected points this week, starter age and contender/rebuilding outlook.
+- **Matchups**: this week's scores in every league. While the tab is open the page
+  pulls live points from Sleeper and game clocks from ESPN every minute (falling back
+  to the last build's snapshot if either is unreachable). Each card shows points so
+  far, starters still to play, projected final (points so far + each starter's
+  projection for the part of his game left) and win odds; open one for both lineups.
+  Your matchup is first and open.
+- **Players of the Week**: top scorers in your league's scoring, overall and by
+  position, for this week so far (rostered players) and last week's final (everyone,
+  free agents included).
+- **Risers & Fallers**: biggest value changes over the last 7 days in each league's
+  own values. The build keeps a daily snapshot per league for 21 days
+  (`data/history/<id>.json` on the published site); until a week has built up the tab
+  uses FantasyCalc's 30-day trend.
+- **News**: an injury report for rostered players (Sleeper) and ESPN headlines about
+  rostered players, with yours first.
 - **Picks**: ownership comes from Sleeper (traded picks included); next year's picks
   are tiered early/mid/late by projected finish.
 
 ## Running it on its own
 
-`.github/workflows/build-values.yml` runs the engine every 6 hours and publishes the
+`.github/workflows/build-values.yml` runs the engine every hour and publishes the
 site to GitHub Pages. One-time setup: **Settings → Pages → Source: GitHub Actions**.
 Every run's summary page shows each league's source health and its top 25.
 
