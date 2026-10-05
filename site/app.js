@@ -33,9 +33,24 @@ function assetById(id) {
 }
 
 // ---------- league loading ----------
+// Stamped with the commit at deploy time (see build-values.yml), like index.json's
+// "build". A browser holding an older app.js than the data reloads once with the
+// new version in the URL, which skips its cached copies of the page and scripts.
+const BUILD = "__BUILD__";
+
+function reloadIfStale(latest) {
+  if (!latest || BUILD.startsWith("__") || latest === BUILD) return false;
+  const url = new URL(location.href);
+  if (url.searchParams.get("v") === latest) return false; // already tried once
+  url.searchParams.set("v", latest);
+  location.replace(url);
+  return true;
+}
+
 async function init() {
   try {
     state.index = await getJSON("data/index.json");
+    if (reloadIfStale(state.index.build)) return;
   } catch (e) {
     $("main").innerHTML = `<p class="error">No data built yet. Run <code>python -m engine.build</code> (the scheduled GitHub Action does this daily).</p>`;
     return;
