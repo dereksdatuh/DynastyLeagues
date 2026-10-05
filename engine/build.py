@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import ids, record, sleeper, valuation
+from . import fetch, ids, record, sleeper, valuation, weekly
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
 from .picks import PickValues, pick_label, pick_ownership
@@ -24,6 +24,7 @@ from .sources import SOURCES
 ROOT = Path(__file__).resolve().parent.parent
 LEAGUES_FILE = ROOT / "data" / "leagues.json"
 DEFAULT_OUT = ROOT / "site" / "data"
+SITE_URL = os.environ.get("SITE_URL", "https://dereksdatuh.github.io/DynastyLeagues/")
 
 
 def best_lineup(players: list[dict], slots: list[str], key: str) -> list[dict]:
@@ -52,6 +53,17 @@ class Shared:
             crosswalk = []
         self.index = ids.PlayerIndex(self.players, crosswalk)
         self._stats: dict = {}
+        self._espn: dict = {}
+
+    def espn(self, name: str, *args):
+        """ESPN scoreboard / news, fetched once per run; empty when unreachable."""
+        if name not in self._espn:
+            try:
+                self._espn[name] = getattr(weekly, name)(*args)
+            except Exception as exc:
+                print(f"warning: ESPN {name} failed: {exc}", file=sys.stderr)
+                self._espn[name] = {}
+        return self._espn[name]
 
     def stat_tables(self, idp: bool):
         if idp in self._stats:
@@ -67,8 +79,12 @@ class Shared:
                 print(f"warning: {fn.__name__}{args} failed: {exc}", file=sys.stderr)
                 return {}
 
+        last_week = week - 1 if in_season and week > 1 else None
         tables = {
             "season": season,
+            "week_stats": safe(sleeper.week_stats, season, week, idp) if in_season and week else {},
+            "last_week": last_week,
+            "last_week_stats": safe(sleeper.week_stats, season, last_week, idp) if last_week else {},
             "week": week if in_season else None,
             "proj": safe(sleeper.season_projections, season, idp),
             "week_proj": safe(sleeper.week_projections, season, week, idp) if in_season and week else {},
@@ -80,16 +96,48 @@ class Shared:
 
 
 def season_schedule(lid: str, league: dict, state: dict):
-    """Remaining regular-season pairings {week: [[a, b], ...]}; a week Sleeper can't serve plays the field."""
-    schedule = {}
+    """Remaining regular-season pairings {week: [[a, b], ...]} (a week Sleeper can't serve
+    plays the field), plus the current week's raw matchup rows for the Matchups tab."""
+    schedule, current = {}, []
     for week in record.remaining_weeks(league, state):
         try:
-            schedule[week] = record.schedule_pairs(sleeper.matchups(lid, week))
+            rows = sleeper.matchups(lid, week)
         except Exception as exc:
             print(f"warning: matchups {lid} week {week} failed: {exc}", file=sys.stderr)
-            schedule[week] = []
+            rows = []
+        schedule[week] = record.schedule_pairs(rows)
+        if week == int(state.get("week") or 0):
+            current = rows
     median_game = bool((league.get("settings") or {}).get("league_average_match"))
-    return schedule, median_game
+    return schedule, median_game, current
+
+
+def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> dict:
+    """Matchups snapshot, NFL game status, players of the week, movers and news."""
+    week = tables["week"]
+    board = shared.espn("scoreboard", tables["season"], week) if week else {}
+    return {
+        "week": week,
+        "season": tables["season"],
+        "matchups": weekly.matchup_snapshot(current_rows),
+        "games": weekly.game_status(board),
+        "potw": weekly.players_of_week(tables["week_stats"], fmt, shared.players, owner_of) if week else None,
+        "last_week": tables["last_week"],
+        "potw_last": weekly.players_of_week(tables["last_week_stats"], fmt, shared.players, owner_of)
+        if tables["last_week"] else None,
+        "movers": weekly.movers(history, players),
+        "news": weekly.news_items(shared.espn("espn_news"), shared.players, owner_of),
+        "injuries": weekly.injury_report(players, shared.players),
+    }
+
+
+def load_history(league_id: str) -> dict:
+    """Value snapshots so far, read back from the published site (the build keeps no state)."""
+    try:
+        return fetch.get_json(f"history_{league_id}", f"{SITE_URL}data/history/{league_id}.json", ttl=0)
+    except Exception as exc:
+        print(f"note: no value history for {league_id} yet ({type(exc).__name__}); starting fresh", file=sys.stderr)
+        return {}
 
 
 def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
@@ -128,6 +176,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         p["roster_id"] = owner_of.get(p["id"])
         p["ros_ppg"] = record.ros_ppg(p.get("ppg"), p.get("injury"))
     by_id = {p["id"]: p for p in players}
+    history = weekly.update_history(load_history(config["id"]), players)
 
     users_by_id = {u["user_id"]: u for u in users}
     teams = []
@@ -161,7 +210,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         ages = [(p["age"], p["value"]) for p in starters if p.get("age")]
         t["starter_age"] = round(sum(a * v for a, v in ages) / sum(v for _, v in ages), 1) if ages else None
 
-    schedule, median_game = season_schedule(lid, league, shared.state)
+    schedule, median_game, current_rows = season_schedule(lid, league, shared.state)
     ppg = {t["roster_id"]: t["ros_ppg"] for t in teams}
     sigma = record.sigma_for(ppg)
     projected = record.project(ppg, {t["roster_id"]: t["record"] for t in teams}, schedule, median_game, sigma)
@@ -212,8 +261,10 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "payouts": config.get("payouts"), "notes": config.get("notes"),
             "format": fmt.summary(), "scoring": fmt.scoring, "week": tables["week"],
         },
+        "week": week_data(tables, current_rows, fmt, shared, players, owner_of, history),
         "schedule": {"weeks": schedule, "median_game": median_game, "sigma": round(sigma, 2),
                      "sigma_share": record.SIGMA_SHARE},
+        "history": history,
         "sources": source_status,
         "model": model_info,
         "players": players,
@@ -244,6 +295,8 @@ def main(argv=None):
             print(f"error: league {config['id']} failed", file=sys.stderr)
             traceback.print_exc()
             continue
+        (out / "history").mkdir(exist_ok=True)
+        (out / "history" / f"{config['id']}.json").write_text(json.dumps(data.pop("history"), separators=(",", ":")))
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
@@ -259,6 +312,12 @@ def main(argv=None):
         print(f"  top: {top}")
         recs = ", ".join(f"{t['name']} {t['projection']['wins']:.1f}-{t['projection']['losses']:.1f}"
                          for t in sorted(data["teams"], key=lambda t: t["projection"]["rank"]))
+        wk = data["week"]
+        mv = wk["movers"]
+        print(f"  week {wk['week']}: {len(wk['matchups'])} matchup rows, {len(wk['games'])} NFL teams with game status, "
+              f"{len(wk['news'])} news items, {len(wk['injuries'])} injuries, movers from {mv['source']}, "
+              f"top scorer {(wk['potw'] or {}).get('overall', [{}])[0].get('name') if (wk['potw'] or {}).get('overall') else None}, "
+              f"last week top {(wk['potw_last'] or {}).get('overall', [{}])[0].get('name') if (wk['potw_last'] or {}).get('overall') else None}")
         print(f"  projected: {recs} ({sum(len(w) for w in data['schedule']['weeks'].values())} scheduled games)")
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

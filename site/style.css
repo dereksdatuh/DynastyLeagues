@@ -105,3 +105,26 @@ thead th { cursor: pointer; user-select: none; white-space: nowrap; }
 thead th:hover { color: var(--text); }
 thead th[aria-sort]::after { content: " ▼"; font-size: 0.75em; }
 thead th[aria-sort="ascending"]::after { content: " ▲"; }
+
+.matchup { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin: 10px 0; padding: 10px 12px; }
+.matchup.open { border-color: var(--accent, #3b82f6); }
+.matchup .head { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 12px; align-items: center; cursor: pointer; }
+.matchup .side:last-child { text-align: right; }
+.matchup .team { font-weight: 600; }
+.matchup .score { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.matchup .odds { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.matchup .odds div { height: 100%; background: var(--accent, #3b82f6); }
+.matchup .expand { cursor: pointer; font-size: 12px; margin-top: 6px; }
+.matchup .lineups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+.matchup .lineups > div { overflow-x: auto; min-width: 0; }
+.lineup { width: 100%; font-size: 13px; }
+.lineup tr.done td { opacity: 0.75; }
+.cols.two { grid-template-columns: 1fr 1fr; }
+.mine { color: #eab308; }
+.news { list-style: none; padding: 0; }
+.news li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.news li.mine-row { border-left: 3px solid #eab308; padding-left: 8px; }
+@media (max-width: 760px) {
+  .matchup .head { grid-template-columns: 1fr 60px 1fr; }
+  .matchup .lineups, .cols.two { grid-template-columns: 1fr; }
+}

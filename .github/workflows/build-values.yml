@@ -4,7 +4,7 @@ name: Build dynasty values
 # Scheduled runs keep values fresh with no server to babysit.
 on:
   schedule:
-    - cron: "23 */6 * * *" # every 6 hours
+    - cron: "23 * * * *" # hourly, so news, injuries and the scores snapshot stay fresh
   workflow_dispatch:
   push:
     paths: ["engine/**", "site/**", "data/leagues.json", ".github/workflows/build-values.yml"]

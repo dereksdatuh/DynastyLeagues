@@ -79,6 +79,7 @@ async function loadLeague(id) {
   setupTrade();
   renderTeams();
   renderLeague();
+  setupWeek();
 }
 
 // ---------- tabs ----------
@@ -86,6 +87,9 @@ document.querySelectorAll(".tabs button").forEach((btn) =>
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b === btn));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== `tab-${btn.dataset.tab}`));
+    // Coming back to Matchups after a while: refresh scores now rather than at the next poll.
+    const L = state.live;
+    if (btn.dataset.tab === "matchups" && L && L.week && (!L.at || Date.now() - L.at > LIVE_MS)) refreshLive();
   })
 );
 
@@ -709,6 +713,229 @@ function renderLeague() {
       <li>Model: points over replacement, with replacement set by filling every lineup in this league, projected five years with age curves, then put on the market scale. IDP and kickers, which no market prices, come from this alone.</li>
       <li>Final value blends the scoring-adjusted market (60%) and the model (40%).</li>
     </ol>`;
+}
+
+// ---------- this week: live matchups, players of the week, movers, news ----------
+// The build ships a snapshot (data.week); while the Matchups tab is open the page
+// refreshes scores from Sleeper and game clocks from ESPN every minute.
+const LIVE_MS = 60000;
+const LEAGUE_GAME = 3600;
+
+function playerOf(id) {
+  return state.assetMap.get(id) || { id, name: /^[A-Z]{2,3}$/.test(id) ? `${id} D/ST` : id, pos: /^[A-Z]{2,3}$/.test(id) ? "DEF" : "", team: /^[A-Z]{2,3}$/.test(id) ? id : null };
+}
+const myTeam = () => state.data.teams.find((t) => t.is_me);
+const ownerTag = (rid) => (rid ? esc(teamName(rid)) : '<span class="muted">FA</span>');
+const starMine = (rid) => (myTeam() && rid === myTeam().roster_id ? ' <span class="mine" title="Your player">★</span>' : "");
+
+function setupWeek() {
+  const wk = state.data.week || {};
+  if (state.live) clearTimeout(state.live.timer); // previous league's polling
+  state.live = { week: wk.week, matchups: wk.matchups || [], games: clockFromKickoff(wk.games || {}), at: null, source: "snapshot", open: new Set() };
+  const mine = myTeam();
+  if (mine) state.live.open.add(mine.roster_id);
+  renderMatchups();
+  renderPlayersOfWeek();
+  renderMovers();
+  renderNews();
+  refreshLive();
+}
+
+async function refreshLive() {
+  const lg = state.data.league, L = state.live;
+  if (!L.week) return;
+  const leagueId = lg.sleeper_league_id;
+  try {
+    // A hung request must not hold up the other one or the next poll.
+    const get = (u) => fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined });
+    const [rows, board] = await Promise.all([
+      get(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${L.week}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
+      get(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${L.week}&dates=${state.data.week.season}`)
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    if (state.live !== L) return; // league switched meanwhile
+    L.matchups = rows.map((r) => ({ roster_id: r.roster_id, matchup_id: r.matchup_id, points: r.points, starters: r.starters, players_points: r.players_points }));
+    L.games = board ? gameStatus(board) : clockFromKickoff(state.data.week.games || {});
+    L.at = new Date();
+    L.source = "live";
+  } catch (e) {
+    L.source = "snapshot";
+    L.games = clockFromKickoff(state.data.week.games || {});
+  }
+  renderMatchups();
+  renderPlayersOfWeek();
+  if (state.live !== L) return; // league switched while this was loading
+  clearTimeout(L.timer);
+  // Poll only while the Matchups tab is on screen; check again a minute later otherwise.
+  const tick = () => (!document.hidden && !$("#tab-matchups").classList.contains("hidden") ? refreshLive() : (L.timer = setTimeout(tick, LIVE_MS)));
+  L.timer = setTimeout(tick, LIVE_MS);
+}
+
+// Mirrors engine/weekly.py game_status.
+function gameStatus(board) {
+  const out = {};
+  for (const ev of board.events || []) {
+    const comp = (ev.competitions || [{}])[0];
+    const st = comp.status || ev.status || {};
+    const state_ = (st.type || {}).state || "pre";
+    let left = state_ === "pre" ? 1 : state_ === "post" ? 0 : 0;
+    if (state_ === "in") {
+      const period = Number(st.period || 1), clock = Number(st.clock || 0);
+      left = period <= 4 ? Math.max(0, Math.min(1, ((4 - period) * 900 + clock) / LEAGUE_GAME)) : 0.03;
+    }
+    const teams = (comp.competitors || []).map((c) => (c.team.abbreviation === "WSH" ? "WAS" : c.team.abbreviation));
+    teams.forEach((t, i) => (out[t] = { state: state_, left, label: (st.type || {}).shortDetail || "", kickoff: ev.date, opp: teams[1 - i] }));
+  }
+  return out;
+}
+
+// When ESPN can't be reached from the browser, the build's game status goes stale
+// during games, so estimate what's left from kickoff time (a game runs ~3h10m).
+const GAME_WALL_MS = 190 * 60000;
+function clockFromKickoff(games) {
+  const out = {}, now = Date.now();
+  for (const [team, g] of Object.entries(games)) {
+    const k = Date.parse(g.kickoff);
+    if (g.state === "post" || !k || now < k) { out[team] = g; continue; }
+    const est = Math.max(0, 1 - (now - k) / GAME_WALL_MS);
+    const left = g.state === "in" ? Math.min(g.left, est) : est;
+    out[team] = left > 0
+      ? { ...g, state: "in", left, label: `in progress (est. ${Math.round(left * 100)}% left)` }
+      : { ...g, state: "post", left: 0, label: "Final (est.)" };
+  }
+  return out;
+}
+
+// One side of a matchup: points so far, what its starters still project, and who's left.
+function sideOf(row) {
+  const sameWeek = state.live.week === (state.data.week || {}).week;
+  const starters = (row.starters || []).filter((id) => id && id !== "0").map((id) => {
+    const p = playerOf(id);
+    const g = state.live.games[p.team] || null;
+    const pts = (row.players_points || {})[id] || 0;
+    const full = (sameWeek && p.proj_week != null ? p.proj_week : p.ros_ppg) || 0;
+    // No game found for his team: a bye, or ESPN unavailable (then guess from points so far).
+    const left = g ? g.left : Object.keys(state.live.games).length ? 0 : pts ? 0 : 1;
+    return { p, pts, full, left, rem: full * left, status: g ? (g.state === "pre" ? new Date(g.kickoff).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : g.label) : Object.keys(state.live.games).length ? "Bye / no game" : "" };
+  });
+  const rem = starters.reduce((t, x) => t + x.rem, 0), full = starters.reduce((t, x) => t + x.full, 0);
+  return { rid: row.roster_id, points: row.points || 0, rem, proj: (row.points || 0) + rem, full, starters, left: starters.filter((x) => x.left > 0).length };
+}
+
+function matchupPairs() {
+  const by = {};
+  for (const r of state.live.matchups) if (r.matchup_id != null) (by[r.matchup_id] = by[r.matchup_id] || []).push(r);
+  const mine = myTeam();
+  return Object.values(by).filter((x) => x.length === 2)
+    .map((pair) => (mine && pair[1].roster_id === mine.roster_id ? [pair[1], pair[0]] : pair))
+    .sort((a, b) => (mine ? (b[0].roster_id === mine.roster_id) - (a[0].roster_id === mine.roster_id) : 0));
+}
+
+function winOdds(a, b) {
+  const sigma = (state.data.schedule || {}).sigma || 25;
+  // Spread shrinks as the week plays out: what's left is the only uncertainty.
+  const sd = (s) => sigma * Math.sqrt(s.full > 0 ? Math.min(1, s.rem / s.full) : 0);
+  const spread = Math.sqrt(sd(a) ** 2 + sd(b) ** 2);
+  if (spread < 1e-6) return a.proj > b.proj ? 1 : a.proj < b.proj ? 0 : 0.5;
+  return 0.5 * (1 + erf((a.proj - b.proj) / (spread * Math.SQRT2)));
+}
+
+function renderMatchups() {
+  const el = $("#matchups");
+  const L = state.live;
+  if (!L.week) { el.innerHTML = `<p class="muted">No regular-season week in progress.</p>`; return; }
+  const pairs = matchupPairs();
+  const when = L.at ? `live from Sleeper, updated ${L.at.toLocaleTimeString()}` : `snapshot from ${new Date(state.data.generated_at).toLocaleString()} (live scores load when Sleeper is reachable)`;
+  const sideHtml = (s, odds) => `<div class="side"><div class="team">${esc(teamName(s.rid))}${starMine(s.rid)}</div>
+      <div class="score">${s.points.toFixed(2)}</div>
+      <div class="muted">proj ${s.proj.toFixed(1)} · ${s.left} left · ${Math.round(odds * 100)}% to win</div></div>`;
+  const lineup = (s) => `<div><table class="lineup"><thead><tr><th>Player</th><th>Game</th><th class="num">Pts</th><th class="num">Proj</th><th class="num">Left</th></tr></thead><tbody>${s.starters
+      .map((x) => `<tr class="${x.left > 0 ? "" : "done"}"><td><span class="pos pos-${x.p.pos}">${x.p.pos}</span> ${esc(x.p.name)} <span class="muted">${esc(x.p.team || "")}</span></td>
+        <td class="muted">${esc(x.status)}</td><td class="num strong">${x.pts.toFixed(2)}</td><td class="num">${x.full.toFixed(1)}</td><td class="num">${x.left > 0 ? x.rem.toFixed(1) : ""}</td></tr>`)
+      .join("")}</tbody></table></div>`;
+  el.innerHTML = `<p class="muted">Week ${L.week} · ${when}. Projected final = points so far plus each starter's projection for the part of his game still to play.</p>` +
+    (pairs.length ? pairs.map(([a, b]) => {
+      const A = sideOf(a), B = sideOf(b), pa = winOdds(A, B);
+      const open = L.open.has(A.rid) || L.open.has(B.rid);
+      return `<div class="matchup ${open ? "open" : ""}" data-rid="${A.rid}">
+        <div class="head">${sideHtml(A, pa)}<div class="vs"><div class="odds"><div style="width:${pa * 100}%"></div></div></div>${sideHtml(B, 1 - pa)}</div>
+        ${open ? `<div class="lineups">${lineup(A)}${lineup(B)}</div>` : `<div class="muted expand">Show lineups</div>`}</div>`;
+    }).join("") : `<p class="muted">Sleeper has no matchups for week ${L.week} in this league.</p>`);
+  el.querySelectorAll(".matchup .head, .matchup .expand").forEach((h) =>
+    h.addEventListener("click", () => {
+      const rid = Number(h.closest(".matchup").dataset.rid);
+      L.open.has(rid) ? L.open.delete(rid) : L.open.add(rid);
+      renderMatchups();
+    })
+  );
+}
+
+function potwTable(rows, id) {
+  return `<table id="${id}"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>NFL</th><th class="num">Pts</th><th>Owner</th></tr></thead><tbody>${rows
+    .map((r, i) => `<tr><td>${i + 1}</td><td class="name">${esc(r.name)}${starMine(r.roster_id)}</td><td><span class="pos pos-${r.pos}">${r.pos}</span></td>
+      <td>${esc(r.team || "")}</td><td class="num strong">${r.pts.toFixed(2)}</td><td>${ownerTag(r.roster_id)}</td></tr>`)
+    .join("")}</tbody></table>`;
+}
+function byPosition(rows, n = 3) {
+  const out = {};
+  rows.forEach((r) => { if ((out[r.pos] = out[r.pos] || []).length < n) out[r.pos].push(r); });
+  return out;
+}
+function posCards(groups) {
+  return `<div class="cols">${Object.entries(groups).sort((a, b) => POSITIONS.indexOf(a[0]) - POSITIONS.indexOf(b[0]))
+    .map(([pos, rs]) => `<div class="card"><h4>${pos}</h4><ul>${rs.map((r) => `<li><span>${esc(r.name)}${starMine(r.roster_id)} <span class="muted">${ownerTag(r.roster_id)}</span></span><span class="num">${r.pts.toFixed(1)}</span></li>`).join("")}</ul></div>`)
+    .join("")}</div>`;
+}
+
+function renderPlayersOfWeek() {
+  const wk = state.data.week || {};
+  // This week: every rostered player's points so far in this league's scoring (Sleeper's players_points).
+  const seen = new Map();
+  for (const r of state.live.matchups) for (const [id, pts] of Object.entries(r.players_points || {})) {
+    const p = playerOf(id);
+    if (pts > 0) seen.set(id, { id, name: p.name, pos: p.pos, team: p.team, pts, roster_id: r.roster_id });
+  }
+  const now = [...seen.values()].sort((a, b) => b.pts - a.pts);
+  const last = (wk.potw_last || {}).overall || [];
+  $("#potw").innerHTML = !wk.week ? `<p class="muted">No regular-season week in progress.</p>` : `
+    <h3>Week ${state.live.week} so far <span class="muted">(rostered players, ${state.live.source === "live" ? "live" : "as of the last build"})</span></h3>
+    ${now.length ? posCards(byPosition(now)) + `<div class="table-wrap">${potwTable(now.slice(0, 15), "potw-now")}</div>` : `<p class="muted">No points scored yet this week.</p>`}
+    ${wk.last_week ? `<h3>Week ${wk.last_week} final <span class="muted">(everyone, free agents included)</span></h3>
+      ${posCards(Object.fromEntries(Object.entries((wk.potw_last || {}).by_position || {}).map(([k, v]) => [k, v.slice(0, 3)])))}
+      <div class="table-wrap">${potwTable(last, "potw-last")}</div>` : ""}`;
+}
+
+function renderMovers() {
+  const mv = (state.data.week || {}).movers;
+  if (!mv) { $("#movers").innerHTML = ""; return; }
+  const src = mv.source.kind === "history"
+    ? `Change in this league's value over the last ${mv.source.days} days (since ${mv.source.since}).`
+    : `Market trend over the last 30 days (FantasyCalc) until a week of this site's own daily values has built up; then it switches to 7-day changes in this league's values.`;
+  const table = (rows, id) => `<table id="${id}"><thead><tr><th>Player</th><th>Pos</th><th>Owner</th><th class="num">Value</th><th class="num">Change</th><th class="num">%</th></tr></thead><tbody>${rows
+    .map((r) => { const p = playerOf(r.id); return `<tr><td class="name">${esc(p.name)}${starMine(p.roster_id)}</td><td><span class="pos pos-${p.pos}">${p.pos}${p.pos_rank || ""}</span></td>
+      <td>${ownerTag(p.roster_id)}</td><td class="num">${fmt(r.now)}</td><td class="num ${r.change > 0 ? "up" : "down"}">${r.change > 0 ? "+" : ""}${fmt(r.change)}</td><td class="num ${r.change > 0 ? "up" : "down"}">${r.pct > 0 ? "+" : ""}${r.pct}%</td></tr>`; })
+    .join("")}</tbody></table>`;
+  $("#movers").innerHTML = `<p class="muted">${src}</p><div class="cols two"><div><h3>Risers</h3><div class="table-wrap">${table(mv.risers, "risers")}</div></div>
+    <div><h3>Fallers</h3><div class="table-wrap">${table(mv.fallers, "fallers")}</div></div></div>`;
+}
+
+function renderNews() {
+  const wk = state.data.week || {};
+  const mine = myTeam();
+  const isMine = (ids) => mine && ids.some((id) => (playerOf(id).roster_id) === mine.roster_id);
+  const news = [...(wk.news || [])].sort((a, b) => isMine(b.players) - isMine(a.players) || (b.published || "").localeCompare(a.published || ""));
+  const inj = [...(wk.injuries || [])].sort((a, b) => isMine([b.id]) - isMine([a.id]));
+  const ago = (iso) => { const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? "just now" : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
+  $("#news").innerHTML = `
+    <h3>Injury report <span class="muted">(rostered players, from Sleeper${mine ? "; yours first" : ""})</span></h3>
+    ${inj.length ? `<div class="table-wrap"><table id="injuries"><thead><tr><th>Player</th><th>Pos</th><th>Status</th><th>Injury</th><th>Owner</th></tr></thead><tbody>${inj
+      .map((i) => { const p = playerOf(i.id); return `<tr><td class="name">${esc(p.name)}${starMine(p.roster_id)}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td><span class="inj">${esc(i.status)}</span></td><td>${esc(i.body_part || "")}${i.notes ? ` <span class="muted">${esc(i.notes)}</span>` : ""}</td><td>${ownerTag(p.roster_id)}</td></tr>`; })
+      .join("")}</tbody></table></div>` : `<p class="muted">No rostered player carries an injury designation.</p>`}
+    <h3>Headlines <span class="muted">(ESPN, stories about players rostered in this league${mine ? "; yours first" : ""})</span></h3>
+    ${news.length ? `<ul class="news">${news.map((n) => `<li class="${isMine(n.players) ? "mine-row" : ""}">
+        <a href="${esc(n.url || "#")}" target="_blank" rel="noopener">${esc(n.headline)}</a>
+        <div class="muted">${n.players.map((id) => { const p = playerOf(id); return `${esc(p.name)} (${ownerTag(p.roster_id)})`; }).join(", ")}${n.published ? ` · ${ago(n.published)}` : ""}</div>
+        ${n.description ? `<div>${esc(n.description)}</div>` : ""}</li>`).join("")}</ul>` : `<p class="muted">No recent ESPN stories about players in this league.</p>`}`;
 }
 
 // ---------- sortable tables ----------

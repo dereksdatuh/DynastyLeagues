@@ -84,7 +84,10 @@ def make_world(seed: int = 7):
             fp = {"DE": ["DL"], "LB": ["LB"], "CB": ["DB"], "S": ["DB"]}.get(pos, [pos])
             players[str(pid)] = {"player_id": str(pid), "full_name": name, "first_name": name.split()[0],
                                  "last_name": name.split()[1], "position": pos, "fantasy_positions": fp,
-                                 "team": "KC", "age": age, "years_exp": max(0, age - 22), "search_rank": i + 1}
+                                 "team": "KC" if pid % 2 else "BUF", "age": age, "years_exp": max(0, age - 22),
+                                 "search_rank": i + 1, "espn_id": 9000 + pid,
+                                 "injury_status": "Questionable" if pid % 37 == 0 else None,
+                                 "injury_body_part": "Hamstring" if pid % 37 == 0 else None, "news_updated": pid}
             proj[str(pid)] = {"player_id": str(pid), "stats": _stats(pos, q, rng, 17)}
             last[str(pid)] = {"player_id": str(pid), "stats": _stats(pos, q * rng.uniform(0.8, 1.2), rng, 15)}
             cur[str(pid)] = {"player_id": str(pid), "stats": _stats(pos, q * rng.uniform(0.8, 1.2), rng, 4)}
@@ -121,6 +124,12 @@ def fake_responses(world, league):
     for week in range(1, 18):
         rows = [{"roster_id": order[i], "matchup_id": i + 1, "points": 0} for i in range(n // 2)]
         rows += [{"roster_id": order[n - 1 - i], "matchup_id": i + 1, "points": 0} for i in range(n // 2)]
+        if week == 5:  # the current week: starters and points so far
+            for r in rows:
+                mine = rosters[r["roster_id"] - 1]["players"]
+                r["starters"] = mine[:8]
+                r["players_points"] = {pid: (int(pid) % 7) * 1.5 for pid in mine}
+                r["points"] = sum(r["players_points"][pid] for pid in mine[:8])
         schedule[f"/league/{league['league_id']}/matchups/{week}"] = rows
         order = [order[0], order[-1]] + order[1:-1]
     traded = [{"season": "2027", "round": 1, "roster_id": 2, "previous_owner_id": 2, "owner_id": 5}]
@@ -156,6 +165,16 @@ def fake_responses(world, league):
         "/projections/nfl/2026/5": list(world.proj.values()),
         "/projections/nfl/2026": list(world.proj.values()),
         "/stats/nfl/2026": list(world.cur.values()),
+        "/stats/nfl/2026/5": [{"player_id": k, "stats": {kk: vv / 4 for kk, vv in v["stats"].items()}} for k, v in list(world.cur.items())[:200]],
+        "/stats/nfl/2026/4": [{"player_id": k, "stats": {kk: vv / 4 for kk, vv in v["stats"].items()}} for k, v in world.cur.items()],
+        "espn.com/apis/site/v2/sports/football/nfl/scoreboard": {"events": [{
+            "date": "2026-10-05T17:00Z",
+            "competitions": [{"status": {"period": 3, "clock": 450, "type": {"state": "in", "shortDetail": "7:30 - 3rd"}},
+                              "competitors": [{"team": {"abbreviation": "KC"}}, {"team": {"abbreviation": "WSH"}}]}]}]},
+        "espn.com/apis/site/v2/sports/football/nfl/news": {"articles": [
+            {"headline": f"News about {world.players[pid]['full_name']}", "published": f"2026-10-0{1 + i % 5}T12:00:00Z",
+             "categories": [{"type": "athlete", "athleteId": 9000 + int(pid)}], "links": {"web": {"href": f"https://example.com/{pid}"}}}
+            for i, pid in enumerate(list(world.players)[:40])] + [{"headline": "League-wide story", "categories": []}]},
         "/stats/nfl/2025": list(world.last.values()),
         "fantasycalc": fc,
         "keeptradecut": ktc_html,
