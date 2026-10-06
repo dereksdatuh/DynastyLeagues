@@ -46,7 +46,19 @@
       "payouts": {
         "notes": "TBD"
       },
-      "notes": ""
+      "notes": "",
+      "draft_order": {
+        "non_playoff": "max_pf",
+        "playoff_slots": [
+          12,
+          11,
+          9,
+          10,
+          7,
+          8
+        ],
+        "notes": "Non-playoff teams (7-12) are ordered by max PF through week 14. Playoff teams take fixed slots by finish: champion 1.12, runner-up 1.11, 4th-place-game winner 1.09 and loser 1.10, 5th-place-game winner 1.07 and loser 1.08. playoff_slots is listed best projected finish first."
+      }
     },
     {
       "id": "league-5",

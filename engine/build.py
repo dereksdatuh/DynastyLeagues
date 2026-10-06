@@ -15,14 +15,15 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import draft, fetch, ids, record, sleeper, valuation, weekly
+from . import draft, fetch, ids, record, sleeper, team_value, valuation, weekly
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
-from .picks import PickValues, pick_label, pick_ownership
+from .picks import PickValues, pick_label, pick_ownership, slot_pick_label
 from .sources import SOURCES
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAGUES_FILE = ROOT / "data" / "leagues.json"
+PROSPECTS_FILE = ROOT / "data" / "prospects.json"
 DEFAULT_OUT = ROOT / "site" / "data"
 SITE_URL = os.environ.get("SITE_URL", "https://dereksdatuh.github.io/DynastyLeagues/")
 
@@ -155,6 +156,15 @@ def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> 
     }
 
 
+def prospect_overrides() -> list:
+    """Prospects pinned to a positional rank (data/prospects.json); none if unreadable."""
+    try:
+        return json.loads(PROSPECTS_FILE.read_text()).get("overrides") or []
+    except Exception as exc:
+        print(f"warning: prospect overrides unreadable: {exc}", file=sys.stderr)
+        return []
+
+
 def load_history(league_id: str) -> dict:
     """Value snapshots so far, read back from the published site (the build keeps no state)."""
     try:
@@ -248,7 +258,18 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     last = shared.optional(lambda: draft.last_rookie_draft(draft.league_chain({**league, "league_id": lid})))
     rule = draft.infer_rule(last["standings"], last["slots"], last["playoff_teams"] or playoff_teams) \
         if last else {"rule": "record", "basis": "default", "matched": None, "of": None}
-    order = draft.project_order(teams, rule["rule"], playoff_teams)
+    # A league can state its own order in data/leagues.json, which beats what the
+    # last draft implies: `non_playoff` is "max_pf" or "record", and `playoff_slots`
+    # grants the playoff teams fixed slots (champion first).
+    stated = config.get("draft_order") or {}
+    if stated.get("non_playoff") in ("max_pf", "record"):
+        rule = {**rule, "rule": stated["non_playoff"], "basis": "league_rule"}
+    playoff_slots = stated.get("playoff_slots")
+    if playoff_slots and not draft.valid_playoff_slots(playoff_slots, n, playoff_teams):
+        playoff_slots = None
+    rule = {**rule, "playoff_slots": playoff_slots}
+    order = draft.project_order(teams, rule["rule"], playoff_teams, playoff_slots)
+    snake = (last or {}).get("type") == "snake"
     finish_tier = {}
     for i, rid in enumerate(order):
         finish_tier[rid] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
@@ -259,15 +280,30 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     picks = []
     owned = pick_ownership(league, rosters, traded, tables["season"])
     first_year = min((p["year"] for p in owned), default=None)
+    # The coming class, priced from its pick slots and its own KTC devy values; its
+    # picks then carry the class's strength (a loaded class lifts the early picks).
+    rounds = max((p["round"] for p in owned if p["year"] == first_year), default=0)
+    devy = shared.devy(fmt.superflex) if first_year else {"players": []}
+    scale = draft.devy_scale(players, market)
+    class_rows = draft.rookie_class(devy["players"], first_year, players, pick_values, n, rounds, scale,
+                                    prospect_overrides()) if first_year and devy["players"] else []
+    slot_fn = draft.class_slot_fn(pick_values, first_year, n, class_rows) if class_rows \
+        else (lambda overall: draft.slot_value(pick_values, first_year, overall, n))
     for pk in owned:
-        tier = finish_tier.get(pk["original_roster_id"]) if pk["year"] == first_year else None
-        label = pick_label(pk["year"], pk["round"], tier)
+        first = pk["year"] == first_year
+        tier = finish_tier.get(pk["original_roster_id"]) if first else None
+        # The coming draft is ordered, so each of its picks is worth what its own
+        # projected slot is worth; later years only have a tier to go on.
+        slot = draft.slot_in_round(order, pk["round"], pk["original_roster_id"], snake) if first else None
+        overall = (pk["round"] - 1) * n + slot if slot else None
+        label = slot_pick_label(pk["year"], pk["round"], slot) if slot else pick_label(pk["year"], pk["round"], tier)
         if pk["original_roster_id"] != pk["owner_roster_id"]:
             label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
+        value = slot_fn(overall) if overall else pick_values.value(pk["year"], pk["round"], tier)
         picks.append({
             "id": f"pick:{pk['year']}:{pk['round']}:{pk['original_roster_id']}",
             "label": label, "year": pk["year"], "round": pk["round"], "tier": tier,
-            "value": round(pick_values.value(pk["year"], pk["round"], tier)),
+            "slot": slot, "overall": overall, "value": round(value),
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
         })
     for t in teams:
@@ -277,15 +313,12 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
 
     rookie = None
     if first_year:
-        rounds = max(p["round"] for p in picks if p["year"] == first_year)
-        snake = (last or {}).get("type") == "snake"
-        devy = shared.devy(fmt.superflex)
         rookie = {
             "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",
             "playoff_teams": playoff_teams, "rule": rule, "last_draft_season": (last or {}).get("season"),
-            "order": order, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values),
-            "class": draft.rookie_class(devy["players"], first_year, players, pick_values, n, rounds)[: n * rounds + 24]
-            if devy["players"] else [],
+            "order": order, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn),
+            "class": class_rows[: n * rounds + 24],
+            "class_weight": {"slot": draft.CLASS_MARKET_WEIGHT, "ktc_devy": 1 - draft.CLASS_MARKET_WEIGHT if scale else 0},
             "source": {k: v for k, v in devy.items() if k != "players"},
         }
 
@@ -296,6 +329,10 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["starter_rank"] = starter_rank[t["roster_id"]]
         sr = t["starter_rank"]
         t["outlook"] = "contender" if sr <= n / 3 else "rebuilding" if sr > 2 * n / 3 else "middle"
+
+    # What each team would pay for every player and pick, from its own situation.
+    tv_ctx = team_value.contexts(teams, by_id, fmt.slots, fmt.superflex)
+    tv = {"context": tv_ctx, "factors": team_value.factors(teams, players, picks, fmt.slots, tv_ctx, first_year)}
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -316,7 +353,13 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "picks": picks,
         "rookie_draft": rookie,
         "teams": teams,
+        "team_values": tv,
     }
+
+
+def names_by_id(data: dict) -> dict:
+    return {t["roster_id"]: t["name"] + (f" ({t['owner']})" if t.get("owner") and t["owner"] != t["name"] else "")
+            for t in data["teams"]}
 
 
 def main(argv=None):
@@ -373,8 +416,25 @@ def main(argv=None):
                   f"first five {[names.get(r) for r in rd['order'][:5]]}; devy source "
                   f"{'ok' if src.get('ok') else 'FAILED ' + str(src.get('error'))}, classes {src.get('classes')}, "
                   f"class size {len(rd['class'])}, top {[(p['name'], p['pos'], p['value']) for p in rd['class'][:6]]}")
-            if src.get("fields"):
-                print(f"  devy fields: {src['fields']}")
+            top = rd["class"][:4]
+            print("  class pricing: " + "; ".join(
+                f"{p['name']} {p['value']} (slot {p['slot_part']}, ktc {p['ktc_part']}, raw ktc {round(p['ktc'])}"
+                + (f", pinned {p['pinned']}" if p.get("pinned") else "") + ")" for p in top))
+            firsts = sorted((p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1), key=lambda p: p["slot"] or 99)
+            print("  1st-round values: " + ", ".join(f"{p['slot']}:{p['value']}" for p in firsts))
+        ctx = data["team_values"]["context"]
+        print("  team modes: " + ", ".join(
+            f"{names_by_id(data).get(rid)} {c['label']} {c['mode']} QB {c['qb']['startable']}/{c['qb']['slots']}"
+            for rid, c in sorted(ctx["teams"].items(), key=lambda kv: kv[1]["mode"])))
+        fac = data["team_values"]["factors"]
+        if rd:
+            names = names_by_id(data)
+            first = next((p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1 and p["slot"] == 1), None)
+            qb = next((p for p in data["players"] if p["pos"] == "QB"), None)
+            if first and qb:
+                print(f"  to each team: {first['label']} {first['value']} / {qb['name']} {qb['value']}: " + ", ".join(
+                    f"{names.get(rid)} {round(first['value'] * fac[rid].get(first['id'], 1))}/{round(qb['value'] * fac[rid].get(qb['id'], 1))}"
+                    for rid in sorted(fac, key=lambda r: ctx["teams"][r]["mode"])))
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))

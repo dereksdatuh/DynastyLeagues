@@ -17,6 +17,7 @@ import re
 from statistics import median
 
 from .fetch import get_json, get_text
+from .market import QuantileMap
 from .league import POSITION_GROUP
 from .sources.ktc import parse_players_array
 
@@ -98,8 +99,13 @@ def infer_rule(prev_rosters: list, slots: dict, playoff_teams: int) -> dict:
             "record_matched": s_rec, "max_pf_matched": s_mpf}
 
 
-def project_order(teams: list, rule: str, playoff_teams: int) -> list:
-    """Roster ids in projected draft order for one round (pick 1 first)."""
+def project_order(teams: list, rule: str, playoff_teams: int, playoff_slots: list | None = None) -> list:
+    """Roster ids in projected draft order for one round (pick 1 first).
+
+    `playoff_slots` is a league that grants its playoff teams fixed slots: entry i is
+    the first-round slot for the team projected to finish i+1 (champion first). The
+    non-playoff teams, ordered by the league's rule, fill whatever slots are left.
+    """
     standing = sorted(teams, key=lambda t: (-t["projection"]["wins"], -t["projection"]["ppg"]))
     playoff = standing[:playoff_teams]
     out = standing[playoff_teams:]
@@ -107,15 +113,36 @@ def project_order(teams: list, rule: str, playoff_teams: int) -> list:
         out.sort(key=lambda t: t["projection"]["max_pf"])
     else:
         out.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["max_pf"]))
+    if valid_playoff_slots(playoff_slots, len(teams), len(playoff)):
+        order = [None] * len(teams)
+        for place, t in enumerate(playoff):  # playoff[0] is the projected champion
+            order[playoff_slots[place] - 1] = t["roster_id"]
+        rest = iter(out)
+        for i, taken in enumerate(order):
+            if taken is None:
+                order[i] = next(rest)["roster_id"]
+        return order
     playoff.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["ppg"]))
     return [t["roster_id"] for t in out + playoff]
+
+
+def valid_playoff_slots(slots, n: int, playoff_teams: int) -> bool:
+    """A usable fixed-slot map: one distinct slot in range per playoff team."""
+    return bool(slots) and len(slots) == playoff_teams and len(set(slots)) == playoff_teams \
+        and all(isinstance(s, int) and 1 <= s <= n for s in slots)
+
+
+def slot_in_round(order: list, rnd: int, original_roster_id: int, snake: bool) -> int | None:
+    """Which slot of `rnd` the pick originally owned by that team falls at."""
+    seq = order[::-1] if snake and rnd % 2 == 0 else order
+    return seq.index(original_roster_id) + 1 if original_roster_id in seq else None
 
 
 def slot_label(rnd: int, slot: int) -> str:
     return f"{rnd}.{slot:02d}"
 
 
-def draft_board(order: list, picks: list, year: int, rounds: int, snake: bool, pick_values=None) -> list:
+def draft_board(order: list, picks: list, year: int, rounds: int, snake: bool, pick_values=None, slot_fn=None) -> list:
     """Every pick of `year` in projected order, with its current holder."""
     held = {(p["round"], p["original_roster_id"]): p for p in picks if p["year"] == year}
     n = len(order)
@@ -127,7 +154,8 @@ def draft_board(order: list, picks: list, year: int, rounds: int, snake: bool, p
             board.append({"overall": (rnd - 1) * n + i, "round": rnd, "slot": i, "label": slot_label(rnd, i),
                           "original_roster_id": orig, "roster_id": pk["roster_id"] if pk else orig,
                           "pick_id": pk["id"] if pk else None, "pick_value": pk["value"] if pk else 0,
-                          "slot_value": round(slot_value(pick_values, year, (rnd - 1) * n + i, n)) if pick_values else None})
+                          "slot_value": round(slot_fn((rnd - 1) * n + i)) if slot_fn
+                          else round(slot_value(pick_values, year, (rnd - 1) * n + i, n)) if pick_values else None})
     return board
 
 
@@ -194,15 +222,65 @@ def slot_value(pick_values, year: int, overall: int, n: int) -> float:
     return pts[-1][1]
 
 
-def rookie_class(devy: list, year: int, players: list, pick_values, n: int, rounds: int) -> list:
-    """The draft class on this league's value scale, best first."""
+CLASS_MARKET_WEIGHT = 0.5  # prospect value: share from the pick slot he ranks at; the rest from KTC's devy value
+
+
+def devy_scale(players: list, market: dict):
+    """Map KTC's raw value scale onto this league's values, from players KTC prices.
+
+    KTC's devy rankings use the same scale as its dynasty rankings, so the same map
+    turns a prospect's KTC value into what this league pays for that much KTC value.
+    """
+    pairs = [(market[p["id"]]["ktc_raw"], p["value"]) for p in players
+             if p.get("value") and (market.get(p["id"]) or {}).get("ktc_raw")]
+    return QuantileMap([a for a, _ in pairs], [b for _, b in pairs]) if len(pairs) >= 25 else None
+
+
+def rookie_class(devy: list, year: int, players: list, pick_values, n: int, rounds: int,
+                 scale=None, overrides: list | None = None) -> list:
+    """The draft class on this league's value scale, best first.
+
+    Each prospect blends what the market pays for the pick where he ranks with what
+    his own KTC devy value is worth here (`scale`), so a strong class is worth more
+    than its pick slots and a weak one less. `overrides` pins named prospects to a
+    current player rank at their position ("WR4" is today's fourth-best WR here).
+    """
     factors = position_factors(players)
     pool = [p for p in devy if p["class"] == year] or [p for p in devy if p["class"] is None]
     total = n * max(rounds, 1)
+    by_pos = {}
+    for pl in sorted(players, key=lambda x: -x["value"]):
+        by_pos.setdefault(pl["pos"], []).append(pl)
+    pinned = {(o.get("name") or "").lower(): o for o in overrides or []}
     out = []
     for i, p in enumerate(pool, 1):
+        f = factors.get(p["pos"], 1.0)
         base = slot_value(pick_values, year, i, n) if i <= total else slot_value(pick_values, year, total, n) * 0.92 ** ((i - total) / n)
-        out.append({**p, "class_rank": i, "value": round(base * factors.get(p["pos"], 1.0)),
-                    "factor": factors.get(p["pos"], 1.0)})
+        slot_part = base * f
+        own = scale(p["ktc"]) * f if scale and p.get("ktc") else None
+        value = CLASS_MARKET_WEIGHT * slot_part + (1 - CLASS_MARKET_WEIGHT) * own if own else slot_part
+        row = {**p, "class_rank": i, "factor": f, "slot_part": round(slot_part),
+               "ktc_part": round(own) if own else None}
+        o = pinned.get((p["name"] or "").lower())
+        rank = o and o.get("pos_rank")
+        if rank and len(by_pos.get(p["pos"], [])) >= rank:
+            value = by_pos[p["pos"]][rank - 1]["value"]
+            row["pinned"] = f"{p['pos']}{rank}"
+            row["pinned_note"] = o.get("note")
+        row["value"] = round(value)
+        out.append(row)
     out.sort(key=lambda p: -p["value"])
     return out
+
+
+def class_slot_fn(pick_values, year: int, n: int, class_rows: list, weight: float = CLASS_MARKET_WEIGHT):
+    """Value of the overall-th pick in `year`: the market's price for that slot blended
+    with the prospect projected to go there, so the picks carry the class's strength."""
+    vals = sorted((p["value"] for p in class_rows), reverse=True)
+
+    def fn(overall: int) -> float:
+        market = slot_value(pick_values, year, overall, n)
+        if overall <= len(vals):
+            return weight * market + (1 - weight) * vals[overall - 1]
+        return market
+    return fn
