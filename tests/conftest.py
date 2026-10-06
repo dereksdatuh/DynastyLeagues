@@ -164,7 +164,12 @@ def fake_responses(world, league):
                                                "ppts": 1800 + ((r + 1) % n) * 10}} for r in range(n)]
     by_max_pf = sorted(prev, key=lambda x: x["settings"]["ppts"])
     last_draft = [{"draft_id": "D1", "season": "2026", "status": "complete", "type": "linear", "settings": {"rounds": 4},
-                   "slot_to_roster_id": {str(i + 1): r["roster_id"] for i, r in enumerate(by_max_pf)}}]
+                   "start_time": 1, "slot_to_roster_id": {str(i + 1): r["roster_id"] for i, r in enumerate(by_max_pf)}},
+                  # A later startup-length draft must not be read as the rookie draft.
+                  {"draft_id": "D0", "season": "2026", "status": "complete", "type": "snake", "settings": {"rounds": 25},
+                   "start_time": 2, "slot_to_roster_id": {str(i + 1): i + 1 for i in range(n)}}]
+    prev_league = {"league_id": "P1", "season": "2025", "previous_league_id": None,
+                   "settings": {"playoff_teams": league["settings"].get("playoff_teams", n // 2)}}
     dp_csv = '"player","pos","team","age","draft_year","ecr_1qb","ecr_2qb","ecr_pos","value_1qb","value_2qb","scrape_date","fp_id"\n' + "\n".join(dp)
     lid = league["league_id"]
     return {
@@ -175,6 +180,8 @@ def fake_responses(world, league):
         f"/league/{lid}": {**league, "previous_league_id": "P1"},
         f"/league/{lid}/drafts": last_draft,
         "/league/P1/rosters": prev,
+        "/league/P1/drafts": [],
+        "/league/P1": prev_league,
         "keeptradecut.com/devy-rankings": devy_html,
         **schedule,
         "/players/nfl": world.players,

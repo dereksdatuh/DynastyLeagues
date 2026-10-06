@@ -245,8 +245,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     # its last rookie draft), sets next year's pick tiers.
     n = len(teams)
     playoff_teams = int((league.get("settings") or {}).get("playoff_teams") or max(n // 2, 1))
-    last = shared.optional(lambda: draft.last_rookie_draft(league, rosters, draft.drafts(lid)))
-    rule = draft.infer_rule(shared.optional(lambda: draft.previous_rosters(league)) or [], last["slots"], playoff_teams) \
+    last = shared.optional(lambda: draft.last_rookie_draft(draft.league_chain({**league, "league_id": lid})))
+    rule = draft.infer_rule(last["standings"], last["slots"], last["playoff_teams"] or playoff_teams) \
         if last else {"rule": "record", "basis": "default", "matched": None, "of": None}
     order = draft.project_order(teams, rule["rule"], playoff_teams)
     finish_tier = {}
@@ -277,7 +277,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
 
     rookie = None
     if first_year:
-        rounds = max([p["round"] for p in picks if p["year"] == first_year] + [(last or {}).get("rounds") or 0])
+        rounds = max(p["round"] for p in picks if p["year"] == first_year)
         snake = (last or {}).get("type") == "snake"
         devy = shared.devy(fmt.superflex)
         rookie = {
@@ -369,7 +369,7 @@ def main(argv=None):
         if rd:
             names = {t["roster_id"]: t["name"] for t in data["teams"]}
             src = rd["source"]
-            print(f"  {rd['year']} rookie draft: {rd['rounds']} rounds {rd['type']}, order by {rd['rule']}, "
+            print(f"  {rd['year']} rookie draft: {rd['rounds']} rounds {rd['type']}, order by {rd["rule"]} (from {rd["last_draft_season"]} draft), "
                   f"first five {[names.get(r) for r in rd['order'][:5]]}; devy source "
                   f"{'ok' if src.get('ok') else 'FAILED ' + str(src.get('error'))}, classes {src.get('classes')}, "
                   f"class size {len(rd['class'])}, top {[(p['name'], p['pos'], p['value']) for p in rd['class'][:6]]}")

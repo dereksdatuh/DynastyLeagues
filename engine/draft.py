@@ -28,35 +28,55 @@ POSITIONS = ("QB", "RB", "WR", "TE")
 
 # ---------- order ----------
 
+ROOKIE_MAX_ROUNDS = 7  # longer drafts are startups
+
+
 def drafts(league_id: str) -> list:
     return get_json(f"sleeper_drafts_{league_id}", f"{V1}/league/{league_id}/drafts", ttl=6 * 3600)
 
 
-def previous_rosters(league: dict) -> list:
-    prev = league.get("previous_league_id")
-    if not prev or prev == "0":
-        return []
-    return get_json(f"sleeper_rosters_{prev}", f"{V1}/league/{prev}/rosters", ttl=24 * 3600)
+def league_chain(league: dict, depth: int = 2) -> list:
+    """This league and up to `depth` earlier seasons of it, newest first."""
+    chain = [league]
+    while len(chain) <= depth:
+        prev = chain[-1].get("previous_league_id")
+        if not prev or prev == "0":
+            break
+        chain.append(get_json(f"sleeper_league_{prev}", f"{V1}/league/{prev}", ttl=24 * 3600))
+    return chain
+
+
+def rosters_of(league_id: str) -> list:
+    return get_json(f"sleeper_rosters_{league_id}", f"{V1}/league/{league_id}/rosters", ttl=24 * 3600)
+
+
+def last_rookie_draft(chain: list) -> dict | None:
+    """The league's most recent completed rookie draft as {slot: roster_id}, with the
+    standings it was seeded from (the season before it) and that season's playoff size."""
+    found = []
+    for lg in chain:
+        for d in drafts(lg["league_id"]) or []:
+            rounds = int((d.get("settings") or {}).get("rounds") or 0)
+            if d.get("status") == "complete" and 0 < rounds <= ROOKIE_MAX_ROUNDS:
+                found.append((str(d.get("season")), d.get("start_time") or 0, d, lg))
+    if not found:
+        return None
+    season, _, d, lg = max(found, key=lambda x: (x[0], x[1]))
+    slots = {int(k): int(v) for k, v in (d.get("slot_to_roster_id") or {}).items() if v}
+    if not slots and d.get("draft_order"):
+        roster_of_user = {r.get("owner_id"): r["roster_id"] for r in rosters_of(lg["league_id"])}
+        slots = {int(s): roster_of_user[u] for u, s in d["draft_order"].items() if u in roster_of_user}
+    if not slots:
+        return None
+    seeded = next((x for x in chain if str(x.get("season")) == str(int(season) - 1)), None)
+    return {"season": season, "type": d.get("type") or "linear",
+            "rounds": int((d.get("settings") or {}).get("rounds") or 0), "slots": slots,
+            "standings": rosters_of(seeded["league_id"]) if seeded else [],
+            "playoff_teams": int(((seeded or {}).get("settings") or {}).get("playoff_teams") or 0) or None}
 
 
 def _num(st: dict, key: str) -> float:
     return (st.get(key) or 0) + (st.get(f"{key}_decimal") or 0) / 100
-
-
-def last_rookie_draft(league: dict, rosters: list, all_drafts: list) -> dict | None:
-    """The league's most recent completed draft as {slot: roster_id}, with its type and rounds."""
-    done = [d for d in all_drafts or [] if d.get("status") == "complete"]
-    if not done:
-        return None
-    d = max(done, key=lambda d: (str(d.get("season")), d.get("start_time") or 0))
-    slots = {int(k): int(v) for k, v in (d.get("slot_to_roster_id") or {}).items() if v}
-    if not slots and d.get("draft_order"):
-        roster_of_user = {r.get("owner_id"): r["roster_id"] for r in rosters}
-        slots = {int(s): roster_of_user[u] for u, s in d["draft_order"].items() if u in roster_of_user}
-    if not slots:
-        return None
-    return {"season": str(d.get("season")), "type": d.get("type") or "linear",
-            "rounds": int((d.get("settings") or {}).get("rounds") or 0), "slots": slots}
 
 
 def infer_rule(prev_rosters: list, slots: dict, playoff_teams: int) -> dict:

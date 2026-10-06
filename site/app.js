@@ -1025,7 +1025,7 @@ function renderRookieMock() {
       <td class="muted">${slotWhy(m.original_roster_id, rd)}</td>
       ${m.pick ? `<td class="name">${esc(m.pick.name)}</td><td><span class="pos pos-${m.pick.pos}">${m.pick.pos}</span></td><td class="muted">${esc(m.pick.school || "")}</td>
       <td class="num" data-sort="${m.pick.value}">${fmt(m.pick.value)} <span class="muted">/ ${fmt(m.slot_value)}</span></td><td class="analysis">${mockAnalysis(m, rd)}</td>`
-      : `<td colspan="5" class="muted">No prospect left in the rankings.</td>`}</tr>`;
+      : `<td colspan="5" class="muted">Past the end of the ranked class.</td>`}</tr>`;
   const rounds = [...new Set(mock.map((m) => m.round))];
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
   el.innerHTML = `
