@@ -300,6 +300,35 @@ out.sort(key=lambda x: (x[0], x[1]))
 for k, sp, c, rr in out[:12]:
     print("WFIX", k, f"{sp*100:.1f}", c, "||", f3(rr))
 print("NWFIX", len(out))
+kc = fname("Concepcion")
+g0 = [(MAT, SAM, m28), (DES, SAM, simpson), (MAT, DES, stroud), (SAM, MAT, young)]
+g0w = g0 + [(SAM, DES, awil)]
+print("M28", lbl(m28), m28["value"])
+for nm, mv in (("G0", g0), ("G0W", g0w)):
+    print(nm, f3(ev3(mv)))
+ug = {m[2]["id"] for m in g0w} | {kc["id"]}
+poolg = []
+for r, l in ((SAM, set()), (MAT, mlu), (DES, dlu)):
+    poolg += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in ug and pk["value"] >= 250]
+    poolg += [(r, p) for p in roster[r] if p["id"] not in ug and p["id"] not in l and p["value"] >= 300]
+poolg.sort(key=lambda x: -x[1]["value"]); poolg = poolg[:18]
+print("POOLG", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in poolg])
+for bn, base in (("G0", g0), ("G0W", g0w)):
+    out = []
+    for k in range(0, 4):
+        for combo in itertools.combinations(poolg, k):
+            for dest in itertools.product(T3, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
+                rr = ev3(base + [(o, t, a) for (o, a), t in zip(combo, dest)])
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                    sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                    out.append((k, sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+        if len(out) >= 6: break
+    out.sort(key=lambda x: (x[0], x[1]))
+    for k, sp, c, rr in out[:8]:
+        print("GFIX", bn, k, f"{sp*100:.1f}", c, "||", f3(rr))
+    print("NGFIX", bn, len(out))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
