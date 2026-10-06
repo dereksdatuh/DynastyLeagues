@@ -287,3 +287,28 @@ def test_build_week_data(offline):
     assert all(i["status"] == "Questionable" for i in wk["injuries"])
     assert wk["movers"]["source"]["kind"] == "market_trend" and wk["movers"]["risers"]
     assert data["history"]["days"]
+
+
+def test_rookie_draft_order_rule_board_and_class(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    rd = data["rookie_draft"]
+    # The last draft matched lowest max PF, not worst record, so that rule is used.
+    assert rd["rule"]["rule"] == "max_pf" and rd["rule"]["max_pf_matched"] > rd["rule"]["record_matched"]
+    teams = {t["roster_id"]: t for t in data["teams"]}
+    playoff = rd["playoff_teams"]
+    out = rd["order"][: len(teams) - playoff]
+    assert [teams[r]["projection"]["max_pf"] for r in out] == sorted(teams[r]["projection"]["max_pf"] for r in out)
+    # Every non-playoff team projects to miss the playoffs.
+    assert all(teams[r]["projection"]["rank"] > playoff for r in out)
+    # Board: one pick per team per round; a traded pick shows its new holder.
+    assert rd["year"] == 2027 and len(rd["board"]) == len(teams) * rd["rounds"]
+    traded = next(b for b in rd["board"] if b["round"] == 1 and b["original_roster_id"] == 2)
+    assert traded["roster_id"] == 5 and traded["label"].startswith("1.")
+    # Projected slot sets next year's pick tier.
+    first = next(p for p in data["picks"] if p["id"] == f"pick:2027:1:{rd['order'][0]}")
+    assert first["tier"] == "early"
+    # Class: only 2027 prospects, on the league's value scale, best first.
+    cls = rd["class"]
+    assert cls and all(p["class"] == 2027 for p in cls) and rd["source"]["ok"]
+    vals = [p["value"] for p in cls]
+    assert vals == sorted(vals, reverse=True) and 0 < vals[0] < data["players"][0]["value"]

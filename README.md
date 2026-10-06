@@ -58,8 +58,16 @@ breakdowns and a trade calculator.
   uses FantasyCalc's 30-day trend.
 - **News**: an injury report for rostered players (Sleeper) and ESPN headlines about
   rostered players, with yours first.
+- **Rookie Mock**: next year's superflex (or 1QB) rookie mock draft per league. The
+  order is projected with the league's own rule, read off its last rookie draft
+  (worst record first, or lowest max PF first), from this season's projected records
+  and max PF, then playoff teams. Every pick shows who holds it now (trades included),
+  the original team's projection, the mock pick and why: each holder takes the best
+  prospect, nudged toward a room that ranks bottom third. Prospects come from
+  KeepTradeCut's devy rankings every build, valued at what their draft slot trades for
+  and adjusted for how the league scores their position.
 - **Picks**: ownership comes from Sleeper (traded picks included); next year's picks
-  are tiered early/mid/late by projected finish.
+  are tiered early/mid/late by projected draft slot.
 
 ## Running it on its own
 
