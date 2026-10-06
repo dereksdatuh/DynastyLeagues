@@ -53,6 +53,9 @@ for (const id of leagues) {
     await inp.dispatchEvent("change");
   }
   const impact = await page.$$eval(".impact tbody tr", (r) => r.length);
+  // The same trade judged by each team's own situation.
+  const lens = await page.$$eval("#trade-result table.net tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim()).join(" | ")));
+  const toThem = await page.$$eval(".trade-side .tv", (r) => r.length);
   const pitches = await page.$$eval(".pitch textarea", (ts) => ts.map((t) => t.value));
   // This week's tabs.
   await page.click('button[data-tab="matchups"]');
@@ -81,6 +84,8 @@ for (const id of leagues) {
   if (!mock.length) errors.push(`${id}: rookie mock did not render`);
   console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 5).join(" | ")}, max PF high ${maxPF[0]?.toFixed(0)}, impact rows ${impact}, owner messages ${pitches.length}`);
   if (pitches[0]) console.log(pitches[0].split("\n").map((l) => "    " + l).join("\n"));
+  console.log(`  by each team's situation: ${lens.join("; ")} (to-them values shown ${toThem})`);
+  if (lens.length !== 2) errors.push(`${id}: team-situation trade view did not render`);
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);
 }
 await browser.close();

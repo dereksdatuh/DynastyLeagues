@@ -189,6 +189,45 @@ const newSide = () => ({ team: null, assets: [] });
 const sides = () => state.trade.sides;
 const sideName = (i) => (sides()[i].team ? teamName(sides()[i].team) : `Team ${LETTERS[i]}`);
 
+// ---------- team-specific values ----------
+// The engine (engine/team_value.py) gives every team a multiplier on each player's
+// and pick's league value, from that team's own situation: tanking teams prize early
+// picks, a superflex team short at QB pays more for one who'd start, contenders pay
+// for players who'd start for them now. Values without a multiplier are 1.
+function teamCtx(rid) {
+  const tv = state.data.team_values;
+  return tv && rid != null ? tv.context.teams[String(rid)] : null;
+}
+function teamFactor(rid, id) {
+  const tv = state.data.team_values;
+  const f = tv && rid != null ? tv.factors[String(rid)] : null;
+  return (f && f[id]) || 1;
+}
+const SITUATION = {
+  tanking: "tanking: early picks and young players count most, veterans least",
+  rebuilding: "rebuilding: picks and young players count more, veterans less",
+  contending: "contending: players who'd start now count more, picks less",
+  middle: "in the middle: close to market value",
+};
+function situationText(rid) {
+  const c = teamCtx(rid);
+  if (!c) return "";
+  const bits = [SITUATION[c.label]];
+  if (c.qb && c.qb.superflex) bits.push(`${c.qb.startable} startable QB${c.qb.startable === 1 ? "" : "s"} for ${c.qb.slots} QB spots`);
+  const thin = Object.entries(c.needs || {}).filter(([, v]) => v >= 0.5).map(([pos]) => pos);
+  if (thin.length) bits.push(`thin at ${thin.join(", ")}`);
+  return bits.join("; ");
+}
+// The team on a side: picked, or in a two-team deal the one owner of everything the
+// other side receives.
+function teamOfSide(i) {
+  const s = sides();
+  if (s[i].team != null) return s[i].team;
+  if (s.length !== 2) return null;
+  const owners = new Set(s[1 - i].assets.map(assetById).filter(Boolean).map((a) => a.roster_id).filter((r) => r != null));
+  return owners.size === 1 ? [...owners][0] : null;
+}
+
 function senderOf(asset, i) {
   const s = sides();
   if (asset.roster_id != null) {
@@ -276,14 +315,19 @@ function renderTrade() {
   const multi = s.length > 2;
   fillDatalists();
   const gets = s.map(() => []), gives = s.map(() => []);
+  // The same trade valued by each team's own situation: what it receives, by its
+  // multipliers, against what it sends, by its multipliers.
+  const tm = s.map((_, i) => teamOfSide(i));
+  const tGets = s.map(() => []), tGives = s.map(() => []);
   const unassigned = [];
   const base = leagueStrength();
   const baseRanks = base.ranks;
   s.forEach((side, i) => {
     side.assets.map(assetById).filter(Boolean).forEach((a) => {
       gets[i].push(a.value);
+      tGets[i].push(a.value * teamFactor(tm[i], a.id));
       const from = senderOf(a, i);
-      if (from >= 0) gives[from].push(a.value);
+      if (from >= 0) { gives[from].push(a.value); tGives[from].push(a.value * teamFactor(tm[from], a.id)); }
       else unassigned.push(a);
     });
   });
@@ -294,7 +338,10 @@ function renderTrade() {
       .map((x) => {
         const from = senderOf(x, i);
         const tag = multi ? `<span class="muted from">${from >= 0 ? "from " + esc(sideName(from)) : "sender not in trade"}</span>` : "";
-        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+        const f = teamFactor(tm[i], x.id);
+        const toThem = tm[i] != null && f !== 1
+          ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(x.value * f)} to them</span>` : "";
+        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
       })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
@@ -306,12 +353,14 @@ function renderTrade() {
       const nd = needsOf(side.team, baseRanks);
       needLine = `<div class="needs">Needs: ${nd.needs.map((p) => `<span class="pos pos-${p}">${p}</span>`).join(" ") || "none"}${nd.strengths.length ? ` · Strong at ${nd.strengths.join(", ")}` : ""}</div>`;
     }
-    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(gets[i]))}</strong>` : "") + needLine;
+    const sit = tm[i] != null ? `<div class="needs muted">${esc(situationText(tm[i]))}</div>` : "";
+    const toThemTotal = items.length && tm[i] != null ? ` · To them <strong>${fmt(effective(tGets[i]))}</strong>` : "";
+    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(effective(gets[i]))}</strong>${toThemTotal}` : "") + needLine + sit;
   });
 
   const out = $("#trade-result");
   if (!s.some((x) => x.assets.length)) {
-    out.innerHTML = `<p class="muted">Add what each team receives${multi ? " (pick each team first, so the calculator knows who sends what)" : ""}. Values are this league's, and the adjusted total applies a consolidation premium: one great player is worth more than two good ones that add up to the same raw total.</p>`;
+    out.innerHTML = `<p class="muted">Add what each team receives${multi ? " (pick each team first, so the calculator knows who sends what)" : ""}. Values are this league's, and the adjusted total applies a consolidation premium: one great player is worth more than two good ones that add up to the same raw total. Once the teams are known, the trade is also judged by each team's own situation: a tanking team prizes early picks, a team short at QB pays more for one who'd start, a contender pays for players who start now.</p>`;
     return;
   }
   if (multi && s.some((x) => x.team == null)) {
@@ -328,8 +377,8 @@ function renderTrade() {
   const winner = rows.reduce((a, b) => (b.pct > a.pct ? b : a));
   const loser = rows.reduce((a, b) => (b.pct < a.pct ? b : a));
   let verdict;
-  if (fair) verdict = "Fair trade";
-  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}%`;
+  if (fair) verdict = "Fair trade at market value";
+  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}% at market value`;
   else verdict = `${esc(sideName(winner.i))} wins most (+${Math.round(winner.pct * 100)}%), ${esc(sideName(loser.i))} loses most (${Math.round(loser.pct * 100)}%)`;
 
   let detail;
@@ -341,6 +390,24 @@ function renderTrade() {
   } else {
     const ea = rows[0].g, eb = rows[1].g;
     detail = `<div class="bar"><div style="width:${ea + eb ? (ea / (ea + eb)) * 100 : 50}%"></div></div>`;
+  }
+  // Second opinion: each team judged by its own situation. A deal can be fair at
+  // market and still a win for both sides, when each gets what it needs more.
+  if (tm.every((t) => t != null)) {
+    const tr = s.map((_, i) => {
+      const g = effective(tGets[i]), v = effective(tGives[i]);
+      return { i, g, v, pct: (g - v) / (Math.max(g, v) || 1) };
+    });
+    const ahead = tr.filter((r) => r.pct > FAIR_MARGIN), behind = tr.filter((r) => r.pct < -FAIR_MARGIN);
+    const summary = !behind.length && ahead.length
+      ? `Every team gets at least what it gives by its own needs${ahead.length === tr.length ? ", and all of them come out ahead" : ""}.`
+      : !behind.length ? "Even for every team by its own needs."
+      : `By its own needs, ${behind.map((r) => esc(sideName(r.i))).join(" and ")} ${behind.length > 1 ? "give" : "gives"} up more than ${behind.length > 1 ? "they get" : "it gets"}.`;
+    detail += `<h4>By each team's own situation</h4><p class="muted">${summary}</p>
+      <table class="net"><thead><tr><th>Team</th><th>Situation</th><th class="num">Gets</th><th class="num">Gives</th><th class="num">Net</th></tr></thead><tbody>${tr
+      .map((r) => `<tr><td>${esc(sideName(r.i))}</td><td class="muted">${esc(situationText(tm[r.i]))}</td><td class="num">${fmt(r.g)}</td><td class="num">${fmt(r.v)}</td>
+        <td class="num ${Math.abs(r.pct) <= FAIR_MARGIN ? "" : r.pct > 0 ? "up" : "down"}">${r.pct > 0 ? "+" : ""}${Math.round(r.pct * 100)}%</td></tr>`)
+      .join("")}</tbody></table>`;
   }
   if (unassigned.length) {
     detail += `<p class="error">Not counted as sent by anyone: ${unassigned.map((a) => esc(a.label)).join(", ")}. Their owner isn't one of the teams in this trade.</p>`;
@@ -682,7 +749,9 @@ function renderTeamDetail() {
   const groups = {};
   players.forEach((p) => (groups[p.pos] = groups[p.pos] || []).push(p));
   const picks = t.picks.map(assetById).filter(Boolean).sort((a, b) => a.year - b.year || a.round - b.round);
+  const sit = situationText(t.roster_id);
   el.innerHTML = `<h2>${esc(t.name)} <span class="muted">${esc(t.owner || "")}</span></h2>
+    ${sit ? `<p class="muted">Trade situation: ${esc(sit)}.</p>` : ""}
     <div class="cols">${Object.entries(groups)
       .sort((a, b) => POSITIONS.indexOf(a[0]) - POSITIONS.indexOf(b[0]))
       .map(([pos, ps]) => `<div class="card"><h4>${pos}</h4><ul>${ps
@@ -1034,7 +1103,7 @@ function renderRookieMock() {
   const rounds = [...new Set(mock.map((m) => m.round))];
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
   el.innerHTML = `
-    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, so a projected ${rd.year} 1.02 is worth more than a 1.04. ${evidence} ${srcText}</p>
+    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, half from what the market pays for that slot and half from the prospect projected to go there, so a loaded class lifts its picks.${rd.class_weight && rd.class_weight.ktc_devy ? " Prospects are priced half from their slot and half from their own KTC devy value on this league's scale" : ""}${rd.class.some((p) => p.pinned) ? `; pinned: ${rd.class.filter((p) => p.pinned).map((p) => `${esc(p.name)} as ${p.pinned}`).join(", ")}` : ""}. ${evidence} ${srcText}</p>
     ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
     ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
     ${rd.class.length ? `<h3>Prospect board <span class="muted">(${rd.year} class, this league's values)</span></h3>

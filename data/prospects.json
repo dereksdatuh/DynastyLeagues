@@ -1,0 +1,6 @@
+{
+  "notes": "Prospects whose value is pinned instead of priced from their draft slot and KTC devy value. pos_rank pins a prospect to that rank at his position in each league, using today's values (4 = worth what the league's fourth-best player at his position is worth). Remove an entry to go back to market pricing.",
+  "overrides": [
+    {"name": "Jeremiah Smith", "pos_rank": 4, "note": "Derek's call: an immediate dynasty WR4 when he arrives (2026-10-06)."}
+  ]
+}
