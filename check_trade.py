@@ -184,6 +184,23 @@ for r_ in TEAMS4:
     eg, evv = trade.effective([a["value"] for a in g]), trade.effective([a["value"] for a in v])
     tg = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in g]); tv = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in v])
     print("MATH", teams[r_]["owner"], "| IN:", fmtl(g), "| OUT:", fmtl(v), f"| raw {rg} vs {rv} | adj {eg:.0f} vs {evv:.0f} = {(eg-evv)/max(eg,evv)*100:+.1f}% | team {tg:.0f} vs {tv:.0f} = {(tg-tv)/max(tg,tv)*100:+.1f}%")
+samv = evenm + [(ME, SAM, d29)]
+rr = ev4(samv)
+print("SAMV", " | ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
+print("D29", lbl(d29), d29["value"], "to sam", round(d29["value"] * fac[SAM].get(d29["id"], 1)))
+print("LOWMAX2", sorted(((teams[t]['owner'], rr[t]['maxpf'] if t in rr else teams[t]['projection']['max_pf']) for t in teams), key=lambda x: x[1])[:3])
+# ways to win something back: drop one of Sam's other incoming pieces, or Sam sends Derek something
+sam_in = [m for m in samv if m[1] == SAM and m[2] is not d29]
+for m in sam_in:
+    r3 = ev4([x for x in samv if x is not m])
+    print("DROP", lbl(m[2]), "from", teams[m[0]]["owner"], "|", " ".join(f"{teams[x]['owner']} team {r3[x]['t']*100:+.1f}% mkt {r3[x]['m']*100:+.1f}%" for x in r3))
+usedv = {m[2]["id"] for m in samv}
+back = [pk for pk in d["picks"] if pk["roster_id"] == SAM and pk["id"] not in usedv and pk["value"] >= 250]
+back += [p for p in roster[SAM] if p["id"] not in usedv and p["value"] >= 300]
+back.sort(key=lambda a: -a["value"])
+for a in back[:14]:
+    r3 = ev4(samv + [(SAM, ME, a)])
+    print("BACK", lbl(a), a["value"], "|", " ".join(f"{teams[x]['owner']} team {r3[x]['t']*100:+.1f}% mkt {r3[x]['m']*100:+.1f}% ppg {r3[x]['ppg0']:.1f}->{r3[x]['ppg1']:.1f} maxpf {r3[x]['maxpf']}" for x in r3))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
