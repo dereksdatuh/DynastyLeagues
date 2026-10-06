@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fetch, ids, record, sleeper, valuation, weekly
+from . import draft, fetch, ids, record, sleeper, valuation, weekly
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
 from .picks import PickValues, pick_label, pick_ownership
@@ -54,6 +54,30 @@ class Shared:
         self.index = ids.PlayerIndex(self.players, crosswalk)
         self._stats: dict = {}
         self._espn: dict = {}
+
+    def optional(self, fn):
+        """Run a fetch the build can do without; None (with a warning) when it fails."""
+        try:
+            return fn()
+        except Exception as exc:
+            print(f"warning: {getattr(fn, '__name__', 'fetch')} failed: {type(exc).__name__}: {exc}"[:300], file=sys.stderr)
+            return None
+
+    def devy(self, superflex: bool) -> dict:
+        """KeepTradeCut devy rankings for one QB format, fetched once per run."""
+        key = ("devy", superflex)
+        if key not in self._espn:
+            try:
+                rows, fields = draft.fetch_devy(superflex)
+                classes = {}
+                for r in rows:
+                    classes[r["class"]] = classes.get(r["class"], 0) + 1
+                self._espn[key] = {"ok": True, "players": rows, "fields": fields,
+                                   "classes": {str(k): v for k, v in sorted(classes.items(), key=lambda kv: str(kv[0]))}}
+            except Exception as exc:
+                print(f"warning: KTC devy rankings failed: {exc}"[:300], file=sys.stderr)
+                self._espn[key] = {"ok": False, "players": [], "error": f"{type(exc).__name__}: {exc}"[:300]}
+        return self._espn[key]
 
     def espn(self, name: str, *args):
         """ESPN scoreboard / news, fetched once per run; empty when unreachable."""
@@ -217,12 +241,17 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     for t in teams:
         t["projection"] = projected[t["roster_id"]]
 
-    # Projected finish (weakest lineup picks first) sets next year's pick tiers.
+    # Next year's draft order, projected under this league's own rule (read off
+    # its last rookie draft), sets next year's pick tiers.
     n = len(teams)
-    weakest_first = sorted(teams, key=lambda t: t["starter_value"])
+    playoff_teams = int((league.get("settings") or {}).get("playoff_teams") or max(n // 2, 1))
+    last = shared.optional(lambda: draft.last_rookie_draft(league, rosters, draft.drafts(lid)))
+    rule = draft.infer_rule(shared.optional(lambda: draft.previous_rosters(league)) or [], last["slots"], playoff_teams) \
+        if last else {"rule": "record", "basis": "default", "matched": None, "of": None}
+    order = draft.project_order(teams, rule["rule"], playoff_teams)
     finish_tier = {}
-    for i, t in enumerate(weakest_first):
-        finish_tier[t["roster_id"]] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
+    for i, rid in enumerate(order):
+        finish_tier[rid] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
     pick_values = PickValues(pick_entries)
     # Team name plus manager, so "via" picks name the person too.
     name_of = {t["roster_id"]: t["name"] + (f", {t['owner']}" if t.get("owner") and t["owner"] != t["name"] else "")
@@ -245,6 +274,20 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["picks"] = [p["id"] for p in picks if p["roster_id"] == t["roster_id"]]
         t["pick_value"] = sum(p["value"] for p in picks if p["roster_id"] == t["roster_id"])
         t["total_value"] = t["player_value"] + t["pick_value"]
+
+    rookie = None
+    if first_year:
+        rounds = max([p["round"] for p in picks if p["year"] == first_year] + [(last or {}).get("rounds") or 0])
+        snake = (last or {}).get("type") == "snake"
+        devy = shared.devy(fmt.superflex)
+        rookie = {
+            "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",
+            "playoff_teams": playoff_teams, "rule": rule, "last_draft_season": (last or {}).get("season"),
+            "order": order, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values),
+            "class": draft.rookie_class(devy["players"], first_year, players, pick_values, n, rounds)[: n * rounds + 24]
+            if devy["players"] else [],
+            "source": {k: v for k, v in devy.items() if k != "players"},
+        }
 
     teams.sort(key=lambda t: t["total_value"], reverse=True)
     starter_rank = {t["roster_id"]: i for i, t in enumerate(sorted(teams, key=lambda t: -t["starter_value"]), 1)}
@@ -271,6 +314,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "model": model_info,
         "players": players,
         "picks": picks,
+        "rookie_draft": rookie,
         "teams": teams,
     }
 
@@ -321,6 +365,16 @@ def main(argv=None):
               f"top scorer {(wk['potw'] or {}).get('overall', [{}])[0].get('name') if (wk['potw'] or {}).get('overall') else None}, "
               f"last week top {(wk['potw_last'] or {}).get('overall', [{}])[0].get('name') if (wk['potw_last'] or {}).get('overall') else None}")
         print(f"  projected: {recs} ({sum(len(w) for w in data['schedule']['weeks'].values())} scheduled games)")
+        rd = data.get("rookie_draft")
+        if rd:
+            names = {t["roster_id"]: t["name"] for t in data["teams"]}
+            src = rd["source"]
+            print(f"  {rd['year']} rookie draft: {rd['rounds']} rounds {rd['type']}, order by {rd['rule']}, "
+                  f"first five {[names.get(r) for r in rd['order'][:5]]}; devy source "
+                  f"{'ok' if src.get('ok') else 'FAILED ' + str(src.get('error'))}, classes {src.get('classes')}, "
+                  f"class size {len(rd['class'])}, top {[(p['name'], p['pos'], p['value']) for p in rd['class'][:6]]}")
+            if src.get("fields"):
+                print(f"  devy fields: {src['fields']}")
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))

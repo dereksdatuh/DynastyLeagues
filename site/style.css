@@ -130,3 +130,8 @@ thead th[aria-sort="ascending"]::after { content: " ▲"; }
   .matchup .head { grid-template-columns: 1fr 60px 1fr; }
   .matchup .lineups, .cols.two { grid-template-columns: 1fr; }
 }
+
+/* rookie mock */
+#rookie td.analysis { font-size: 12px; color: var(--muted); min-width: 280px; white-space: normal; }
+.mine-card { margin-bottom: 12px; max-width: 520px; }
+tr.mine-row td { background: rgba(234, 179, 8, 0.08); }

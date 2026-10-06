@@ -91,6 +91,7 @@ async function loadLeague(id) {
   renderTeams();
   renderLeague();
   setupWeek();
+  renderRookieMock();
 }
 
 // ---------- tabs ----------
@@ -947,6 +948,94 @@ function renderNews() {
         <a href="${esc(n.url || "#")}" target="_blank" rel="noopener">${esc(n.headline)}</a>
         <div class="muted">${n.players.map((id) => { const p = playerOf(id); return `${esc(p.name)} (${ownerTag(p.roster_id)})`; }).join(", ")}${n.published ? ` · ${ago(n.published)}` : ""}</div>
         ${n.description ? `<div>${esc(n.description)}</div>` : ""}</li>`).join("")}</ul>` : `<p class="muted">No recent ESPN stories about players in this league.</p>`}`;
+}
+
+// ---------- rookie mock draft ----------
+// The build ships next year's projected order (this league's own rule), who holds
+// each pick, and the class on this league's value scale. The mock runs here so it
+// can use the same room rankings as the Teams tab: each holder takes the best
+// prospect, nudged toward a position its room ranks bottom third in.
+const NEED_BONUS = 0.12;
+const MOCK_LOOKAHEAD = 12;
+
+function runMock(rd) {
+  const { ranks } = leagueStrength();
+  const needs = {};
+  state.data.teams.forEach((t) => (needs[t.roster_id] = new Set(needsOf(t.roster_id, ranks).needs)));
+  const avail = [...rd.class];
+  return rd.board.map((b) => {
+    if (!avail.length) return { ...b, pick: null };
+    const need = needs[b.roster_id] || new Set();
+    const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1);
+    const window = avail.slice(0, MOCK_LOOKAHEAD);
+    const pick = window.reduce((best, p) => (score(p) > score(best) ? p : best), window[0]);
+    const bpa = avail[0];
+    avail.splice(avail.indexOf(pick), 1);
+    const forNeed = need.has(pick.pos);
+    need.delete(pick.pos);
+    return { ...b, pick, bpa, forNeed, roomRank: ranks[pick.pos] ? ranks[pick.pos][b.roster_id] : null };
+  });
+}
+
+function mockAnalysis(m, rd) {
+  const n = state.data.teams.length;
+  const p = m.pick;
+  const notes = [];
+  if (m.forNeed && m.bpa && m.bpa !== p) notes.push(`Takes ${p.pos} for need (their ${p.pos} room is ${ordinal(m.roomRank)} of ${n}) over best available ${esc(m.bpa.name)} (${m.bpa.pos}).`);
+  else if (m.forNeed) notes.push(`Best available and fills a need: their ${p.pos} room is ${ordinal(m.roomRank)} of ${n}.`);
+  else notes.push(`Best available on this league's values.`);
+  if (p.factor >= 1.04) notes.push(`${p.pos}s score up in this league (×${p.factor.toFixed(2)}).`);
+  else if (p.factor <= 0.96) notes.push(`${p.pos}s score down in this league (×${p.factor.toFixed(2)}).`);
+  if (m.slot_value) {
+    const r = p.value / m.slot_value;
+    if (r >= 1.15) notes.push(`Value: worth about ${Math.round((r - 1) * 100)}% more than the pick trades for.`);
+    else if (r <= 0.85) notes.push(`Reach: the pick trades for about ${Math.round((1 / r - 1) * 100)}% more than him.`);
+  }
+  return notes.join(" ");
+}
+
+function slotWhy(rid, rd) {
+  const t = teamOf(rid);
+  if (!t || !t.projection) return "";
+  const pr = t.projection;
+  const missed = pr.rank > rd.playoff_teams;
+  return `${recordText(pr)} (${ordinal(pr.rank)})${rd.rule.rule === "max_pf" ? ` · max PF ${fmt(pr.max_pf)}` : ""}${missed ? "" : " · playoffs"}`;
+}
+
+function renderRookieMock() {
+  const el = $("#rookie");
+  const rd = state.data.rookie_draft;
+  if (!rd || !rd.board.length) { el.innerHTML = `<p class="muted">No upcoming rookie draft picks found for this league.</p>`; return; }
+  const rule = rd.rule;
+  const ruleText = rule.rule === "max_pf" ? "lowest projected max PF first" : "worst projected record first";
+  const evidence = rule.basis === "last_draft"
+    ? `This league's ${rd.last_draft_season} rookie draft followed ${rule.rule === "max_pf" ? "max PF" : "record"}: ${rule.matched} of ${rule.of} non-playoff slots matched (${rule.rule === "max_pf" ? `record matched ${rule.record_matched}` : `max PF matched ${rule.max_pf_matched}`}).`
+    : `Sleeper had no past rookie draft to check, so this assumes worst record first.`;
+  const src = rd.source || {};
+  const srcText = src.ok
+    ? `Prospects from KeepTradeCut's devy rankings (${state.data.league.format.superflex ? "superflex" : "1QB"} values), refreshed every build, valued at what the market pays for the pick where each one ranks and adjusted for how this league scores his position.`
+    : `The prospect rankings couldn't be loaded this build (${esc(src.error || "unavailable")}); the order and pick holders are still current.`;
+  const mock = rd.class.length ? runMock(rd) : rd.board.map((b) => ({ ...b, pick: null }));
+  const mine = myTeam();
+  const myPicks = mine ? mock.filter((m) => m.roster_id === mine.roster_id) : [];
+  const fromCell = (m) => m.original_roster_id !== m.roster_id ? `<div class="muted">via ${teamHtml(m.original_roster_id)}</div>` : "";
+  const row = (m) => `<tr class="${mine && m.roster_id === mine.roster_id ? "mine-row" : ""}">
+      <td class="strong">${m.label}</td>
+      <td>${teamHtml(m.roster_id)}${starMine(m.roster_id)}${fromCell(m)}</td>
+      <td class="muted">${slotWhy(m.original_roster_id, rd)}</td>
+      ${m.pick ? `<td class="name">${esc(m.pick.name)}</td><td><span class="pos pos-${m.pick.pos}">${m.pick.pos}</span></td><td class="muted">${esc(m.pick.school || "")}</td>
+      <td class="num" data-sort="${m.pick.value}">${fmt(m.pick.value)} <span class="muted">/ ${fmt(m.slot_value)}</span></td><td class="analysis">${mockAnalysis(m, rd)}</td>`
+      : `<td colspan="5" class="muted">No prospect left in the rankings.</td>`}</tr>`;
+  const rounds = [...new Set(mock.map((m) => m.round))];
+  const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
+  el.innerHTML = `
+    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, then the ${rd.playoff_teams} playoff teams, weakest projected record first. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. ${evidence} ${srcText}</p>
+    ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
+    ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
+    ${rd.class.length ? `<h3>Prospect board <span class="muted">(${rd.year} class, this league's values)</span></h3>
+    <div class="table-wrap"><table id="prospects"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>School</th><th>Age</th><th class="num">KTC rank</th><th class="num">League value</th><th>Mock</th></tr></thead><tbody>${rd.class
+      .map((p, i) => `<tr><td>${i + 1}</td><td class="name">${esc(p.name)}</td><td><span class="pos pos-${p.pos}">${p.pos}${p.ktc_pos_rank || ""}</span></td><td class="muted">${esc(p.school || "")}</td><td>${p.age ? Number(p.age).toFixed(1) : ""}</td><td class="num">${p.class_rank}</td><td class="num strong">${fmt(p.value)}</td><td>${takenAt.get(p.name) || '<span class="muted">undrafted</span>'}</td></tr>`)
+      .join("")}</tbody></table></div>` : ""}`;
 }
 
 // ---------- sortable tables ----------

@@ -40,6 +40,9 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
 - `engine/weekly.py` and `site/app.js` (week block): matchup snapshot, ESPN game
   status (`game_status` mirrors JS `gameStatus`), players of the week, value history
   and movers, ESPN news and the injury report. The browser refreshes matchups live.
+- `engine/draft.py` and `site/app.js` (`runMock`): next year's draft order rule
+  (`infer_rule`), projected order and board, KTC devy class valued by slot, and the
+  mock itself (`NEED_BONUS`, `MOCK_LOOKAHEAD`).
 - New market source: add `engine/sources/<name>.py` with `fetch(fmt, index)` returning
   the entry shape documented in `engine/sources/__init__.py`, register it in `SOURCES`
   and `market.SOURCE_WEIGHTS`, and add a fake response in `tests/conftest.py`.

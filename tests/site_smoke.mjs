@@ -67,6 +67,9 @@ for (const id of leagues) {
   await page.click('button[data-tab="news"]');
   const news = await page.$$eval("#news ul.news li", (r) => r.length);
   const injuries = await page.$$eval("#injuries tbody tr", (r) => r.length);
+  await page.click('button[data-tab="rookie"]');
+  const mock = await page.$$eval("#rookie table[id^=mock] tbody tr", (rs) => rs.map((r) => [...r.cells].slice(0, 5).map((c) => c.textContent.trim().replace(/\s+/g, " "))));
+  const prospects = await page.$$eval("#prospects tbody tr", (r) => r.length);
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
@@ -74,6 +77,8 @@ for (const id of leagues) {
   if (matchups[0]) console.log(`  first matchup: ${matchups[0]}`);
   if (potw.length) console.log(`  top scorers: ${potw.join("; ")}`);
   if (matchups.length && !lineupRows) errors.push(`${id}: matchup lineups did not open`);
+  console.log(`  rookie mock: ${mock.length} picks, ${prospects} prospects; ${mock.slice(0, 3).map((m) => `${m[0]} ${m[1]} → ${m[3]} ${m[4]}`).join("; ")}`);
+  if (!mock.length) errors.push(`${id}: rookie mock did not render`);
   console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 5).join(" | ")}, max PF high ${maxPF[0]?.toFixed(0)}, impact rows ${impact}, owner messages ${pitches.length}`);
   if (pitches[0]) console.log(pitches[0].split("\n").map((l) => "    " + l).join("\n"));
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);

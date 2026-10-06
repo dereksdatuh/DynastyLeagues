@@ -152,6 +152,19 @@ def fake_responses(world, league):
                             "superflexValues": {"value": 1500 + base * mult * tm * 0.55},
                             "oneQBValues": {"value": 1500 + base * mult * tm * 0.55}})
     ktc_html = "<html><script>\nvar playersArray = " + json.dumps(ktc) + ";\nvar x = 1;</script></html>"
+    # 2027 and 2028 college classes, best first, as KTC's devy page embeds them.
+    devy = [{"playerName": f"Prospect {i}", "playerID": 5000 + i, "position": ["QB", "RB", "WR", "TE"][i % 4],
+             "team": "Texas", "age": 20, "draftYear": 2027 if i % 3 else 2028,
+             "superflexValues": {"value": 9000 - i * 120, "rank": i + 1}, "oneQBValues": {"value": 8500 - i * 120}}
+            for i in range(60)]
+    devy_html = "<html><script>\nvar playersArray = " + json.dumps(devy) + ";</script></html>"
+    # Last season (league P1): roster 1 has the worst record but roster 2 the lowest max PF, and so on;
+    # the 2026 rookie draft was seeded by lowest max PF.
+    prev = [{"roster_id": r + 1, "settings": {"wins": r, "losses": 13 - r, "fpts": 1500 + r,
+                                               "ppts": 1800 + ((r + 1) % n) * 10}} for r in range(n)]
+    by_max_pf = sorted(prev, key=lambda x: x["settings"]["ppts"])
+    last_draft = [{"draft_id": "D1", "season": "2026", "status": "complete", "type": "linear", "settings": {"rounds": 4},
+                   "slot_to_roster_id": {str(i + 1): r["roster_id"] for i, r in enumerate(by_max_pf)}}]
     dp_csv = '"player","pos","team","age","draft_year","ecr_1qb","ecr_2qb","ecr_pos","value_1qb","value_2qb","scrape_date","fp_id"\n' + "\n".join(dp)
     lid = league["league_id"]
     return {
@@ -159,7 +172,10 @@ def fake_responses(world, league):
         f"/league/{lid}/rosters": rosters,
         f"/league/{lid}/users": users,
         f"/league/{lid}/traded_picks": traded,
-        f"/league/{lid}": league,
+        f"/league/{lid}": {**league, "previous_league_id": "P1"},
+        f"/league/{lid}/drafts": last_draft,
+        "/league/P1/rosters": prev,
+        "keeptradecut.com/devy-rankings": devy_html,
         **schedule,
         "/players/nfl": world.players,
         "/projections/nfl/2026/5": list(world.proj.values()),
