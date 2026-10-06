@@ -87,6 +87,38 @@ print("NOSTROUD", " ".join(f"{teams[x]['owner']} team {r2[x]['t']*100:+.1f}% mkt
 qbs_after = sorted([p for p in roster[ME] if p["pos"] == "QB" and p["id"] != caleb["id"]] + [hurts, stroud], key=lambda p: -p["ros_ppg"])
 print("DQB", [(p["name"], p["ros_ppg"], p["value"]) for p in qbs_after])
 print("MATQB_AFTER", [(p["name"], p["ros_ppg"]) for p in sorted([p for p in roster[MAT] if p["pos"] == "QB" and p["id"] not in (hurts["id"], stroud["id"])] + [young, caleb], key=lambda p: -p["ros_ppg"])][:4])
+# Balance Derek's proposal: Derek adds assets to Sam or Matty, optionally drop Stroud.
+used = {m[2]["id"] for m in derek}
+mylineup = {x["id"] for x in best_lineup(roster[ME], slots, "ros_ppg")}
+sam_after = [p for p in roster[SAM] if p["id"] not in (corum["id"], young["id"], addison["id"])]
+sam_base = ppg(sam_after)
+dpool = []
+for pk in d["picks"]:
+    if pk["roster_id"] == ME and pk["id"] not in used and pk["value"] >= 250:
+        dpool.append(pk)
+for p in roster[ME]:
+    if p["id"] not in used and p["id"] not in mylineup and p["value"] >= 300 and p["pos"] != "QB":
+        dpool.append(p)
+dpool.sort(key=lambda a: -a["value"]); dpool = dpool[:12]
+print("DPOOL", [(lbl(a), a["value"], round(ppg(sam_after + [a]) - sam_base, 2) if a["id"] in P else 0) for a in dpool])
+bal = []
+for drop in (False, True):
+    basem = [m for m in derek if not (drop and m[2] is stroud)]
+    for k in range(0, 5):
+        for combo in itertools.combinations(dpool, k):
+            for dest in itertools.product((SAM, MAT), repeat=k):
+                if any(t == SAM and a["id"] in P and ppg(sam_after + [a]) - sam_base > 0.5 for a, t in zip(combo, dest)):
+                    continue
+                mv = basem + [(ME, t, a) for a, t in zip(combo, dest)]
+                r = evaluate(mv)
+                worst = max(abs(r[x]["t"]) for x in r)
+                bal.append((worst + 0.004 * k + (0.01 if drop else 0), drop, [f"{lbl(a)}->{teams[t]['owner']}" for a, t in zip(combo, dest)], r))
+bal.sort(key=lambda x: x[0])
+for sc, drop, adds, r in bal[:12]:
+    print("BAL", round(sc, 3), "dropStroud" if drop else "keepStroud", adds, "|", " ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}% ppg {r[x]['ppg1']:.1f} maxpf {r[x]['maxpf']}" for x in r))
+for drop in (False,):
+    b = next(x for x in bal if x[1] == drop)
+    print("BESTKEEP", b[2], " ".join(f"{teams[x]['owner']} {b[3][x]['t']*100:+.1f}%" for x in b[3]))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
