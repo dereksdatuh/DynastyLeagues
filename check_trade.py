@@ -52,7 +52,7 @@ for owner in (ME, MAT):
         if add <= 0.5:
             pool.append((owner, p))
 pool.sort(key=lambda x: -x[1]["value"])
-pool = pool[:16]
+pool = pool[:12]
 print("POOL", [(teams[o]["owner"], lbl(a), a["value"], round(a["value"] * fac[SAM].get(a["id"], 1))) for o, a in pool])
 
 def evaluate(moves):
@@ -77,7 +77,7 @@ for qb in myqbs:
             moves = base_core["core"] + [(ME, MAT, qb)] + [(o, SAM, a) for o, a in combo]
             r = evaluate(moves)
             worst = max(abs(r[x]["t"]) for x in r)
-            score = worst + 0.01 * k
+            score = worst + 0.005 * k
             results.append((score, qb["name"], [f"{teams[o]['owner']}:{lbl(a)}" for o, a in combo], r, moves))
 results.sort(key=lambda x: x[0])
 seen = 0
