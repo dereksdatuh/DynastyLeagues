@@ -329,6 +329,36 @@ for bn, base in (("G0", g0), ("G0W", g0w)):
     for k, sp, c, rr in out[:8]:
         print("GFIX", bn, k, f"{sp*100:.1f}", c, "||", f3(rr))
     print("NGFIX", bn, len(out))
+lpick = lambda r, pref: next(pk for pk in d["picks"] if pk["roster_id"] == r and pk["id"].startswith(pref) and "via" not in pk["label"])
+m2_04 = next(pk for pk in d["picks"] if pk["roster_id"] == MAT and lbl(pk).startswith("2027 2.04"))
+d2_09 = next(pk for pk in d["picks"] if pk["roster_id"] == DES and lbl(pk).startswith("2027 2.09"))
+hw = g0 + [(DES, MAT, pitts), (MAT, SAM, m2_04), (SAM, DES, awil), (DES, MAT, d2_09)]
+print("HW", f3(ev3(hw)))
+uh = {m[2]["id"] for m in hw} | {kc["id"], des27["id"]}
+ph = []
+for r, l in ((SAM, set()), (MAT, mlu), (DES, dlu)):
+    ph += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in uh and pk["value"] >= 150 and not (r == SAM and ":1:" in pk["id"]) and not (r == MAT and pk["id"] in (f"pick:2029:1:{MAT}",))]
+    ph += [(r, p) for p in roster[r] if p["id"] not in uh and p["id"] not in l and p["value"] >= 200]
+ph.sort(key=lambda x: -x[1]["value"]); ph = ph[:22]
+print("PH", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in ph])
+out = []
+for k in range(1, 3):
+    for combo in itertools.combinations(ph, k):
+        for dest in itertools.product(T3, repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
+            rr = ev3(hw + [(o, t, a) for (o, a), t in zip(combo, dest)])
+            if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                out.append((k, sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+    if out: break
+# also try dropping DES's 2.09 to Matty
+for dr in (d2_09, pitts):
+    rr = ev3([m for m in hw if m[2] is not dr]); print("HWDROP", lbl(dr), f3(rr))
+out.sort(key=lambda x: (x[0], x[1]))
+for k, sp, c, rr in out[:10]:
+    print("HFIX", k, f"{sp*100:.1f}", c, "||", f3(rr))
+print("NHFIX", len(out))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
