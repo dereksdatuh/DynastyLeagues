@@ -369,7 +369,7 @@ def main(argv=None):
         if rd:
             names = {t["roster_id"]: t["name"] for t in data["teams"]}
             src = rd["source"]
-            print(f"  {rd['year']} rookie draft: {rd['rounds']} rounds {rd['type']}, order by {rd["rule"]} (from {rd["last_draft_season"]} draft), "
+            print(f"  {rd['year']} rookie draft: {rd['rounds']} rounds {rd['type']}, order by {rd['rule']} (from {rd['last_draft_season']} draft), "
                   f"first five {[names.get(r) for r in rd['order'][:5]]}; devy source "
                   f"{'ok' if src.get('ok') else 'FAILED ' + str(src.get('error'))}, classes {src.get('classes')}, "
                   f"class size {len(rd['class'])}, top {[(p['name'], p['pos'], p['value']) for p in rd['class'][:6]]}")
