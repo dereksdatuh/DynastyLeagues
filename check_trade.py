@@ -141,6 +141,26 @@ res.sort(key=lambda x: (x[0], x[1]))
 for k, _, c, rr in res[:8]:
     print("FIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}%" for x in rr))
 print("NFIX", len(res))
+deslu = {x["id"] for x in best_lineup([p for p in roster[DES] if p["id"] not in (simpson["id"], mhj["id"])] + [hurts, addison, metcalf], slots, "ros_ppg")}
+xp = [(DES, pk) for pk in d["picks"] if pk["roster_id"] == DES and pk["id"] not in used and pk["value"] >= 300]
+xp += [(DES, p) for p in roster[DES] if p["id"] not in used and p["id"] not in deslu and p["value"] >= 400]
+xp += [(ME, a) for a in dp[:6]]
+xp.sort(key=lambda x: -x[1]["value"]); xp = xp[:14]
+print("XP", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in xp])
+res = []
+for k in range(1, 5):
+    for combo in itertools.combinations(xp, k):
+        for dest in itertools.product((SAM, MAT), repeat=k):
+            if any(t == SAM and a["id"] in P and ppg(sam_after + [simpson, a]) - sb > 0.5 for (o, a), t in zip(combo, dest)):
+                continue
+            rr = ev4(four + [(o, t, a) for (o, a), t in zip(combo, dest)])
+            if all(rr[x]["t"] >= -0.05 for x in rr):
+                res.append((k, sum(1 for o, _ in combo if o == ME), [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+    if res: break
+res.sort(key=lambda x: (x[0], x[1]))
+for k, nme, c, rr in res[:8]:
+    print("XFIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
+print("NXFIX", len(res))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
