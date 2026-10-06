@@ -72,7 +72,7 @@ def evaluate(moves):
 
 results = []
 for qb in myqbs:
-    for k in range(0, 4):
+    for k in range(0, 6):
         for combo in itertools.combinations(pool, k):
             moves = base_core["core"] + [(ME, MAT, qb)] + [(o, SAM, a) for o, a in combo]
             r = evaluate(moves)
