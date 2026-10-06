@@ -89,11 +89,39 @@ print("DQB", [(p["name"], p["ros_ppg"], p["value"]) for p in qbs_after])
 print("MATQB_AFTER", [(p["name"], p["ros_ppg"]) for p in sorted([p for p in roster[MAT] if p["pos"] == "QB" and p["id"] not in (hurts["id"], stroud["id"])] + [young, caleb], key=lambda p: -p["ros_ppg"])][:4])
 own2 = [pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2028:2:")]
 print("D2028_2NDS", [(pk["id"], pk["label"], pk["value"]) for pk in own2])
-slimm = [(SAM, ME, s27), (SAM, ME, corum), (ME, SAM, s28), (ME, SAM, own2[0]), (ME, SAM, d29), (MAT, SAM, m27), (SAM, MAT, young), (SAM, MAT, addison)]
+slimm = [(SAM, ME, s27), (SAM, ME, corum), (ME, SAM, s28), (ME, SAM, own2[0]), (ME, SAM, d29), (MAT, SAM, m27), (SAM, MAT, young), (SAM, MAT, addison), (MAT, SAM, m2_27)]
 r = evaluate(slimm)
 print("SLIM", " | ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}% ppg {r[x]['ppg0']:.1f}->{r[x]['ppg1']:.1f} maxpf {r[x]['maxpf']} gets {r[x]['mg']:.0f} gives {r[x]['mv']:.0f}" for x in r))
 others = sorted(((teams[t]['owner'], teams[t]['projection']['max_pf']) for t in teams if t not in (SAM,)), key=lambda x: x[1])[:3]
 print("LOWEST_OTHERS", others)
+used = {m[2]["id"] for m in slimm}
+sam_after = [p for p in roster[SAM] if p["id"] not in (corum["id"], young["id"], addison["id"])]
+sam_base = ppg(sam_after)
+sp = []
+for o in (ME, MAT):
+    for pk in d["picks"]:
+        if pk["roster_id"] == o and pk["id"] not in used and pk["value"] >= 250:
+            sp.append((o, pk))
+    for p in roster[o]:
+        if p["id"] in used or p["value"] < 300: continue
+        if o == ME and p["id"] in {x["id"] for x in best_lineup(roster[ME], slots, "ros_ppg")}: continue
+        if ppg(sam_after + [p]) - sam_base > 0.5: continue
+        sp.append((o, p))
+sp.sort(key=lambda x: -x[1]["value"]); sp = sp[:16]
+print("SPOOL", [(teams[o]['owner'], lbl(a), a["value"], round(a["value"] * fac[SAM].get(a["id"], 1))) for o, a in sp])
+fits = []
+for k in range(1, 4):
+    for combo in itertools.combinations(sp, k):
+        r = evaluate(slimm + [(o, SAM, a) for o, a in combo])
+        if all(r[x]["t"] >= -0.05 for x in r):
+            fits.append((k, sum(a["value"] for _, a in combo), [f"{teams[o]['owner']}:{lbl(a)}" for o, a in combo], r))
+fits.sort(key=lambda x: (x[0], x[1]))
+for k, v, c, r in fits[:10]:
+    print("FIT", k, v, c, "|", " ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}% maxpf {r[x]['maxpf']}" for x in r))
+# Also: Derek-only fits
+d_only = [f for f in fits if all(x.startswith("DS107:") for x in f[2])][:5]
+for k, v, c, r in d_only:
+    print("DFIT", k, v, c, "|", " ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}%" for x in r))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
