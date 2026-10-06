@@ -3,10 +3,14 @@
 Two 3,000 players are not worth one 6,000 player: the stud takes one roster spot
 and one lineup slot. Each side's value is a power sum, (Σ vᵖ)^(1/p) with p > 1,
 which rewards the side getting the best piece. p = 1 would be a plain sum.
+p was 1.35 until 2026-10-06; that let a pile of mid pieces read as "fair" for one
+star (a 5-for-3 at 10,225 raw vs 8,660 read as even). At 1.15 the star still wins
+a 2-for-1 of equal raw totals by about 9%, and the adjusted total stays close to
+the raw one.
 The same formula runs in the browser (site/app.js) so both agree.
 """
 
-CONSOLIDATION_POWER = 1.35
+CONSOLIDATION_POWER = 1.15
 FAIR_MARGIN = 0.05
 
 

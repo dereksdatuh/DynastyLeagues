@@ -1,6 +1,6 @@
 // Dynasty Leagues: static front end over the JSON the engine builds (site/data/).
 
-const CONSOLIDATION_POWER = 1.35; // keep in sync with engine/trade.py
+const CONSOLIDATION_POWER = 1.15; // keep in sync with engine/trade.py
 const FAIR_MARGIN = 0.05;
 const POSITIONS = ["QB", "RB", "WR", "TE", "DL", "LB", "DB", "K", "DEF"];
 
@@ -400,10 +400,11 @@ function renderTrade() {
       return { i, g, v, pct: (g - v) / (Math.max(g, v) || 1) };
     });
     const ahead = tr.filter((r) => r.pct > FAIR_MARGIN), behind = tr.filter((r) => r.pct < -FAIR_MARGIN);
-    const summary = !behind.length && ahead.length
+    const marketNote = fair ? "" : "At market value this isn't even, and team situations don't change that. ";
+    const summary = marketNote + (!behind.length && ahead.length
       ? `Every team gets at least what it gives by its own needs${ahead.length === tr.length ? ", and all of them come out ahead" : ""}.`
       : !behind.length ? "Even for every team by its own needs."
-      : `By its own needs, ${behind.map((r) => esc(sideName(r.i))).join(" and ")} ${behind.length > 1 ? "give" : "gives"} up more than ${behind.length > 1 ? "they get" : "it gets"}.`;
+      : `By its own needs, ${behind.map((r) => esc(sideName(r.i))).join(" and ")} ${behind.length > 1 ? "give" : "gives"} up more than ${behind.length > 1 ? "they get" : "it gets"}.`);
     detail += `<h4>By each team's own situation</h4><p class="muted">${summary}</p>
       <table class="net"><thead><tr><th>Team</th><th>Situation</th><th class="num">Gets</th><th class="num">Gives</th><th class="num">Net</th></tr></thead><tbody>${tr
       .map((r) => `<tr><td>${esc(sideName(r.i))}</td><td class="muted">${esc(situationText(tm[r.i]))}</td><td class="num">${fmt(r.g)}</td><td class="num">${fmt(r.v)}</td>
