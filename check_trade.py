@@ -284,6 +284,22 @@ for k, sp, bn, c, rr, su in out[:14]:
     print("FIX3", k, f"{sp*100:.1f}", bn, c, "||", f3(rr), "| sam ppg vs no-add", f"{su:+.1f}")
 print("NFIX3", len(out))
 print("FFB_MAXPF", teams[FFB]["projection"]["max_pf"] if "FFB" in dir() else None)
+out = []
+for k in range(1, 5):
+    for combo in itertools.combinations(pool3, k):
+        for dest in itertools.product(T3, repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
+            mv = b3w + [(o, t, a) for (o, a), t in zip(combo, dest)]
+            rr = ev3(mv)
+            if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                out.append((k, sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+    if len(out) >= 6: break
+out.sort(key=lambda x: (x[0], x[1]))
+for k, sp, c, rr in out[:12]:
+    print("WFIX", k, f"{sp*100:.1f}", c, "||", f3(rr))
+print("NWFIX", len(out))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
