@@ -7,7 +7,7 @@ on:
     - cron: "23 * * * *" # hourly, so news, injuries and the scores snapshot stay fresh
   workflow_dispatch:
   push:
-    paths: ["engine/**", "site/**", "data/leagues.json", ".github/workflows/build-values.yml"]
+    paths: ["engine/**", "site/**", "data/leagues.json", ".github/workflows/build-values.yml", "check_trade.py"]
   pull_request:
 
 concurrency:
@@ -28,6 +28,8 @@ jobs:
         run: python -m pytest -q
       - name: Build values for every league
         run: python -m engine.build --out site/data
+      - name: Trade check (temporary)
+        run: python check_trade.py
       - name: Stamp the build into the page so browsers fetch the new scripts
         run: sed -i "s/__BUILD__/${GITHUB_SHA::7}/g" site/index.html site/app.js
       - name: Check the site renders every league
