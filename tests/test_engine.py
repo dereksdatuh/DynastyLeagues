@@ -102,6 +102,16 @@ def test_trade_consolidation_premium():
     assert trade.evaluate([{"value": 5000}], [{"value": 4900}])["verdict"] == "fair"
 
 
+def test_many_mid_pieces_do_not_read_even_for_fewer_better_ones():
+    # A real 2026-10-06 leg: three for five, the five worth 18% more raw. It must
+    # not read as fair, and the adjusted totals stay near the raw ones.
+    three = [{"value": v} for v in (4911, 1903, 1846)]
+    five = [{"value": v} for v in (1389, 3709, 930, 2812, 1385)]
+    r = trade.evaluate(three, five)
+    assert r["verdict"] == "side B receives more" and r["difference_pct"] < -5
+    assert r["effective"]["b"] >= 0.8 * r["raw"]["b"]
+
+
 def test_ktc_parser_reads_embedded_array():
     html = '<script>\nvar playersArray = [{"playerName": "A;]", "superflexValues": {"value": 9}}];var y = [1];</script>'
     assert parse_players_array(html)[0]["playerName"] == "A;]"
@@ -380,7 +390,7 @@ def test_team_values_tankers_prize_early_picks_contenders_discount_them(offline)
     early, late = firsts[0]["id"], firsts[-1]["id"]
     assert f(tank, early) > f(tank, late) > 1 > f(contend, early)
     # Every team's multipliers stay inside the clamp.
-    assert all(0.6 <= v <= 1.6 for row in fac.values() for v in row.values())
+    assert all(0.8 <= v <= 1.25 for row in fac.values() for v in row.values())
 
 
 def test_superflex_team_short_at_qb_pays_more_for_a_starting_qb():

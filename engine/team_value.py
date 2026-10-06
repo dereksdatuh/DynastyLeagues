@@ -12,7 +12,13 @@ A team's situation:
   needs  -1 (deepest room in the league) .. +1 (thinnest), per position
   qb     in superflex, how many startable QBs it has against the QB slots it fills
 
-The multiplier for a team receiving an asset (clamped to FACTOR_CLAMP):
+Market value stays the anchor: every adjustment below is applied at TEAM_WEIGHT
+(half strength), then clamped to FACTOR_CLAMP, so a team's own value for an asset
+stays within -20%/+25% of market. At full strength the adjustments stacked (a
+contender's boost on a vet it starts, plus discounts on picks and backup QBs it
+sends) until a clearly lopsided deal read as even.
+
+The multiplier for a team receiving an asset, before weighting:
   picks    rebuilders +10% plus up to +25% more the better the pick (an early pick
            in next year's draft is the most prized asset a tanking team can get);
            contenders down to -15%. Picks further out move 70-80% as much.
@@ -27,9 +33,16 @@ The multiplier for a team receiving an asset (clamped to FACTOR_CLAMP):
 
 from .league import SLOT_ELIGIBILITY
 
-FACTOR_CLAMP = (0.6, 1.6)
+TEAM_WEIGHT = 0.5
+FACTOR_CLAMP = (0.8, 1.25)
 MIN_VALUE = 200  # players below this are waiver-level; their multipliers are not worth shipping
 OFFENSE = ("QB", "RB", "WR", "TE")
+
+
+def _settle(f: float) -> float:
+    """Weight an adjustment toward market, then clamp it."""
+    f = 1 + TEAM_WEIGHT * (f - 1)
+    return min(max(f, FACTOR_CLAMP[0]), FACTOR_CLAMP[1])
 
 
 def _lineup_points(roster: list, slots: list) -> float:
@@ -141,7 +154,7 @@ def factors(teams: list, players: list, picks: list, slots: list, ctx: dict, fir
                     f -= 0.12
             elif p["pos"] in c.get("needs", {}):
                 f += 0.12 * c["needs"][p["pos"]]
-            f = min(max(f, FACTOR_CLAMP[0]), FACTOR_CLAMP[1])
+            f = _settle(f)
             if abs(f - 1) >= 0.01:
                 row[p["id"]] = round(f, 3)
         for pk in picks:
@@ -153,7 +166,7 @@ def factors(teams: list, players: list, picks: list, slots: list, ctx: dict, fir
                 f = 1 + (-mode) * (0.10 + 0.25 * q) * (1.0 if near else 0.8)
             else:
                 f = 1 - mode * 0.15 * (1.0 if near else 0.7)
-            f = min(max(f, FACTOR_CLAMP[0]), FACTOR_CLAMP[1])
+            f = _settle(f)
             if abs(f - 1) >= 0.01:
                 row[pk["id"]] = round(f, 3)
         out[rid] = row
