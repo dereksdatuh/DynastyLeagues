@@ -18,7 +18,7 @@ from pathlib import Path
 from . import draft, fetch, ids, record, sleeper, valuation, weekly
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
-from .picks import PickValues, pick_label, pick_ownership
+from .picks import PickValues, pick_label, pick_ownership, slot_pick_label
 from .sources import SOURCES
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -248,7 +248,18 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     last = shared.optional(lambda: draft.last_rookie_draft(draft.league_chain({**league, "league_id": lid})))
     rule = draft.infer_rule(last["standings"], last["slots"], last["playoff_teams"] or playoff_teams) \
         if last else {"rule": "record", "basis": "default", "matched": None, "of": None}
-    order = draft.project_order(teams, rule["rule"], playoff_teams)
+    # A league can state its own order in data/leagues.json, which beats what the
+    # last draft implies: `non_playoff` is "max_pf" or "record", and `playoff_slots`
+    # grants the playoff teams fixed slots (champion first).
+    stated = config.get("draft_order") or {}
+    if stated.get("non_playoff") in ("max_pf", "record"):
+        rule = {**rule, "rule": stated["non_playoff"], "basis": "league_rule"}
+    playoff_slots = stated.get("playoff_slots")
+    if playoff_slots and not draft.valid_playoff_slots(playoff_slots, n, playoff_teams):
+        playoff_slots = None
+    rule = {**rule, "playoff_slots": playoff_slots}
+    order = draft.project_order(teams, rule["rule"], playoff_teams, playoff_slots)
+    snake = (last or {}).get("type") == "snake"
     finish_tier = {}
     for i, rid in enumerate(order):
         finish_tier[rid] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
@@ -260,14 +271,21 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     owned = pick_ownership(league, rosters, traded, tables["season"])
     first_year = min((p["year"] for p in owned), default=None)
     for pk in owned:
-        tier = finish_tier.get(pk["original_roster_id"]) if pk["year"] == first_year else None
-        label = pick_label(pk["year"], pk["round"], tier)
+        first = pk["year"] == first_year
+        tier = finish_tier.get(pk["original_roster_id"]) if first else None
+        # The coming draft is ordered, so each of its picks is worth what its own
+        # projected slot is worth; later years only have a tier to go on.
+        slot = draft.slot_in_round(order, pk["round"], pk["original_roster_id"], snake) if first else None
+        overall = (pk["round"] - 1) * n + slot if slot else None
+        label = slot_pick_label(pk["year"], pk["round"], slot) if slot else pick_label(pk["year"], pk["round"], tier)
         if pk["original_roster_id"] != pk["owner_roster_id"]:
             label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
+        value = draft.slot_value(pick_values, pk["year"], overall, n) if overall \
+            else pick_values.value(pk["year"], pk["round"], tier)
         picks.append({
             "id": f"pick:{pk['year']}:{pk['round']}:{pk['original_roster_id']}",
             "label": label, "year": pk["year"], "round": pk["round"], "tier": tier,
-            "value": round(pick_values.value(pk["year"], pk["round"], tier)),
+            "slot": slot, "overall": overall, "value": round(value),
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
         })
     for t in teams:
@@ -278,7 +296,6 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     rookie = None
     if first_year:
         rounds = max(p["round"] for p in picks if p["year"] == first_year)
-        snake = (last or {}).get("type") == "snake"
         devy = shared.devy(fmt.superflex)
         rookie = {
             "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",

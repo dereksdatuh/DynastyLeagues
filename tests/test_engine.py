@@ -109,9 +109,9 @@ def test_ktc_parser_reads_embedded_array():
         parse_players_array("<html>blocked</html>")
 
 
-def _build(league, offline, **kw):
+def _build(league, offline, config_extra=None, **kw):
     offline(league, **kw)
-    config = {"id": "t", "name": "t", "sleeper_league_id": league["league_id"], "buy_in": 50}
+    config = {"id": "t", "name": "t", "sleeper_league_id": league["league_id"], "buy_in": 50, **(config_extra or {})}
     return build.build_league(config, build.Shared())
 
 
@@ -304,11 +304,43 @@ def test_rookie_draft_order_rule_board_and_class(offline):
     assert rd["year"] == 2027 and len(rd["board"]) == len(teams) * rd["rounds"]
     traded = next(b for b in rd["board"] if b["round"] == 1 and b["original_roster_id"] == 2)
     assert traded["roster_id"] == 5 and traded["label"].startswith("1.")
-    # Projected slot sets next year's pick tier.
-    first = next(p for p in data["picks"] if p["id"] == f"pick:2027:1:{rd['order'][0]}")
-    assert first["tier"] == "early"
+    # Each of next year's picks is named and valued by its own projected slot, so
+    # two first-rounders at different slots are no longer worth the same.
+    firsts = [p for p in data["picks"] if p["year"] == 2027 and p["round"] == 1]
+    assert len(firsts) == len(teams)
+    by_slot = {p["slot"]: p for p in firsts}
+    assert sorted(by_slot) == list(range(1, len(teams) + 1))
+    assert by_slot[1]["label"].startswith("2027 1.01") and by_slot[1]["tier"] == "early"
+    assert [by_slot[s]["value"] for s in sorted(by_slot)] == sorted((p["value"] for p in firsts), reverse=True)
+    assert by_slot[1]["value"] > by_slot[2]["value"] > by_slot[len(teams)]["value"]
+    # Later years have no order yet, so they keep a tier-wide value.
+    later = [p for p in data["picks"] if p["year"] > 2027 and p["round"] == 1]
+    assert later and len({p["value"] for p in later}) == 1 and all(p["slot"] is None for p in later)
     # Class: only 2027 prospects, on the league's value scale, best first.
     cls = rd["class"]
     assert cls and all(p["class"] == 2027 for p in cls) and rd["source"]["ok"]
     vals = [p["value"] for p in cls]
     assert vals == sorted(vals, reverse=True) and 0 < vals[0] < data["players"][0]["value"]
+
+
+def test_league_stated_draft_order_grants_playoff_teams_fixed_slots(offline):
+    """Ultimate Dynasty's rule: playoff teams take stated slots, champion picking last."""
+    slots = [12, 11, 9, 10, 7, 8]
+    data = _build(STANDARD_LEAGUE, offline,
+                  config_extra={"draft_order": {"non_playoff": "max_pf", "playoff_slots": slots}})
+    rd = data["rookie_draft"]
+    teams = {t["roster_id"]: t for t in data["teams"]}
+    assert rd["rule"]["basis"] == "league_rule" and rd["rule"]["playoff_slots"] == slots
+    seeded = sorted(teams.values(), key=lambda t: (-t["projection"]["wins"], -t["projection"]["ppg"]))
+    for place, t in enumerate(seeded[: rd["playoff_teams"]]):
+        assert rd["order"][slots[place] - 1] == t["roster_id"]
+    # The non-playoff teams fill what is left, lowest max PF first.
+    rest = [r for i, r in enumerate(rd["order"], 1) if i not in slots]
+    assert [teams[r]["projection"]["max_pf"] for r in rest] == sorted(teams[r]["projection"]["max_pf"] for r in rest)
+
+
+def test_stated_playoff_slots_are_ignored_when_unusable(offline):
+    data = _build(STANDARD_LEAGUE, offline,
+                  config_extra={"draft_order": {"playoff_slots": [12, 12, 99]}})
+    rd = data["rookie_draft"]
+    assert rd["rule"]["playoff_slots"] is None and len(set(rd["order"])) == len(data["teams"])

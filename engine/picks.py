@@ -34,6 +34,11 @@ def pick_label(year: int, rnd: int, tier: str | None) -> str:
     return f"{year} {tier.title() + ' ' if tier else ''}{suffix}"
 
 
+def slot_pick_label(year: int, rnd: int, slot: int) -> str:
+    """'2027 1.02' - a pick named by the slot it currently projects at."""
+    return f"{year} {rnd}.{slot:02d}"
+
+
 class PickValues:
     """Value lookup for (year, round, tier) built from normalized market pick entries."""
 
