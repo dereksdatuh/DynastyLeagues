@@ -175,6 +175,15 @@ slim = [(SAM, ME, s27), (SAM, ME, corum), (ME, SAM, s28), (ME, SAM, d2_28), (ME,
 for nm, mv in (("BIG18", big), ("SLIMWILLIS", slim)):
     rr = evaluate(mv)
     print(nm, " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
+pitts = fname("Kyle Pitts"); des2 = K[f"pick:2027:2:{DES}"]
+evenm = four + [(DES, MAT, pitts), (DES, SAM, des2)]
+for r_ in TEAMS4:
+    g = [a for fr, to, a in evenm if to == r_]; v = [a for fr, to, a in evenm if fr == r_]
+    fmtl = lambda xs: "; ".join(f"{lbl(a)} {a['value']} (x{fac[r_].get(a['id'], 1):.3f}={round(a['value'] * fac[r_].get(a['id'], 1))})" for a in xs)
+    rg, rv = sum(a["value"] for a in g), sum(a["value"] for a in v)
+    eg, evv = trade.effective([a["value"] for a in g]), trade.effective([a["value"] for a in v])
+    tg = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in g]); tv = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in v])
+    print("MATH", teams[r_]["owner"], "| IN:", fmtl(g), "| OUT:", fmtl(v), f"| raw {rg} vs {rv} | adj {eg:.0f} vs {evv:.0f} = {(eg-evv)/max(eg,evv)*100:+.1f}% | team {tg:.0f} vs {tv:.0f} = {(tg-tv)/max(tg,tv)*100:+.1f}%")
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
