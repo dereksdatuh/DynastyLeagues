@@ -43,7 +43,7 @@ sam_line_now = ppg([p for p in roster[SAM] if p["id"] not in (corum["id"], young
 pool = []
 for owner in (ME, MAT):
     for pk in d["picks"]:
-        if pk["roster_id"] == owner and pk["id"] not in (s28["id"], s27["id"], j27["id"], m27["id"], f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}") and pk["value"] >= 300:
+        if pk["roster_id"] == owner and pk["id"] not in (s28["id"], s27["id"], j27["id"], m27["id"], f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", f"pick:2029:1:{ME}") and pk["value"] >= 300:
             pool.append((owner, pk))
     for p in roster[owner]:
         if p["id"] in (hurts["id"],) or p["pos"] == "QB" or p["value"] < 400:
@@ -52,7 +52,7 @@ for owner in (ME, MAT):
         if add <= 0.5:
             pool.append((owner, p))
 pool.sort(key=lambda x: -x[1]["value"])
-pool = pool[:14]
+pool = pool[:15]
 print("POOL", [(teams[o]["owner"], lbl(a), a["value"], round(a["value"] * fac[SAM].get(a["id"], 1))) for o, a in pool])
 
 def evaluate(moves):
@@ -72,7 +72,7 @@ def evaluate(moves):
 
 results = []
 for qb in myqbs:
-    for k in range(0, 6):
+    for k in range(0, 7):
         for combo in itertools.combinations(pool, k):
             moves = base_core["core"] + [(ME, MAT, qb)] + [(o, SAM, a) for o, a in combo]
             r = evaluate(moves)
