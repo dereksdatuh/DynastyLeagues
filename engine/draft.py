@@ -98,8 +98,13 @@ def infer_rule(prev_rosters: list, slots: dict, playoff_teams: int) -> dict:
             "record_matched": s_rec, "max_pf_matched": s_mpf}
 
 
-def project_order(teams: list, rule: str, playoff_teams: int) -> list:
-    """Roster ids in projected draft order for one round (pick 1 first)."""
+def project_order(teams: list, rule: str, playoff_teams: int, playoff_slots: list | None = None) -> list:
+    """Roster ids in projected draft order for one round (pick 1 first).
+
+    `playoff_slots` is a league that grants its playoff teams fixed slots: entry i is
+    the first-round slot for the team projected to finish i+1 (champion first). The
+    non-playoff teams, ordered by the league's rule, fill whatever slots are left.
+    """
     standing = sorted(teams, key=lambda t: (-t["projection"]["wins"], -t["projection"]["ppg"]))
     playoff = standing[:playoff_teams]
     out = standing[playoff_teams:]
@@ -107,8 +112,29 @@ def project_order(teams: list, rule: str, playoff_teams: int) -> list:
         out.sort(key=lambda t: t["projection"]["max_pf"])
     else:
         out.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["max_pf"]))
+    if valid_playoff_slots(playoff_slots, len(teams), len(playoff)):
+        order = [None] * len(teams)
+        for place, t in enumerate(playoff):  # playoff[0] is the projected champion
+            order[playoff_slots[place] - 1] = t["roster_id"]
+        rest = iter(out)
+        for i, taken in enumerate(order):
+            if taken is None:
+                order[i] = next(rest)["roster_id"]
+        return order
     playoff.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["ppg"]))
     return [t["roster_id"] for t in out + playoff]
+
+
+def valid_playoff_slots(slots, n: int, playoff_teams: int) -> bool:
+    """A usable fixed-slot map: one distinct slot in range per playoff team."""
+    return bool(slots) and len(slots) == playoff_teams and len(set(slots)) == playoff_teams \
+        and all(isinstance(s, int) and 1 <= s <= n for s in slots)
+
+
+def slot_in_round(order: list, rnd: int, original_roster_id: int, snake: bool) -> int | None:
+    """Which slot of `rnd` the pick originally owned by that team falls at."""
+    seq = order[::-1] if snake and rnd % 2 == 0 else order
+    return seq.index(original_roster_id) + 1 if original_roster_id in seq else None
 
 
 def slot_label(rnd: int, slot: int) -> str:

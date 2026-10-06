@@ -1008,9 +1008,14 @@ function renderRookieMock() {
   if (!rd || !rd.board.length) { el.innerHTML = `<p class="muted">No upcoming rookie draft picks found for this league.</p>`; return; }
   const rule = rd.rule;
   const ruleText = rule.rule === "max_pf" ? "lowest projected max PF first" : "worst projected record first";
-  const evidence = rule.basis === "last_draft"
+  const evidence = rule.basis === "league_rule"
+    ? `This is the order this league has written down, so it is used as given.`
+    : rule.basis === "last_draft"
     ? `This league's ${rd.last_draft_season} rookie draft followed ${rule.rule === "max_pf" ? "max PF" : "record"}: ${rule.matched} of ${rule.of} non-playoff slots matched (${rule.rule === "max_pf" ? `record matched ${rule.record_matched}` : `max PF matched ${rule.max_pf_matched}`}).`
     : `Sleeper had no past rookie draft to check, so this assumes worst record first.`;
+  const playoffText = rule.playoff_slots
+    ? `then the ${rd.playoff_teams} playoff teams at the slots this league grants by finish (champion picks last)`
+    : `then the ${rd.playoff_teams} playoff teams, weakest projected record first`;
   const src = rd.source || {};
   const srcText = src.ok
     ? `Prospects from KeepTradeCut's devy rankings (${state.data.league.format.superflex ? "superflex" : "1QB"} values), refreshed every build, valued at what the market pays for the pick where each one ranks and adjusted for how this league scores his position.`
@@ -1029,7 +1034,7 @@ function renderRookieMock() {
   const rounds = [...new Set(mock.map((m) => m.round))];
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
   el.innerHTML = `
-    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, then the ${rd.playoff_teams} playoff teams, weakest projected record first. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. ${evidence} ${srcText}</p>
+    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, so a projected ${rd.year} 1.02 is worth more than a 1.04. ${evidence} ${srcText}</p>
     ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
     ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
     ${rd.class.length ? `<h3>Prospect board <span class="muted">(${rd.year} class, this league's values)</span></h3>
