@@ -77,8 +77,8 @@ for p in roster(ME):
 cands.sort(key=lambda x: -x["value"])
 for c in cands[:25]:
     print("MINE", c.get("name") or c.get("label"), c.get("pos", "pick"), round(c["value"]), "age", c.get("age"), "ros", c.get("ros_ppg"), "sam_ppg_add", c["pf"])
-print("SAMLINE", [(x["name"], x["pos"], x["ros_ppg"], x["value"]) for x in best_lineup(roster(SAM), slots, "ros_ppg")])
-print("FFBLINE", [(x["name"], x["pos"], x["ros_ppg"]) for x in best_lineup(roster(FFB), slots, "ros_ppg")])
+print("SAMLINE", [(x.get("name"), x.get("pos"), x.get("ros_ppg"), x.get("value")) for x in best_lineup(roster(SAM), slots, "ros_ppg")])
+print("FFBLINE", [(x.get("name"), x.get("pos"), x.get("ros_ppg")) for x in best_lineup(roster(FFB), slots, "ros_ppg")])
 print("MATQB", sorted([(p["name"], p["value"], p["ros_ppg"]) for p in roster(MAT) if p["pos"] == "QB"], key=lambda x: -x[1]))
 print("MEQB", sorted([(p["name"], p["value"], p["ros_ppg"]) for p in roster(ME) if p["pos"] == "QB"], key=lambda x: -x[1]))
 
