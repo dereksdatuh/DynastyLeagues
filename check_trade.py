@@ -311,16 +311,17 @@ poolg = []
 for r, l in ((SAM, set()), (MAT, mlu), (DES, dlu)):
     poolg += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in ug and pk["value"] >= 250]
     poolg += [(r, p) for p in roster[r] if p["id"] not in ug and p["id"] not in l and p["value"] >= 300]
-poolg.sort(key=lambda x: -x[1]["value"]); poolg = poolg[:18]
+poolg.sort(key=lambda x: -x[1]["value"]); poolg = [x for x in poolg if x[1]["value"] < 5000][:15]
 print("POOLG", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in poolg])
 for bn, base in (("G0", g0), ("G0W", g0w)):
     out = []
-    for k in range(0, 4):
+    for k in range(0, 5):
         for combo in itertools.combinations(poolg, k):
             for dest in itertools.product(T3, repeat=k):
                 if any(o == t for (o, a), t in zip(combo, dest)): continue
                 if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
                 rr = ev3(base + [(o, t, a) for (o, a), t in zip(combo, dest)])
+                if k == 1 or (k == 2 and combo[0][1] is des27): print("TRY", bn, [lbl(a) for o, a in combo], [teams[t]["owner"] for t in dest], " ".join(f"{rr[x]['m']*100:+.0f}/{rr[x]['t']*100:+.0f}" for x in rr)) if combo[0][1] is des27 else None
                 if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
                     sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
                     out.append((k, sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
