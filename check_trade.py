@@ -142,11 +142,13 @@ for k, _, c, rr in res[:8]:
     print("FIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}%" for x in rr))
 print("NFIX", len(res))
 deslu = {x["id"] for x in best_lineup([p for p in roster[DES] if p["id"] not in (simpson["id"], mhj["id"])] + [hurts, addison, metcalf], slots, "ros_ppg")}
+matlu = {x["id"] for x in best_lineup([p for p in roster[MAT] if p["id"] not in (hurts["id"], metcalf["id"])] + [young, corum, mhj, rice], slots, "ros_ppg")}
 xp = [(DES, pk) for pk in d["picks"] if pk["roster_id"] == DES and pk["id"] not in used and pk["value"] >= 300]
 xp += [(DES, p) for p in roster[DES] if p["id"] not in used and p["id"] not in deslu and p["value"] >= 400]
-xp += [(ME, a) for a in dp[:6]]
-xp.sort(key=lambda x: -x[1]["value"]); xp = xp[:14]
+xp += [(ME, a) for a in dp[:7]]
+xp.sort(key=lambda x: -x[1]["value"]); xp = xp[:16]
 print("XP", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in xp])
+ok = lambda rr: all(rr[x]["t"] >= -0.05 and rr[x]["m"] >= -0.05 for x in rr)
 res = []
 for k in range(1, 5):
     for combo in itertools.combinations(xp, k):
@@ -154,19 +156,25 @@ for k in range(1, 5):
             if any(t == SAM and a["id"] in P and ppg(sam_after + [simpson, a]) - sb > 0.5 for (o, a), t in zip(combo, dest)):
                 continue
             rr = ev4(four + [(o, t, a) for (o, a), t in zip(combo, dest)])
-            if all(rr[x]["t"] >= -0.05 for x in rr):
-                res.append((k, sum(1 for o, _ in combo if o == ME), [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+            if ok(rr):
+                spread = max(abs(rr[x]["m"]) for x in rr) + max(abs(rr[x]["t"]) for x in rr)
+                res.append((k, spread, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
     if res: break
 res.sort(key=lambda x: (x[0], x[1]))
-for k, nme, c, rr in res[:8]:
-    print("XFIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
+for k, sp, c, rr in res[:8]:
+    print("XFIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
 print("NXFIX", len(res))
-nix = fname("Bo Nix"); d29 = K[f"pick:2027:2:{DES}"]
-desleg_g = [hurts, addison, metcalf]; desleg_v = [mhj, nix, simpson, des27, d29]
-print("DESLEG", "raw", sum(a["value"] for a in desleg_g), sum(a["value"] for a in desleg_v),
-      "mkt", round(trade.effective([a["value"] for a in desleg_g])), round(trade.effective([a["value"] for a in desleg_v])),
-      "team", round(trade.effective([a["value"] * fac[DES].get(a["id"], 1) for a in desleg_g])), round(trade.effective([a["value"] * fac[DES].get(a["id"], 1) for a in desleg_v])),
-      "factors", [(lbl(a), fac[DES].get(a["id"], 1)) for a in desleg_g + desleg_v])
+# Earlier fair versions under the new math
+wil, jcm = fname("Malik Willis"), fname("Croskey-Merritt")
+d29_2 = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2029:2:"))
+d29_3 = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2029:3:"))
+d29_4 = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2029:4:"))
+big = derek + [(ME, SAM, d29_2), (ME, SAM, d29_4), (ME, MAT, d29_3), (ME, MAT, jcm)]
+d2_28 = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2028:2:"))
+slim = [(SAM, ME, s27), (SAM, ME, corum), (ME, SAM, s28), (ME, SAM, d2_28), (ME, SAM, K[f"pick:2029:1:{ME}"]), (MAT, SAM, m27), (SAM, MAT, young), (SAM, MAT, addison), (MAT, SAM, m2_27), (ME, MAT, wil), (ME, SAM, d29_2)]
+for nm, mv in (("BIG18", big), ("SLIMWILLIS", slim)):
+    rr = evaluate(mv)
+    print(nm, " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
