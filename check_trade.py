@@ -122,6 +122,26 @@ for k, v, c, r in fits[:10]:
 d_only = [f for f in fits if all(x.startswith("DS107:") for x in f[2])][:5]
 for k, v, c, r in d_only:
     print("DFIT", k, v, c, "|", " ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}%" for x in r))
+# Derek-side balancing for both v1 (no Matty 2nd) and v2
+mylu = {x["id"] for x in best_lineup(roster[ME], slots, "ros_ppg")}
+dp = [pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"] not in used and pk["value"] >= 250]
+dp += [p for p in roster[ME] if p["id"] not in used and p["id"] not in mylu and p["value"] >= 300]
+dp.sort(key=lambda a: -a["value"]); dp = dp[:12]
+print("DP", [(lbl(a), a["value"]) for a in dp])
+res = []
+for ver, base in (("v2", slimm), ("v1", [m for m in slimm if m[2] is not m2_27])):
+    for k in range(0, 5):
+        for combo in itertools.combinations(dp, k):
+            for dest in itertools.product((SAM, MAT), repeat=k):
+                if any(t == SAM and a["id"] in P and ppg(sam_after + [a]) - sam_base > 0.5 for a, t in zip(combo, dest)):
+                    continue
+                r = evaluate(base + [(ME, t, a) for a, t in zip(combo, dest)])
+                if all(r[x]["t"] >= -0.05 for x in r):
+                    res.append((k, r[ME]["t"], ver, [f"{lbl(a)}->{teams[t]['owner']}" for a, t in zip(combo, dest)], r))
+# fewest pieces, then best for Derek
+res.sort(key=lambda x: (x[0], -x[1]))
+for k, t, ver, c, r in res[:12]:
+    print("DBAL", ver, k, c, "|", " ".join(f"{teams[x]['owner']} team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}% ppg {r[x]['ppg1']:.1f} maxpf {r[x]['maxpf']}" for x in r))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
