@@ -43,7 +43,7 @@ sam_line_now = ppg([p for p in roster[SAM] if p["id"] not in (corum["id"], young
 pool = []
 for owner in (ME, MAT):
     for pk in d["picks"]:
-        if pk["roster_id"] == owner and pk["id"] not in (s28["id"], s27["id"], j27["id"], m27["id"], f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", f"pick:2029:1:{ME}") and pk["value"] >= 300:
+        if pk["roster_id"] == owner and pk["id"] not in (s28["id"], s27["id"], j27["id"], m27["id"], f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}") and pk["value"] >= 300:
             pool.append((owner, pk))
     for p in roster[owner]:
         if p["id"] in (hurts["id"],) or p["pos"] == "QB" or p["value"] < 400:
@@ -71,14 +71,19 @@ def evaluate(moves):
     return res
 
 results = []
-for qb in myqbs:
+mpool = [(o, a) for o, a in pool if o == ME][:8]
+for qb in [q for q in myqbs if q["name"] in ("Jayden Daniels", "Jared Goff")]:
     for k in range(0, 7):
         for combo in itertools.combinations(pool, k):
-            moves = base_core["core"] + [(ME, MAT, qb)] + [(o, SAM, a) for o, a in combo]
-            r = evaluate(moves)
-            worst = max(abs(r[x]["t"]) for x in r)
-            score = worst + 0.005 * k
-            results.append((score, qb["name"], [f"{teams[o]['owner']}:{lbl(a)}" for o, a in combo], r, moves))
+            used = {a["id"] for _, a in combo}
+            rest = [x for x in mpool if x[1]["id"] not in used]
+            for j in range(0, 3):
+                for mc in itertools.combinations(rest, j):
+                    moves = base_core["core"] + [(ME, MAT, qb)] + [(o, SAM, a) for o, a in combo] + [(ME, MAT, a) for _, a in mc]
+                    r = evaluate(moves)
+                    worst = max(abs(r[x]["t"]) for x in r)
+                    score = worst + 0.005 * (k + j)
+                    results.append((score, qb["name"], [f"{teams[o]['owner']}:{lbl(a)}" for o, a in combo] + [f"toMATTY:{lbl(a)}" for _, a in mc], r, moves))
 results.sort(key=lambda x: x[0])
 seen = 0
 for score, qbn, combo, r, moves in results[:12]:
@@ -93,6 +98,6 @@ r = best[3]
 for x in r:
     print("  SIDE", teams[x]["owner"], {k: (round(v, 3) if isinstance(v, float) else v) for k, v in r[x].items()})
 # Best per QB choice too
-for qb in myqbs:
+for qb in [q for q in myqbs if q["name"] in ("Jayden Daniels", "Jared Goff")]:
     b = next(x for x in results if x[1] == qb["name"])
     print("PERQB", qb["name"], round(b[0], 3), b[2], " ".join(f"{teams[x]['owner']} {b[3][x]['t']*100:+.0f}%" for x in b[3]), "sam maxpf", b[3][SAM]["maxpf"])
