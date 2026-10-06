@@ -201,6 +201,38 @@ back.sort(key=lambda a: -a["value"])
 for a in back[:14]:
     r3 = ev4(samv + [(SAM, ME, a)])
     print("BACK", lbl(a), a["value"], "|", " ".join(f"{teams[x]['owner']} team {r3[x]['t']*100:+.1f}% mkt {r3[x]['m']*100:+.1f}% ppg {r3[x]['ppg0']:.1f}->{r3[x]['ppg1']:.1f} maxpf {r3[x]['maxpf']}" for x in r3))
+print("STROUD", stroud["name"], stroud["value"], "holder", teams[stroud["roster_id"]]["owner"], "ros", stroud["ros_ppg"], "hurts", hurts["value"], hurts["ros_ppg"])
+fmt = lambda rr: " | ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']:.0f}" for x in rr)
+sw = lambda mv: [(fr, to, stroud if a is hurts else a) for fr, to, a in mv]
+for nm, mv in (("ST_EVEN", sw(evenm)), ("ST_29", sw(samv))):
+    print(nm, fmt(ev4(mv)))
+print("LOWMAX3", sorted(((teams[t]['owner'], ev4(sw(samv))[t]['maxpf'] if t in TEAMS4 else teams[t]['projection']['max_pf']) for t in teams), key=lambda x: x[1])[:3])
+base = sw(samv)
+usedb = {m[2]["id"] for m in base} | {hurts["id"]}
+matlu2 = {x["id"] for x in best_lineup([p for p in roster[MAT] if p["id"] not in (stroud["id"], metcalf["id"])] + [young, corum, mhj, rice, pitts], slots, "ros_ppg")}
+cand = [(MAT, pk) for pk in d["picks"] if pk["roster_id"] == MAT and pk["id"] not in usedb and pk["value"] >= 300]
+cand += [(MAT, p) for p in roster[MAT] if p["id"] not in usedb and p["id"] not in matlu2 and p["value"] >= 400]
+cand += [(SAM, pk) for pk in d["picks"] if pk["roster_id"] == SAM and pk["id"] not in usedb and pk["value"] >= 300]
+cand.sort(key=lambda x: -x[1]["value"]); cand = cand[:14]
+print("CAND", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in cand])
+drops = [m for m in base if m[0] == DES]
+res = []
+for k in range(0, 4):
+    for combo in itertools.combinations(cand, k):
+        for dest in itertools.product((ME, SAM, DES), repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
+            for dr in [None] + drops:
+                mv = [m for m in base if m is not dr] + [(o, t, a) for (o, a), t in zip(combo, dest)]
+                rr = ev4(mv)
+                if all(rr[x]["t"] >= -0.05 and rr[x]["m"] >= -0.05 for x in rr):
+                    sp = max(abs(rr[x]["m"]) for x in rr)
+                    res.append((k + (dr is not None), -rr[ME]["m"], sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)] + ([f"DROP {lbl(dr[2])}"] if dr else []), rr))
+    if len(res) >= 5: break
+res.sort(key=lambda x: (x[0], x[1]))
+for k, _, sp, c, rr in res[:10]:
+    print("SFIX", k, c, "||", fmt(rr))
+print("NSFIX", len(res))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
