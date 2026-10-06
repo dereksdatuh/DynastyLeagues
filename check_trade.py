@@ -161,6 +161,12 @@ res.sort(key=lambda x: (x[0], x[1]))
 for k, nme, c, rr in res[:8]:
     print("XFIX", k, c, "|", " ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']}" for x in rr))
 print("NXFIX", len(res))
+nix = fname("Bo Nix"); d29 = K[f"pick:2027:2:{DES}"]
+desleg_g = [hurts, addison, metcalf]; desleg_v = [mhj, nix, simpson, des27, d29]
+print("DESLEG", "raw", sum(a["value"] for a in desleg_g), sum(a["value"] for a in desleg_v),
+      "mkt", round(trade.effective([a["value"] for a in desleg_g])), round(trade.effective([a["value"] for a in desleg_v])),
+      "team", round(trade.effective([a["value"] * fac[DES].get(a["id"], 1) for a in desleg_g])), round(trade.effective([a["value"] * fac[DES].get(a["id"], 1) for a in desleg_v])),
+      "factors", [(lbl(a), fac[DES].get(a["id"], 1)) for a in desleg_g + desleg_v])
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
