@@ -102,7 +102,13 @@ def ev4(moves):
         ps = [p for p in roster[r] if p["id"] not in out] + [a for a in gets[r] if a["id"] in P]
         res[r] = {"m": (mg - mv) / max(mg, mv, 1), "t": (tg - tv) / max(tg, tv, 1), "ppg0": ppg(roster[r]), "ppg1": ppg(ps), "maxpf": maxpf(r, ps)}
     return res
-rice, simpson, metcalf, mhj = (name(n) for n in ("Rashee Rice", "Ty Simpson", "DK Metcalf", "Marvin Harrison Jr."))
+import re as _re
+def fname(n):
+    key = _re.sub(r"[^a-z]", "", n.lower())
+    hits = [p for p in d["players"] if key in _re.sub(r"[^a-z]", "", p["name"].lower())]
+    print("LOOKUP", n, [(p["name"], p["pos"], teams[p["roster_id"]]["owner"] if p.get("roster_id") in teams else None) for p in hits][:4])
+    return sorted(hits, key=lambda p: -p["value"])[0]
+rice, simpson, metcalf, mhj = (fname(n) for n in ("Rashee Rice", "Ty Simpson", "Metcalf", "Marvin Harrison"))
 for p in (rice, simpson, metcalf, mhj):
     print("PLAYER", p["name"], p["pos"], p["value"], "age", p["age"], "ros", p["ros_ppg"], "holder", teams[p["roster_id"]]["owner"], "to sam", round(p["value"] * fac[SAM].get(p["id"], 1)))
 des27 = K[f"pick:2027:1:{DES}"]
