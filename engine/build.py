@@ -426,6 +426,15 @@ def main(argv=None):
         print("  team modes: " + ", ".join(
             f"{names_by_id(data).get(rid)} {c['label']} {c['mode']} QB {c['qb']['startable']}/{c['qb']['slots']}"
             for rid, c in sorted(ctx["teams"].items(), key=lambda kv: kv[1]["mode"])))
+        fac = data["team_values"]["factors"]
+        if rd:
+            names = names_by_id(data)
+            first = next((p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1 and p["slot"] == 1), None)
+            qb = next((p for p in data["players"] if p["pos"] == "QB"), None)
+            if first and qb:
+                print(f"  to each team: {first['label']} {first['value']} / {qb['name']} {qb['value']}: " + ", ".join(
+                    f"{names.get(rid)} {round(first['value'] * fac[rid].get(first['id'], 1))}/{round(qb['value'] * fac[rid].get(qb['id'], 1))}"
+                    for rid in sorted(fac, key=lambda r: ctx["teams"][r]["mode"])))
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))

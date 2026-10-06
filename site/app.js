@@ -214,7 +214,8 @@ function situationText(rid) {
   if (!c) return "";
   const bits = [SITUATION[c.label]];
   if (c.qb && c.qb.superflex) bits.push(`${c.qb.startable} startable QB${c.qb.startable === 1 ? "" : "s"} for ${c.qb.slots} QB spots`);
-  const thin = Object.entries(c.needs || {}).filter(([, v]) => v >= 0.5).map(([pos]) => pos);
+  // In superflex the QB count above is what decides QB need, not the room's value.
+  const thin = Object.entries(c.needs || {}).filter(([pos, v]) => v >= 0.5 && !(pos === "QB" && c.qb && c.qb.superflex)).map(([pos]) => pos);
   if (thin.length) bits.push(`thin at ${thin.join(", ")}`);
   return bits.join("; ");
 }
