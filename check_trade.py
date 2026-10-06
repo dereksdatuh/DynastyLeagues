@@ -70,6 +70,24 @@ def evaluate(moves):
                   "ppg0": ppg(roster[r]), "ppg1": ppg(ps), "maxpf": maxpf(r, ps)}
     return res
 
+stroud = name("C.J. Stroud")
+caleb = name("Caleb Williams")
+print("PLAYER", stroud["name"], stroud["value"], stroud["ros_ppg"], "to me", round(stroud["value"] * fac[ME].get(stroud["id"], 1)))
+m28 = K[f"pick:2028:1:{MAT}"]; d29 = K[f"pick:2029:1:{ME}"]; m2_27 = K[f"pick:2027:2:{MAT}"]
+d2_28 = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2028:2:") and "Gruden" in pk["label"])
+derek = base_core["core"] + [(MAT, ME, stroud), (ME, MAT, caleb), (ME, SAM, d29), (ME, SAM, d2_28), (MAT, SAM, m28), (MAT, SAM, m2_27)]
+r = evaluate(derek)
+for fr, to, a in derek:
+    print("DMOVE", teams[fr]["owner"], "->", teams[to]["owner"], lbl(a), a["value"], "to receiver", round(a["value"] * fac[to].get(a["id"], 1)))
+for x in r:
+    print("DSIDE", teams[x]["owner"], f"team {r[x]['t']*100:+.1f}% mkt {r[x]['m']*100:+.1f}%", {k: (round(v, 1) if isinstance(v, float) else v) for k, v in r[x].items()})
+# variant: same but Stroud stays with Matty
+r2 = evaluate([m for m in derek if m[2] is not stroud])
+print("NOSTROUD", " ".join(f"{teams[x]['owner']} team {r2[x]['t']*100:+.1f}% mkt {r2[x]['m']*100:+.1f}% ppg {r2[x]['ppg1']:.1f} maxpf {r2[x]['maxpf']}" for x in r2))
+qbs_after = sorted([p for p in roster[ME] if p["pos"] == "QB" and p["id"] != caleb["id"]] + [hurts, stroud], key=lambda p: -p["ros_ppg"])
+print("DQB", [(p["name"], p["ros_ppg"], p["value"]) for p in qbs_after])
+print("MATQB_AFTER", [(p["name"], p["ros_ppg"]) for p in sorted([p for p in roster[MAT] if p["pos"] == "QB" and p["id"] not in (hurts["id"], stroud["id"])] + [young, caleb], key=lambda p: -p["ros_ppg"])][:4])
+import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
 for qb in [q for q in myqbs if q["name"] in ("Jayden Daniels", "Jared Goff")]:
