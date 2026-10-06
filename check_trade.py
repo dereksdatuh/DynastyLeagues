@@ -233,6 +233,57 @@ res.sort(key=lambda x: (x[0], x[1]))
 for k, _, sp, c, rr in res[:10]:
     print("SFIX", k, c, "||", fmt(rr))
 print("NSFIX", len(res))
+T3 = (SAM, MAT, DES)
+def ev3(moves):
+    gets = {r: [] for r in T3}; gives = {r: [] for r in T3}
+    for fr, to, a in moves:
+        gets[to].append(a); gives[fr].append(a)
+    res = {}
+    for r in T3:
+        mg = trade.effective([a["value"] for a in gets[r]]); mv = trade.effective([a["value"] for a in gives[r]])
+        tg = trade.effective([a["value"] * fac[r].get(a["id"], 1) for a in gets[r]]); tv = trade.effective([a["value"] * fac[r].get(a["id"], 1) for a in gives[r]])
+        out = {a["id"] for a in gives[r]}
+        ps = [p for p in roster[r] if p["id"] not in out] + [a for a in gets[r] if a["id"] in P]
+        res[r] = {"m": (mg - mv) / max(mg, mv, 1), "t": (tg - tv) / max(tg, tv, 1), "ppg0": ppg(roster[r]), "ppg1": ppg(ps), "maxpf": maxpf(r, ps)}
+    return res
+f3 = lambda rr: " | ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']:.0f}" for x in rr)
+awil = fname("Antonio Williams")
+print("AW", awil["name"], awil["pos"], awil["value"], teams[awil["roster_id"]]["owner"], "ros", awil["ros_ppg"])
+desc = [(DES, SAM, des27), (DES, SAM, simpson), (SAM, DES, young), (SAM, DES, awil)]
+print("DESCOUNTER", f3(ev3(desc)))
+b3 = [(SAM, MAT, young), (MAT, DES, stroud), (DES, SAM, des27), (DES, SAM, simpson)]
+b3w = b3 + [(SAM, DES, awil)]
+for nm, mv in (("B3", b3), ("B3W", b3w)):
+    print(nm, f3(ev3(mv)))
+u3 = {m[2]["id"] for m in b3w}
+def lu(r, extra_out=(), extra_in=()):
+    return {x["id"] for x in best_lineup([p for p in roster[r] if p["id"] not in extra_out] + list(extra_in), slots, "ros_ppg")}
+mlu = lu(MAT, (stroud["id"],), (young,)); dlu = lu(DES, (simpson["id"],), (stroud,))
+pool3 = []
+for r, l in ((SAM, set()), (MAT, mlu), (DES, dlu)):
+    pool3 += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in u3 and pk["value"] >= 250]
+    pool3 += [(r, p) for p in roster[r] if p["id"] not in u3 and p["id"] not in l and p["value"] >= 300]
+pool3 = [x for x in pool3 if not (x[0] == MAT and x[1]["id"] in (f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}"))]
+pool3.sort(key=lambda x: -x[1]["value"]); pool3 = pool3[:20]
+print("POOL3", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool3])
+samlu0 = ppg([p for p in roster[SAM] if p["id"] not in (young["id"], awil["id"])] + [simpson])
+out = []
+for basenm, base3 in (("B3", b3), ("B3W", b3w)):
+    for k in range(0, 4):
+        for combo in itertools.combinations(pool3, k):
+            for dest in itertools.product(T3, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                mv = base3 + [(o, t, a) for (o, a), t in zip(combo, dest)]
+                rr = ev3(mv)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                    sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                    samup = rr[SAM]["ppg1"] - samlu0
+                    out.append((k, sp, basenm, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr, samup))
+out.sort(key=lambda x: (x[0], x[1]))
+for k, sp, bn, c, rr, su in out[:14]:
+    print("FIX3", k, f"{sp*100:.1f}", bn, c, "||", f3(rr), "| sam ppg vs no-add", f"{su:+.1f}")
+print("NFIX3", len(out))
+print("FFB_MAXPF", teams[FFB]["projection"]["max_pf"] if "FFB" in dir() else None)
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
