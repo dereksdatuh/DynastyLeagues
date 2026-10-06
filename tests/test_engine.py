@@ -344,3 +344,66 @@ def test_stated_playoff_slots_are_ignored_when_unusable(offline):
                   config_extra={"draft_order": {"playoff_slots": [12, 12, 99]}})
     rd = data["rookie_draft"]
     assert rd["rule"]["playoff_slots"] is None and len(set(rd["order"])) == len(data["teams"])
+
+
+def test_class_blends_slot_and_ktc_devy_and_lifts_picks(offline, monkeypatch):
+    # Pin one prospect to his position's current #1, as data/prospects.json does for Jeremiah Smith.
+    monkeypatch.setattr(build, "prospect_overrides", lambda: [{"name": "Prospect 10", "pos_rank": 1}])
+    data = _build(STANDARD_LEAGUE, offline)
+    rd = data["rookie_draft"]
+    cls = rd["class"]
+    w = rd["class_weight"]
+    assert w["slot"] == 0.5 and w["ktc_devy"] == 0.5
+    priced = [p for p in cls if not p.get("pinned")]
+    assert all(abs(p["value"] - (0.5 * p["slot_part"] + 0.5 * p["ktc_part"])) <= 1 for p in priced)
+    pinned = next(p for p in cls if p["name"] == "Prospect 10")
+    best_at_pos = max(p["value"] for p in data["players"] if p["pos"] == pinned["pos"])
+    assert pinned["pinned"] == f"{pinned['pos']}1" and pinned["value"] == best_at_pos
+    # The coming draft's picks carry the class: the 1.01 is priced from the market's
+    # 1.01 and the best prospect, so it moves with the class, not just the market.
+    first = next(p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1 and p["slot"] == 1)
+    board_101 = next(b for b in rd["board"] if b["overall"] == 1)
+    assert board_101["slot_value"] == first["value"]
+    assert first["value"] > 0.5 * cls[0]["value"]
+
+
+def test_team_values_tankers_prize_early_picks_contenders_discount_them(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    tv = data["team_values"]
+    ctx, fac = tv["context"]["teams"], tv["factors"]
+    rd = data["rookie_draft"]
+    firsts = sorted((p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1), key=lambda p: p["slot"])
+    tank = min(ctx, key=lambda r: ctx[r]["mode"])
+    contend = max(ctx, key=lambda r: ctx[r]["mode"])
+    assert ctx[tank]["label"] == "tanking" and ctx[contend]["label"] == "contending"
+    f = lambda rid, pid: fac[rid].get(pid, 1.0)
+    early, late = firsts[0]["id"], firsts[-1]["id"]
+    assert f(tank, early) > f(tank, late) > 1 > f(contend, early)
+    # Every team's multipliers stay inside the clamp.
+    assert all(0.6 <= v <= 1.6 for row in fac.values() for v in row.values())
+
+
+def test_superflex_team_short_at_qb_pays_more_for_a_starting_qb():
+    from engine import team_value
+    slots = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX"]
+    qbs = [{"id": f"q{i}", "pos": "QB", "value": 8000 - i * 500, "ros_ppg": 24 - i, "age": 26} for i in range(8)]
+    skill = [{"id": f"{pos}{t}", "pos": pos, "value": 3000, "ros_ppg": 12, "age": 26}
+             for t in range(3) for pos in ("RB", "WR", "TE", "WR2")]
+    for p in skill:
+        p["pos"] = p["pos"].rstrip("2")
+    by_id = {p["id"]: p for p in qbs + skill}
+    team = lambda rid, roster: {"roster_id": rid, "players": roster, "starter_rank": rid, "lineup": [],
+                                "projection": {"rank": rid, "max_pf": 1500 + rid}}
+    teams = [
+        team(1, ["q1", "q2", "q3", "RB0", "WR0", "TE0", "WR20"]),  # three starting QBs
+        team(2, ["q5", "RB1", "WR1", "TE1", "WR21"]),              # one
+        team(3, ["q6", "q7", "RB2", "WR2", "TE2", "WR22"]),       # none startable
+    ]
+    for t in teams:
+        t["lineup"] = [{"id": i} for i in t["players"]]
+    ctx = team_value.contexts(teams, by_id, slots, superflex=True)
+    have = {rid: c["qb"]["startable"] for rid, c in ctx["teams"].items()}
+    assert have[1] > have[2] > have[3]
+    fac = team_value.factors(teams, list(by_id.values()), [], slots, ctx, None)
+    starter = "q0"  # the best QB, on nobody's roster in this sketch
+    assert fac[3].get(starter, 1) > fac[2].get(starter, 1) > fac[1].get(starter, 1)

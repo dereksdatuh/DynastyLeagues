@@ -99,6 +99,7 @@ def build_consensus(entries_by_source: dict[str, list[dict]]):
                 continue
             row = combined.setdefault(e["sleeper_id"], {})
             row[source] = max(row.get(source, 0), round(mapped))
+            row[f"{source}_raw"] = max(row.get(f"{source}_raw", 0), e["value"])
             if e.get("trend") is not None and source == "fantasycalc":
                 row["trend"] = e["trend"]
 
