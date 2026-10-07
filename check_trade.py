@@ -489,7 +489,7 @@ V5 = {"W+D1": L4 + [OPTS["Williams>DES"], OPTS["DES1st>Sam"]],
       "A+W+D1": L4 + [OPTS["Addison>Matty"], OPTS["Williams>DES"], OPTS["DES1st>Sam"]]}
 keep5 = {kc["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}"}
 allbest = []
-for nm, mv in V5.items():
+for nm, mv in []:
     used = {m[2]["id"] for m in mv} | keep5
     pool = [(ME, a) for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME] if a["id"] not in used and a["value"] >= 500]
     pool.sort(key=lambda x: -x[1]["value"]); pool = pool[:14]
@@ -515,6 +515,19 @@ for nm, mv in V5.items():
     for f in found[:10]:
         print("L5FIX", f[0], f[3], f[4], "|", f4(f[5]), "| low", slot_after(f[5]))
     allbest += found
+
+# ---- L6: math for the even Lamb four-way ----
+okon = fname("Chig Okonkwo")
+d29_2b = next(pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2029:2:"))
+FINAL = L4 + [OPTS["Williams>DES"], OPTS["DES1st>Sam"], (ME, MAT, daniels), (ME, DES, d29_2b), (DES, ME, okon)]
+rr = ev4(FINAL)
+print("L6RES", f4(rr), "| low", slot_after(rr))
+for r_ in TEAMS4:
+    g = [a for fr, to, a in FINAL if to == r_]; v = [a for fr, to, a in FINAL if fr == r_]
+    fl = lambda xs: "; ".join(f"{lbl(a)} {a['value']}/{round(a['value'] * fac[r_].get(a['id'], 1))}" for a in xs)
+    eg, ev_ = trade.effective([a["value"] for a in g]), trade.effective([a["value"] for a in v])
+    tg = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in g]); tv = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in v])
+    print("L6MATH", teams[r_]["owner"], "| IN:", fl(g), "| OUT:", fl(v), f"| raw {sum(a['value'] for a in g)} vs {sum(a['value'] for a in v)} | adj {eg:.0f} vs {ev_:.0f} = {(eg-ev_)/max(eg,ev_)*100:+.1f}% | team {tg:.0f} vs {tv:.0f} = {(tg-tv)/max(tg,tv)*100:+.1f}%")
 
 import sys; sys.exit(0)
 results = []
