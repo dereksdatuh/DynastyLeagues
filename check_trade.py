@@ -397,6 +397,25 @@ out.sort(key=lambda x: (x[0], x[1]))
 for k, sp, c, rr in out[:10]:
     print("F14FIX", k, f"{sp*100:.1f}", c, "||", " | ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}%" for x in rr))
 print("NF14FIX", len(out))
+lamb = fname("CeeDee Lamb")
+T3L = (ME, SAM, MAT)
+def evL(moves):
+    global TEAMS4
+    old = TEAMS4; TEAMS4 = T3L
+    try: return ev4(moves)
+    finally: TEAMS4 = old
+lt = [(MAT, ME, lamb), (MAT, ME, m27), (ME, MAT, rice), (ME, SAM, s28), (SAM, MAT, young), (SAM, MAT, addison), (SAM, MAT, j27)]
+rl = evL(lt)
+print("LT", " | ".join(f"{teams[x]['owner']} team {rl[x]['t']*100:+.1f}% mkt {rl[x]['m']*100:+.1f}% ppg {rl[x]['ppg0']:.1f}->{rl[x]['ppg1']:.1f} maxpf {rl[x]['maxpf']:.0f}" for x in rl))
+for r_ in T3L:
+    g = [a for fr, to, a in lt if to == r_]; v = [a for fr, to, a in lt if fr == r_]
+    print("LTV", teams[r_]["owner"], "IN", [(lbl(a), a["value"], round(a["value"] * fac[r_].get(a["id"], 1))) for a in g], "OUT", [(lbl(a), a["value"], round(a["value"] * fac[r_].get(a["id"], 1))) for a in v])
+print("LAMB", lamb["value"], lamb["ros_ppg"], "RICE", rice["value"], rice["ros_ppg"])
+print("PROJKEYS", list(teams[MAT]["projection"].keys()))
+for t in sorted(teams, key=lambda t: -teams[t]["projection"].get("proj_wins", teams[t]["projection"].get("wins", 0)) if isinstance(teams[t]["projection"].get("proj_wins", 0), (int, float)) else 0):
+    pr = teams[t]["projection"]
+    print("STAND", teams[t]["owner"], {k: v for k, v in pr.items() if not isinstance(v, (list, dict))}, "ppg", round(ppg(roster[t]), 1))
+print("MATPPG", round(ppg(roster[MAT]), 1), "->", round(rl[MAT]["ppg1"], 1))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
