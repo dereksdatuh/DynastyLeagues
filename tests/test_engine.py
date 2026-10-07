@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from engine import build, model, trade
+from engine import build, model, outlook, trade
 from engine.league import fantasy_points, format_from_sleeper
 from engine.market import QuantileMap, build_consensus
 from engine.picks import PickValues, parse_pick, pick_ownership
@@ -323,8 +323,8 @@ def test_rookie_draft_order_rule_board_and_class(offline):
     assert by_slot[1]["label"].startswith("2027 1.01") and by_slot[1]["tier"] == "early"
     assert [by_slot[s]["value"] for s in sorted(by_slot)] == sorted((p["value"] for p in firsts), reverse=True)
     assert by_slot[1]["value"] > by_slot[2]["value"] > by_slot[len(teams)]["value"]
-    # Later years have no order yet, so they keep a tier-wide value.
-    later = [p for p in data["picks"] if p["year"] > 2027 and p["round"] == 1]
+    # Two years out there is no order to read yet, so those picks keep a round-wide value.
+    later = [p for p in data["picks"] if p["year"] > 2028 and p["round"] == 1]
     assert later and len({p["value"] for p in later}) == 1 and all(p["slot"] is None for p in later)
     # Class: only 2027 prospects, on the league's value scale, best first.
     cls = rd["class"]
@@ -417,3 +417,43 @@ def test_superflex_team_short_at_qb_pays_more_for_a_starting_qb():
     fac = team_value.factors(teams, list(by_id.values()), [], slots, ctx, None)
     starter = "q0"  # the best QB, on nobody's roster in this sketch
     assert fac[3].get(starter, 1) > fac[2].get(starter, 1) > fac[1].get(starter, 1)
+
+
+def test_next_season_ages_players_and_regresses_stars():
+    lv = {"RB": 15.0, "QB": 20.0}
+    old_rb = {"pos": "RB", "age": 30, "ppg": 18.0}
+    young_wr = {"pos": "WR", "age": 21, "ppg": 12.0}
+    vet_qb = {"pos": "QB", "age": 28, "ppg": 24.0}
+    assert outlook.next_ppg(old_rb, lv) < 18.0 * 0.85          # an aging back fades
+    assert outlook.next_ppg(young_wr, lv) > 12.0                # a young receiver grows
+    assert 20.0 < outlook.next_ppg(vet_qb, lv) < 24.0           # a star regresses toward a starter
+    assert outlook.next_ppg({"pos": "QB", "age": 25, "ppg": None}, lv) == 0.0
+
+
+def test_expected_slots_keep_a_clear_tanker_on_top_and_spread_the_middle():
+    strength = {1: 60.0, 2: 150.0, 3: 152.0, 4: 154.0, 5: 156.0, 6: 158.0,
+                7: 160.0, 8: 162.0, 9: 164.0, 10: 166.0, 11: 168.0, 12: 170.0}
+    exp = outlook.expected_slots(strength, "max_pf", 6, None, False, 1, lambda o: 100.0 - o)
+    assert exp[(1, 1)]["slot"] < 1.05                          # far weaker: almost always 1.01
+    mid = exp[(1, 6)]["slot"]
+    assert 3 < mid < 10                                         # close pack: spread across slots
+    assert exp[(1, 1)]["value"] > exp[(1, 6)]["value"] > exp[(1, 12)]["value"]
+
+
+def test_draft_after_next_is_priced_by_projected_strength(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    nd = data["next_draft"]
+    assert nd and nd["year"] == 2028 and len(nd["teams"]) == len(data["teams"])
+    weakest, strongest = nd["teams"][0], nd["teams"][-1]
+    assert weakest["ppg"] <= strongest["ppg"] and weakest["first_slot"] < strongest["first_slot"]
+    firsts = {p["original_roster_id"]: p for p in data["picks"] if p["year"] == 2028 and p["round"] == 1}
+    assert firsts[weakest["roster_id"]]["value"] > firsts[strongest["roster_id"]]["value"]
+    assert all(p.get("proj_slot") for p in firsts.values())
+    # Ordered by expected slot, values fall; a team's first is worth more than its second.
+    by_slot = sorted(firsts.values(), key=lambda p: p["proj_slot"])
+    vals = [p["value"] for p in by_slot]
+    assert vals[0] == max(vals) and vals[-1] == min(vals)
+    seconds = {p["original_roster_id"]: p for p in data["picks"] if p["year"] == 2028 and p["round"] == 2}
+    assert all(firsts[r]["value"] > seconds[r]["value"] for r in firsts)
+    # Teams holding coming-draft picks get those rookies in next season's roster.
+    assert any(t["rookies"] for t in nd["teams"])

@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import draft, fetch, ids, record, sleeper, team_value, valuation, weekly
+from . import draft, fetch, ids, outlook, record, sleeper, team_value, valuation, weekly
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
 from .picks import PickValues, pick_label, pick_ownership, slot_pick_label
@@ -306,6 +306,40 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "slot": slot, "overall": overall, "value": round(value),
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
         })
+    # The draft after: each team projected a season ahead (aging plus the rookies its
+    # coming picks bring), ordered by the same rule, priced over a spread of finishes.
+    next_draft = None
+    if first_year:
+        year2 = first_year + 1
+        later = [pk for pk in picks if pk["year"] == year2]
+        if later:
+            strength = outlook.team_strength(teams, by_id, picks, class_rows, fmt.slots)
+            class2 = draft.rookie_class(devy["players"], year2, players, pick_values, n, rounds, scale,
+                                        prospect_overrides()) \
+                if any(p["class"] == year2 for p in devy["players"]) else []
+            value2 = outlook.slot_curve(pick_values, slot_fn, first_year, year2, n, class2)
+            exp = outlook.expected_slots({r: s["ppg"] for r, s in strength.items()}, rule["rule"], playoff_teams,
+                                         playoff_slots, snake, rounds, value2)
+            for pk in later:
+                e = exp.get((pk["round"], pk["original_roster_id"]))
+                if not e:
+                    continue
+                s_ = e["slot"]
+                pk["tier"] = "early" if s_ <= n / 3 else "mid" if s_ <= 2 * n / 3 else "late"
+                pk["proj_slot"] = s_
+                pk["value"] = round(e["value"])
+                label = pick_label(pk["year"], pk["round"], pk["tier"])
+                if pk["original_roster_id"] != pk["roster_id"]:
+                    label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
+                pk["label"] = label
+            ranked = sorted(strength, key=lambda r: strength[r]["ppg"])
+            next_draft = {
+                "year": year2, "spread": outlook.SPREAD, "rookie_year": outlook.ROOKIE_YEAR,
+                "teams": [{"roster_id": r, "rank": i, **strength[r],
+                           "first_slot": (exp.get((1, r)) or {}).get("slot")} for i, r in enumerate(ranked, 1)],
+                "class": [{k: p.get(k) for k in ("name", "pos", "value")} for p in class2[:n * 2]],
+            }
+
     for t in teams:
         t["picks"] = [p["id"] for p in picks if p["roster_id"] == t["roster_id"]]
         t["pick_value"] = sum(p["value"] for p in picks if p["roster_id"] == t["roster_id"])
@@ -352,6 +386,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "players": players,
         "picks": picks,
         "rookie_draft": rookie,
+        "next_draft": next_draft,
         "teams": teams,
         "team_values": tv,
     }
