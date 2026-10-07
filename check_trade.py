@@ -426,6 +426,62 @@ e = lambda xs: trade.effective(xs)
 for nm, a, b in (("DEREK", [lamb["value"], m27["value"]], [rice["value"], s28n["value"]]), ("SAM", [s28n["value"]], [young["value"], addison["value"], j27["value"]]), ("MATTY", [rice["value"], young["value"], addison["value"], j27["value"]], [lamb["value"], m27["value"]])):
     x, y = e(a), e(b); print("LT2", nm, round(x), round(y), f"{(x-y)/max(x,y)*100:+.1f}%")
 print("S28", lbl(s28n), s28n["value"])
+# ---- L4: Lamb + Jcarney 1st four-way (2026-10-07 evening) ----
+lamb = fname("CeeDee Lamb")
+j27 = K["pick:2027:1:3"]
+print("L4INFO", [(lbl(a), a["value"], teams[a["roster_id"]]["owner"]) for a in (lamb, rice, young, corum, addison, awil, simpson, stroud, j27, s28, des27)])
+for r in TEAMS4:
+    print("L4CTX", teams[r]["owner"], ctx[r]["label"], ctx[r]["mode"], "QB", ctx[r]["qb"], "rec", teams[r]["record"], "seed", teams[r]["record"].get("seed"))
+L4 = [(MAT, ME, lamb), (ME, MAT, rice), (SAM, MAT, young), (SAM, ME, j27), (ME, SAM, s28), (DES, SAM, simpson),
+      (SAM, ME, corum), (MAT, DES, stroud)]
+OPTS = {"Addison>Matty": (SAM, MAT, addison), "Williams>DES": (SAM, DES, awil), "DES1st>Sam": (DES, SAM, des27)}
+f4 = lambda rr: " | ".join(f"{teams[x]['owner']} mkt {rr[x]['m']*100:+.1f}% team {rr[x]['t']*100:+.1f}% ppg {rr[x]['ppg0']:.1f}->{rr[x]['ppg1']:.1f} maxpf {rr[x]['maxpf']:.0f}" for x in rr)
+def slot_after(rr):
+    mp = {t: (rr[t]["maxpf"] if t in rr else teams[t]["projection"]["max_pf"]) for t in teams}
+    return sorted(((teams[t]["owner"], round(v)) for t, v in mp.items()), key=lambda x: x[1])[:3]
+sam_core = [p for p in roster[SAM] if p["id"] not in (young["id"], corum["id"])]
+print("L4SIMPSON", "Sam ppg w/o", round(ppg(sam_core), 2), "with Simpson", round(ppg(sam_core + [simpson]), 2))
+variants = {}
+for k in range(0, 4):
+    for names in itertools.combinations(OPTS, k):
+        variants["+".join(names) or "base"] = L4 + [OPTS[n] for n in names]
+for nm, mv in variants.items():
+    rr = ev4(mv); print("L4VAR", nm, "|", f4(rr), "| low maxpf", slot_after(rr))
+keep = {kc["id"], caleb["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", f"pick:2028:1:{SAM}"}
+def lineup_ids(r, mv):
+    out = {a["id"] for fr, to, a in mv if fr == r}; inn = [a for fr, to, a in mv if to == r and a["id"] in P]
+    return {x["id"] for x in best_lineup([p for p in roster[r] if p["id"] not in out] + inn, slots, "ros_ppg")}
+best = []
+for nm, mv in variants.items():
+    used = {m[2]["id"] for m in mv} | keep
+    pool = []
+    for r in TEAMS4:
+        l = lineup_ids(r, mv)
+        pool += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 200 and not (r == SAM and ":1:" in pk["id"])]
+        pool += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 250]
+    pool.sort(key=lambda x: -x[1]["value"]); pool = pool[:18]
+    samlu = lineup_ids(SAM, mv)
+    found = []
+    for k in range(0, 4):
+        for combo in itertools.combinations(pool, k):
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                extra = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in extra): continue
+                rr = ev4(mv + extra)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                    sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                    found.append((k, sp, nm, [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in extra], rr))
+        if found: break
+    found.sort(key=lambda x: (x[0], x[1]))
+    print("L4POOL", nm, [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool])
+    for f in found[:4]:
+        print("L4FIX", f[0], f"{f[1]*100:.1f}", f[2], f[3], "|", f4(f[4]), "| low", slot_after(f[4]))
+    best += found[:4]
+best.sort(key=lambda x: (x[0], x[1]))
+for f in best[:6]:
+    print("L4BEST", f[0], f"{f[1]*100:.1f}", f[2], f[3], "|", f4(f[4]), "| low", slot_after(f[4]))
+
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
