@@ -452,7 +452,7 @@ def lineup_ids(r, mv):
     out = {a["id"] for fr, to, a in mv if fr == r}; inn = [a for fr, to, a in mv if to == r and a["id"] in P]
     return {x["id"] for x in best_lineup([p for p in roster[r] if p["id"] not in out] + inn, slots, "ros_ppg")}
 best = []
-for nm, mv in variants.items():
+for nm, mv in []:
     used = {m[2]["id"] for m in mv} | keep
     pool = []
     for r in TEAMS4:
@@ -481,6 +481,40 @@ for nm, mv in variants.items():
 best.sort(key=lambda x: (x[0], x[1]))
 for f in best[:6]:
     print("L4BEST", f[0], f"{f[1]*100:.1f}", f[2], f[3], "|", f4(f[4]), "| low", slot_after(f[4]))
+
+# ---- L5: wider fill for the Lamb four-way ----
+print("L5ME", [(lbl(a), a["value"], a.get("pos"), a.get("ros_ppg")) for a in sorted(roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME], key=lambda a: -a["value"])[:22]])
+print("L5MAT", [(lbl(a), a["value"], a.get("pos"), a.get("ros_ppg")) for a in sorted(roster[MAT] + [pk for pk in d["picks"] if pk["roster_id"] == MAT], key=lambda a: -a["value"])[:16]])
+V5 = {"W+D1": L4 + [OPTS["Williams>DES"], OPTS["DES1st>Sam"]],
+      "A+W+D1": L4 + [OPTS["Addison>Matty"], OPTS["Williams>DES"], OPTS["DES1st>Sam"]]}
+keep5 = {kc["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}"}
+allbest = []
+for nm, mv in V5.items():
+    used = {m[2]["id"] for m in mv} | keep5
+    pool = [(ME, a) for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME] if a["id"] not in used and a["value"] >= 500]
+    pool.sort(key=lambda x: -x[1]["value"]); pool = pool[:14]
+    for r in (SAM, MAT, DES):
+        l = lineup_ids(r, mv)
+        extra = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 900 and not (r == SAM and ":1:" in pk["id"])]
+        extra += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 900]
+        extra.sort(key=lambda x: -x[1]["value"]); pool += extra[:4]
+    print("L5POOL", nm, [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool])
+    found = []
+    for k in range(1, 4):
+        for combo in itertools.combinations(pool, k):
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+                rr = ev4(mv + ex)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                    sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                    found.append((k, -(rr[ME]["ppg1"]), sp, nm, [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in ex], rr))
+        if len(found) >= 10: break
+    found.sort(key=lambda x: (x[0], x[1], x[2]))
+    for f in found[:10]:
+        print("L5FIX", f[0], f[3], f[4], "|", f4(f[5]), "| low", slot_after(f[5]))
+    allbest += found
 
 import sys; sys.exit(0)
 results = []
