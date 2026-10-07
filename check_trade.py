@@ -547,7 +547,7 @@ for nm, mv in V7.items():
     rr = ev4(mv); print("L7VAR", nm, "|", f4(rr), "| low", slot_after(rr))
 keep7 = {kc["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}", f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}"}
 allf = []
-for nm, mv in V7.items():
+for nm, mv in []:
     used = {m[2]["id"] for m in mv} | keep7
     pool = [(ME, a) for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME]
             if a["id"] not in used and 500 <= a["value"] < 7000]
@@ -573,7 +573,7 @@ for nm, mv in V7.items():
         print("L7FIX", f[0], f[2], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3]], "|", f4(f[4]), "| low", slot_after(f[4]))
     allf += found[:6]
 allf.sort(key=lambda x: (x[0], x[1]))
-if allf:
+if False:
     mathlines("L7MATH", V7[allf[0][2]] + allf[0][3])
 
 # ---- L8: Derek gets Lamb + Hurts + Matty's 2027 1st; Matty keeps Stroud, gets Young + Jcarney 1.10; DES gets Daniels ----
@@ -697,11 +697,7 @@ def sam_dump(mv):  # Sam's side with Corum/Addison counted at half (he wants the
     v = [a["value"] * (0.5 if a["id"] in DUMP else 1) for fr, to, a in mv if fr == SAM]
     eg, ev_ = trade.effective(g), trade.effective(v); return (eg - ev_) / max(eg, ev_, 1)
 rr = ev4(B11); print("L11BASE", f4(rr), "| samdump", f"{sam_dump(B11)*100:+.1f}%")
-dumpopts = [[]]
-for dst in (MAT, DES, ME):
-    dumpopts.append([(SAM, dst, corum)]); dumpopts.append([(SAM, dst, addison)])
-    for dst2 in (MAT, DES, ME):
-        dumpopts.append([(SAM, dst, corum), (SAM, dst2, addison)])
+dumpopts = [[], [(SAM, MAT, corum)], [(SAM, MAT, addison)], [(SAM, MAT, corum), (SAM, MAT, addison)]]
 prot = {kc["id"], caleb["id"], wil["id"], goff["id"], f"pick:2029:1:{ME}", f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}",
         f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", hurts["id"], daniels["id"]}
 found = []
@@ -713,8 +709,8 @@ for dop in dumpopts:
         l = lineup_ids(r, base) if r not in (ME,) else set()
         ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 400 and not (r == SAM and ":1:" in pk["id"])]
         ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 400 and p["value"] < 6000 and p["id"] not in DUMP]
-        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:10 if r in (ME, DES) else 5]
-    for k in range(0, 3):
+        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:8 if r in (ME, DES) else 5]
+    for k in range(0, 4):
         for combo in itertools.combinations(pool, k):
             for dest in itertools.product(TEAMS4, repeat=k):
                 if any(o == t for (o, a), t in zip(combo, dest)): continue
@@ -728,6 +724,7 @@ for dop in dumpopts:
                 if ok:
                     mine_out = sum(a["value"] for o, t, a in mv if o == ME)
                     found.append((len(mv), mine_out, ex, dop, rr, sd))
+        if len(found) > 400: break
 found.sort(key=lambda x: (x[0], x[1]))
 for f in found[:12]:
     print("L11FIX", f[0], "derek_out", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
