@@ -595,7 +595,7 @@ for nm, mv in V8.items():
     rr = ev4(mv); print("L8VAR", nm, "|", f4(rr), "| low", slot_after(rr))
 keep8 = {kc["id"], caleb["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}", f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", stroud["id"]}
 allf = []
-for nm, mv in V8.items():
+for nm, mv in []:
     used = {m[2]["id"] for m in mv} | keep8
     pool = [(ME, a) for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME]
             if a["id"] not in used and 500 <= a["value"] < 7000]
@@ -621,8 +621,40 @@ for nm, mv in V8.items():
         print("L8FIX", f[0], f[2], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3]], "|", f4(f[4]), "| low", slot_after(f[4]))
     allf += found[:5]
 allf.sort(key=lambda x: (x[0], x[1]))
-for i, f in enumerate(allf[:2]):
+for i, f in enumerate([]):
     mathlines(f"L8MATH{i}", V8[f[2]] + f[3])
+
+# ---- L9: simpler Lamb deal without Derek's 2029 1st ----
+nix = fname("Bo Nix"); goff = fname("Jared Goff")
+S9 = [(MAT, ME, lamb), (MAT, ME, hurts), (MAT, ME, m27), (ME, MAT, rice), (ME, MAT, goff), (SAM, MAT, young), (SAM, MAT, j27),
+      (SAM, MAT, corum), (ME, SAM, s28), (DES, SAM, simpson), (ME, DES, daniels), (DES, MAT, nix)]
+m2 = K[f"pick:2027:2:{MAT}"]
+for nm, mv in (("NO29", S9), ("M2", S9 + [(MAT, SAM, m2)])):
+    rr = ev4(mv); print("L9VAR", nm, lbl(m2), m2["value"], "|", f4(rr), "| low", slot_after(rr))
+    mathlines("L9MATH_" + nm, mv)
+# small fixes on top of the M2 version, Derek giving as little as possible
+base = S9 + [(MAT, SAM, m2)]
+used = {m[2]["id"] for m in base} | {kc["id"], caleb["id"], f"pick:2027:1:{SAM}", f"pick:2029:1:{ME}", f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", stroud["id"]}
+pool = []
+for r in TEAMS4:
+    l = lineup_ids(r, base)
+    ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 300 and not (r == SAM and ":1:" in pk["id"])]
+    ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 300]
+    ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:7]
+found = []
+for k in range(1, 3):
+    for combo in itertools.combinations(pool, k):
+        for dest in itertools.product(TEAMS4, repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+            if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+            rr = ev4(base + ex)
+            if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                found.append((k, -rr[ME]["m"], ex, rr))
+    if found: break
+found.sort(key=lambda x: (x[0], x[1]))
+for f in found[:8]:
+    print("L9FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[2]], "|", f4(f[3]), "| low", slot_after(f[3]))
 
 import sys; sys.exit(0)
 results = []
