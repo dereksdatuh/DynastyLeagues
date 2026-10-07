@@ -1111,7 +1111,28 @@ function renderRookieMock() {
     ${rd.class.length ? `<h3>Prospect board <span class="muted">(${rd.year} class, this league's values)</span></h3>
     <div class="table-wrap"><table id="prospects"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>School</th><th>Age</th><th class="num">KTC rank</th><th class="num">League value</th><th>Mock</th></tr></thead><tbody>${rd.class
       .map((p, i) => `<tr><td>${i + 1}</td><td class="name">${esc(p.name)}</td><td><span class="pos pos-${p.pos}">${p.pos}${p.ktc_pos_rank || ""}</span></td><td class="muted">${esc(p.school || "")}</td><td>${p.age ? Number(p.age).toFixed(1) : ""}</td><td class="num">${p.class_rank}</td><td class="num strong">${fmt(p.value)}</td><td>${takenAt.get(p.name) || '<span class="muted">undrafted</span>'}</td></tr>`)
-      .join("")}</tbody></table></div>` : ""}`;
+      .join("")}</tbody></table></div>` : ""}
+    ${nextDraftHtml()}`;
+}
+
+// The draft after next: every team a season older plus the rookies its picks bring.
+function nextDraftHtml() {
+  const nd = state.data.next_draft;
+  if (!nd || !nd.teams.length) return "";
+  const firsts = new Map(state.data.picks.filter((p) => p.year === nd.year && p.round === 1).map((p) => [p.original_roster_id, p]));
+  const mine = myTeam();
+  const rows = nd.teams.map((t) => {
+    const pk = firsts.get(t.roster_id);
+    return `<tr class="${mine && pk && pk.roster_id === mine.roster_id ? "mine-row" : ""}">
+      <td>${t.rank}</td><td>${teamHtml(t.roster_id)}${starMine(t.roster_id)}</td>
+      <td class="num">${t.now_ppg != null ? fmt(t.now_ppg) : "–"}</td><td class="num strong">${fmt(t.ppg)}</td>
+      <td class="muted">${t.rookies.length ? t.rookies.map(esc).join(", ") : "none"}</td>
+      <td class="num" data-sort="${t.first_slot}">1.${String(Math.round(t.first_slot)).padStart(2, "0")} <span class="muted">(avg ${Number(t.first_slot).toFixed(1)})</span></td>
+      <td>${pk ? `${teamHtml(pk.roster_id)}` : ""}</td><td class="num strong">${pk ? fmt(pk.value) : ""}</td></tr>`;
+  }).join("");
+  return `<h3>Looking ahead: the ${nd.year} draft</h3>
+    <p class="muted">Each team projected a season ahead: every player a year older on his position's age curve (stars regress toward an ordinary starter), plus the rookies its ${nd.year - 1} picks bring at a rookie-year discount. Teams are ordered by that lineup under this league's draft rule. Rosters churn in a year, so each ${nd.year} pick is priced as the average over thousands of seasons with ±${Math.round(nd.spread * 100)}% swings in team strength: a clear tanker's pick stays near the top, a middling team's spreads out.${nd.class.length ? ` Slots carry the ${nd.year} class from KTC's devy rankings.` : ""}</p>
+    <div class="table-wrap"><table id="next-draft"><thead><tr><th>#</th><th>Team</th><th class="num">Lineup now</th><th class="num">Next season</th><th>Rookies starting</th><th class="num">Projected 1st</th><th>Holder</th><th class="num">${nd.year} 1st value</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // ---------- sortable tables ----------
