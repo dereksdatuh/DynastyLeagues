@@ -56,8 +56,25 @@ def sigma_for(ppg: dict) -> float:
     return SIGMA_SHARE * (sum(vals) / len(vals)) if vals else 1.0
 
 
-def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False, sigma: float | None = None) -> dict:
-    """ppg {rid: points/week}; current {rid: {"wins","losses","ties"}}; schedule {week: [[a, b], ...]}."""
+def seed(stats: dict, playoff_teams: int, divisions: dict | None = None) -> list:
+    """Roster ids in standings order, playoff seeds first.
+
+    stats {rid: {"wins", "ties", "pf"}}; divisions {rid: division}. With divisions,
+    each division's best record wins it and takes a top seed; the playoff spots left
+    go to wildcards by record. Every tie is broken by most points for.
+    """
+    key = lambda r: (-((stats[r].get("wins") or 0) + 0.5 * (stats[r].get("ties") or 0)), -(stats[r].get("pf") or 0))
+    ranked = sorted(stats, key=key)
+    divs = {(divisions or {}).get(r) for r in stats}
+    if None in divs or not 2 <= len(divs) <= playoff_teams:
+        return ranked
+    champs = sorted((next(r for r in ranked if divisions[r] == d) for d in divs), key=key)
+    return champs + [r for r in ranked if r not in champs]
+
+
+def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False, sigma: float | None = None,
+            playoff_teams: int | None = None, divisions: dict | None = None) -> dict:
+    """ppg {rid: points/week}; current {rid: {"wins","losses","ties","fpts","max_pf"}}; schedule {week: [[a, b], ...]}."""
     sigma = sigma or sigma_for(ppg)
     out = {}
     for rid in ppg:
@@ -74,10 +91,12 @@ def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False,
         losses = cur.get("losses", 0) + games - exp_w
         # Max PF to date plus the best lineup's projected points for each week left.
         max_pf = (cur.get("max_pf") or 0) + ppg[rid] * len(schedule)
-        out[rid] = {"ppg": round(ppg[rid], 2), "wins": round(wins, 2), "losses": round(losses, 2),
+        # Points for (the playoff tiebreaker): to date plus the projected points left.
+        pf = (cur.get("fpts") or 0) + ppg[rid] * len(schedule)
+        out[rid] = {"ppg": round(ppg[rid], 2), "wins": round(wins, 2), "losses": round(losses, 2), "pf": round(pf, 1),
                     "ties": cur.get("ties", 0), "remaining_wins": round(exp_w, 2), "remaining_games": int(games),
                     "max_pf": round(max_pf, 1)}
-    order = sorted(out, key=lambda r: (-out[r]["wins"], -out[r]["ppg"]))
+    order = seed(out, playoff_teams or len(out), divisions)
     for i, rid in enumerate(order, 1):
         out[rid]["rank"] = i
     for i, rid in enumerate(sorted(out, key=lambda r: -out[r]["max_pf"]), 1):

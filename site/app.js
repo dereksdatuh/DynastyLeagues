@@ -582,11 +582,26 @@ function projectRecords(overrides = {}) {
     }
     // Max PF to date plus the best lineup's projected points for each week left.
     const maxPF = (t.record.max_pf || 0) + ppg[rid] * Object.keys(sch.weeks).length;
-    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g, maxPF };
+    const pf = (t.record.fpts || 0) + ppg[rid] * Object.keys(sch.weeks).length;
+    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g, maxPF, pf };
   }
-  Object.keys(out).sort((a, b) => out[b].wins - out[a].wins || out[b].ppg - out[a].ppg).forEach((rid, i) => (out[rid].rank = i + 1));
+  seedOrder(out).forEach((rid, i) => (out[rid].rank = i + 1));
   Object.keys(out).sort((a, b) => out[b].maxPF - out[a].maxPF).forEach((rid, i) => (out[rid].maxPFRank = i + 1));
   return out;
+}
+// Playoff seeding the league's way (engine/record.py seed): each division's best
+// record wins it and takes a top seed, wildcards follow; ties go to most points for.
+function seedOrder(stats) {
+  const lg = state.data.league;
+  const div = new Map(state.data.teams.map((t) => [String(t.roster_id), t.division]));
+  const winsOf = (r) => (stats[r].wins || 0) + 0.5 * (stats[r].ties || 0);
+  const ranked = Object.keys(stats).sort((a, b) => winsOf(b) - winsOf(a) || (stats[b].pf || 0) - (stats[a].pf || 0));
+  const divs = new Set(ranked.map((r) => div.get(String(r))));
+  const playoff = lg.playoff_teams || ranked.length;
+  if (divs.has(null) || divs.has(undefined) || divs.size < 2 || divs.size > playoff) return ranked;
+  const champs = [...divs].map((d) => ranked.find((r) => div.get(String(r)) === d));
+  champs.sort((a, b) => ranked.indexOf(a) - ranked.indexOf(b));
+  return [...champs, ...ranked.filter((r) => !champs.includes(r))];
 }
 const recordText = (r) => `${Math.round(r.wins)}-${Math.round(r.losses)}${r.ties ? "-" + r.ties : ""}`;
 const ordinal = (n) => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
@@ -725,7 +740,7 @@ function renderTeams() {
   const rows = state.data.teams
     .map((t) => `<tr class="clickable" data-rid="${t.roster_id}">
       <td>${t.power_rank}</td><td class="name">${teamHtml(t.roster_id)}</td>
-      <td data-sort="${t.record.wins + 0.5 * (t.record.ties || 0) - t.record.losses / 1000}">${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
+      <td data-sort="${t.record.seed ? -t.record.seed : t.record.wins}">${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}${t.record.seed ? ` <span class="muted">(${ordinal(t.record.seed)})</span>` : ""}</td>
       <td data-sort="${recs[t.roster_id] ? recs[t.roster_id].wins : ""}">${recs[t.roster_id] ? `${recordText(recs[t.roster_id])} <span class="muted">(${ordinal(recs[t.roster_id].rank)})</span>` : ""}</td>
       <td class="num" data-sort="${recs[t.roster_id] ? recs[t.roster_id].maxPF : ""}" title="Max PF so far: ${fmt(t.record.max_pf || 0)}">${recs[t.roster_id] ? `${fmt(recs[t.roster_id].maxPF)} <span class="muted">(${ordinal(recs[t.roster_id].maxPFRank)})</span>` : ""}</td>
       <td class="num strong">${fmt(t.total_value)}</td><td class="num" data-sort="${t.starter_value}">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
@@ -1097,6 +1112,7 @@ function renderRookieMock() {
   const fromCell = (m) => m.original_roster_id !== m.roster_id ? `<div class="muted">via ${teamHtml(m.original_roster_id)}</div>` : "";
   const row = (m) => `<tr class="${mine && m.roster_id === mine.roster_id ? "mine-row" : ""}">
       <td class="strong">${m.label}</td>
+      <td class="muted" data-sort="${nowSlot(m)}">${nowSlot(m) ? `${m.round}.${String(nowSlot(m)).padStart(2, "0")}` : ""}</td>
       <td>${teamHtml(m.roster_id)}${starMine(m.roster_id)}${fromCell(m)}</td>
       <td class="muted">${slotWhy(m.original_roster_id, rd)}</td>
       ${m.pick ? `<td class="name">${esc(m.pick.name)}</td><td><span class="pos pos-${m.pick.pos}">${m.pick.pos}</span></td><td class="muted">${esc(m.pick.school || "")}</td>
@@ -1106,13 +1122,57 @@ function renderRookieMock() {
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
   el.innerHTML = `
     <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, half from what the market pays for that slot and half from the prospect projected to go there, so a loaded class lifts its picks.${rd.class_weight && rd.class_weight.ktc_devy ? " Prospects are priced half from their slot and half from their own KTC devy value on this league's scale" : ""}${rd.class.some((p) => p.pinned) ? `; pinned: ${rd.class.filter((p) => p.pinned).map((p) => `${esc(p.name)} as ${p.pinned}`).join(", ")}` : ""}. ${evidence} ${srcText}</p>
+    ${standingsTodayHtml(rd)}
     ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
-    ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
+    ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th title="Where this pick would fall if the season ended today">Today</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
     ${rd.class.length ? `<h3>Prospect board <span class="muted">(${rd.year} class, this league's values)</span></h3>
     <div class="table-wrap"><table id="prospects"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>School</th><th>Age</th><th class="num">KTC rank</th><th class="num">League value</th><th>Mock</th></tr></thead><tbody>${rd.class
       .map((p, i) => `<tr><td>${i + 1}</td><td class="name">${esc(p.name)}</td><td><span class="pos pos-${p.pos}">${p.pos}${p.ktc_pos_rank || ""}</span></td><td class="muted">${esc(p.school || "")}</td><td>${p.age ? Number(p.age).toFixed(1) : ""}</td><td class="num">${p.class_rank}</td><td class="num strong">${fmt(p.value)}</td><td>${takenAt.get(p.name) || '<span class="muted">undrafted</span>'}</td></tr>`)
       .join("")}</tbody></table></div>` : ""}
     ${nextDraftHtml()}`;
+}
+
+// Slot this round's pick would take if the season ended today.
+function nowSlot(m) {
+  const now = state.data.rookie_draft.order_now;
+  if (!now) return null;
+  const seq = state.data.rookie_draft.type === "snake" && m.round % 2 === 0 ? [...now].reverse() : now;
+  const i = seq.indexOf(m.original_roster_id);
+  return i < 0 ? null : i + 1;
+}
+
+// Standings as of today and where each team's first would land, next to the projection.
+function standingsTodayHtml(rd) {
+  if (!rd.order_now) return "";
+  const lg = state.data.league;
+  const divs = lg.divisions || {};
+  const hasDiv = Object.keys(divs).length > 1;
+  const firsts = new Map(state.data.picks.filter((p) => p.year === rd.year && p.round === 1).map((p) => [p.original_roster_id, p]));
+  const mine = myTeam();
+  const champs = new Set();
+  if (hasDiv) {
+    const seen = new Set();
+    [...state.data.teams].sort((a, b) => a.record.seed - b.record.seed).forEach((t) => {
+      if (t.record.seed <= rd.playoff_teams && !seen.has(t.division)) { seen.add(t.division); champs.add(t.roster_id); }
+    });
+  }
+  const label = (s) => `1.${String(s).padStart(2, "0")}`;
+  const rows = [...state.data.teams].sort((a, b) => a.record.seed - b.record.seed).map((t) => {
+    const r = t.record, pk = firsts.get(t.roster_id), now = rd.order_now.indexOf(t.roster_id) + 1;
+    const spot = r.seed > rd.playoff_teams ? "" : champs.has(t.roster_id) ? "division champ" : hasDiv ? "wildcard" : "playoffs";
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}">
+      <td>${r.seed}</td><td>${teamHtml(t.roster_id)}${starMine(t.roster_id)}</td>
+      ${hasDiv ? `<td class="muted">${esc(divs[String(t.division)] || "")}</td>` : ""}
+      <td data-sort="${r.wins + 0.5 * (r.ties || 0)}">${recordText(r)}${spot ? ` <span class="muted">· ${spot}</span>` : ""}</td>
+      <td class="num">${fmt(r.fpts)}</td>
+      <td class="num strong" data-sort="${r.max_pf}">${fmt(r.max_pf)} <span class="muted">(${ordinal(r.max_pf_rank)})</span></td>
+      <td class="num strong" data-sort="${now}">${label(now)}</td>
+      <td class="num" data-sort="${pk && pk.slot}">${pk && pk.slot ? label(pk.slot) : ""}</td>
+      <td>${pk ? teamHtml(pk.roster_id) : ""}</td></tr>`;
+  }).join("");
+  return `<h3>Standings today</h3>
+    <p class="muted">Where everyone stands after the games played so far (Sleeper, refreshed every build, so it moves week to week). Playoff seeds: ${hasDiv ? `each division's best record takes a top seed, the next best records take the ${Math.max(rd.playoff_teams - Object.keys(divs).length, 0)} wildcard spots` : `the ${rd.playoff_teams} best records`}, ties to most points for. "1st today" is where each team's ${rd.year} first would land if the season ended now under this league's draft rule; "Projected" is the end-of-season projection used for pick values.</p>
+    <div class="table-wrap"><table id="standings-now"><thead><tr><th>Seed</th><th>Team</th>${hasDiv ? "<th>Division</th>" : ""}<th>Record</th><th class="num">Points for</th><th class="num" title="Best possible lineup each week, bench included">Max PF</th><th class="num">1st today</th><th class="num">Projected</th><th>Holder</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // The draft after next: every team a season older plus the rookies its picks bring.
