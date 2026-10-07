@@ -656,6 +656,38 @@ found.sort(key=lambda x: (x[0], x[1]))
 for f in found[:8]:
     print("L9FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[2]], "|", f4(f[3]), "| low", slot_after(f[3]))
 
+# ---- L10: Derek keeps Willis; Matty gets no QB besides Young ----
+B10 = [(MAT, ME, lamb), (MAT, ME, hurts), (MAT, ME, m27), (ME, MAT, rice), (SAM, MAT, young), (SAM, MAT, j27),
+       (SAM, MAT, corum), (ME, SAM, s28), (DES, SAM, simpson), (ME, DES, daniels), (MAT, SAM, m2)]
+rr = ev4(B10); print("L10BASE", f4(rr))
+used = {m[2]["id"] for m in B10} | {kc["id"], caleb["id"], wil["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}",
+                                    f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", stroud["id"]}
+pool = []
+for r in TEAMS4:
+    l = lineup_ids(r, B10) if r != ME else set()
+    ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 400 and not (r == SAM and ":1:" in pk["id"])]
+    ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 400 and p["value"] < 7000]
+    ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:12 if r in (ME, DES) else 5]
+print("L10POOL", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool])
+found = []
+for k in range(1, 4):
+    for combo in itertools.combinations(pool, k):
+        for dest in itertools.product(TEAMS4, repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+            if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+            if any(t == MAT and a.get("pos") == "QB" for o, t, a in ex): continue
+            rr = ev4(B10 + ex)
+            if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                sp = max(max(abs(rr[x]["m"]), abs(rr[x]["t"])) for x in rr)
+                found.append((k, -rr[ME]["ppg1"], sp, ex, rr))
+    if len(found) >= 10: break
+found.sort(key=lambda x: (x[0], x[1], x[2]))
+for f in found[:10]:
+    print("L10FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3]], "|", f4(f[4]), "| low", slot_after(f[4]))
+if found:
+    mathlines("L10MATH", B10 + found[0][3])
+
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
