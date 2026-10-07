@@ -701,7 +701,7 @@ dumpopts = [[], [(SAM, MAT, corum)], [(SAM, MAT, addison)], [(SAM, MAT, corum), 
 prot = {kc["id"], caleb["id"], wil["id"], goff["id"], f"pick:2029:1:{ME}", f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}",
         f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", hurts["id"], daniels["id"]}
 found = []
-for dop in dumpopts:
+for dop in []:
     base = B11 + dop
     used = {m[2]["id"] for m in base} | prot
     pool = []
@@ -733,6 +733,38 @@ for f in found[:8]:
     print("L11CHEAP", f[0], "derek_out", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
 if found:
     mathlines("L11MATH", B11 + found[0][3] + found[0][2])
+
+# ---- L12: simple version without Love ----
+love = fname("Jeremiyah Love")
+prot12 = prot | {love["id"]}
+found = []
+for dop in dumpopts:
+    base = B11 + dop
+    used = {m[2]["id"] for m in base} | prot12
+    pool = []
+    for r in TEAMS4:
+        l = lineup_ids(r, base) if r != ME else set()
+        ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 400 and not (r == SAM and ":1:" in pk["id"])]
+        ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 400 and p["value"] < 6000 and p["id"] not in DUMP]
+        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:9 if r in (ME, DES) else 5]
+    for k in range(0, 5):
+        for combo in itertools.combinations(pool, k):
+            if k == 4 and sum(1 for o, a in combo if o == ME) > 2: continue
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+                mv = base + ex
+                if any(t == MAT and a.get("pos") == "QB" and a is not young for o, t, a in mv): continue
+                rr = ev4(mv)
+                sd = sam_dump(mv)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr if x != SAM) and (abs(rr[SAM]["m"]) <= 0.05 or abs(sd) <= 0.05):
+                    found.append((len(mv), -rr[ME]["ppg1"], ex, dop, rr, sd))
+        if len(found) >= 30: break
+found.sort(key=lambda x: (x[0], x[1]))
+for f in found[:10]:
+    print("L12FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
+print("L12N", len(found))
 
 import sys; sys.exit(0)
 results = []
