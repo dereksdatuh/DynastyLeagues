@@ -642,7 +642,7 @@ for r in TEAMS4:
     ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 300]
     ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:7]
 found = []
-for k in range(1, 3):
+for k in []:
     for combo in itertools.combinations(pool, k):
         for dest in itertools.product(TEAMS4, repeat=k):
             if any(o == t for (o, a), t in zip(combo, dest)): continue
@@ -670,7 +670,7 @@ for r in TEAMS4:
     ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:12 if r in (ME, DES) else 5]
 print("L10POOL", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool])
 found = []
-for k in range(1, 4):
+for k in []:
     for combo in itertools.combinations(pool, k):
         for dest in itertools.product(TEAMS4, repeat=k):
             if any(o == t for (o, a), t in zip(combo, dest)): continue
@@ -685,8 +685,57 @@ for k in range(1, 4):
 found.sort(key=lambda x: (x[0], x[1], x[2]))
 for f in found[:10]:
     print("L10FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3]], "|", f4(f[4]), "| low", slot_after(f[4]))
-if found:
+if False:
     mathlines("L10MATH", B10 + found[0][3])
+
+# ---- L11: simple version. Derek: Lamb + Matty 1.04 for Rice + Sam's 2028 1st ----
+B11 = [(MAT, ME, lamb), (MAT, ME, m27), (ME, MAT, rice), (SAM, MAT, young), (SAM, MAT, j27),
+       (ME, SAM, s28), (DES, SAM, simpson), (MAT, DES, stroud)]
+DUMP = {corum["id"], addison["id"]}
+def sam_dump(mv):  # Sam's side with Corum/Addison counted at half (he wants them gone)
+    g = [a["value"] for fr, to, a in mv if to == SAM]
+    v = [a["value"] * (0.5 if a["id"] in DUMP else 1) for fr, to, a in mv if fr == SAM]
+    eg, ev_ = trade.effective(g), trade.effective(v); return (eg - ev_) / max(eg, ev_, 1)
+rr = ev4(B11); print("L11BASE", f4(rr), "| samdump", f"{sam_dump(B11)*100:+.1f}%")
+dumpopts = [[]]
+for dst in (MAT, DES, ME):
+    dumpopts.append([(SAM, dst, corum)]); dumpopts.append([(SAM, dst, addison)])
+    for dst2 in (MAT, DES, ME):
+        dumpopts.append([(SAM, dst, corum), (SAM, dst2, addison)])
+prot = {kc["id"], caleb["id"], wil["id"], goff["id"], f"pick:2029:1:{ME}", f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}",
+        f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", hurts["id"], daniels["id"]}
+found = []
+for dop in dumpopts:
+    base = B11 + dop
+    used = {m[2]["id"] for m in base} | prot
+    pool = []
+    for r in TEAMS4:
+        l = lineup_ids(r, base) if r not in (ME,) else set()
+        ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 400 and not (r == SAM and ":1:" in pk["id"])]
+        ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 400 and p["value"] < 6000 and p["id"] not in DUMP]
+        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:10 if r in (ME, DES) else 5]
+    for k in range(0, 3):
+        for combo in itertools.combinations(pool, k):
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+                mv = base + ex
+                if any(t == MAT and a.get("pos") == "QB" and a is not young for o, t, a in mv): continue
+                rr = ev4(mv)
+                sd = sam_dump(mv)
+                ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr if x != SAM) and (abs(rr[SAM]["m"]) <= 0.05 or abs(sd) <= 0.05)
+                if ok:
+                    mine_out = sum(a["value"] for o, t, a in mv if o == ME)
+                    found.append((len(mv), mine_out, ex, dop, rr, sd))
+found.sort(key=lambda x: (x[0], x[1]))
+for f in found[:12]:
+    print("L11FIX", f[0], "derek_out", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
+found.sort(key=lambda x: (x[1], x[0]))
+for f in found[:8]:
+    print("L11CHEAP", f[0], "derek_out", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
+if found:
+    mathlines("L11MATH", B11 + found[0][3] + found[0][2])
 
 import sys; sys.exit(0)
 results = []
