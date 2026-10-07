@@ -576,6 +576,54 @@ allf.sort(key=lambda x: (x[0], x[1]))
 if allf:
     mathlines("L7MATH", V7[allf[0][2]] + allf[0][3])
 
+# ---- L8: Derek gets Lamb + Hurts + Matty's 2027 1st; Matty keeps Stroud, gets Young + Jcarney 1.10; DES gets Daniels ----
+def mathlines(tag, mv):
+    for r_ in TEAMS4:
+        g = [a for fr, to, a in mv if to == r_]; v = [a for fr, to, a in mv if fr == r_]
+        fl = lambda xs: "; ".join(f"{lbl(a)} {a['value']}/{round(a['value'] * fac[r_].get(a['id'], 1))}" for a in xs)
+        eg, ev_ = trade.effective([a["value"] for a in g]), trade.effective([a["value"] for a in v])
+        tg = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in g]); tv = trade.effective([a["value"] * fac[r_].get(a["id"], 1) for a in v])
+        print(tag, teams[r_]["owner"], "| IN:", fl(g), "| OUT:", fl(v), f"| raw {sum(a['value'] for a in g)} vs {sum(a['value'] for a in v)} | adj {eg:.0f} vs {ev_:.0f} = {(eg-ev_)/max(eg,ev_)*100:+.1f}% | team {tg:.0f} vs {tv:.0f} = {(tg-tv)/max(tg,tv)*100:+.1f}%")
+core8 = [(MAT, ME, lamb), (MAT, ME, hurts), (MAT, ME, m27), (ME, MAT, rice), (SAM, MAT, young), (SAM, MAT, j27),
+         (ME, SAM, s28), (DES, SAM, simpson), (ME, DES, daniels)]
+O8 = {"Corum>Matty": (SAM, MAT, corum), "Williams>DES": (SAM, DES, awil), "DES1st>Sam": (DES, SAM, des27)}
+V8 = {}
+for k in range(0, 4):
+    for names in itertools.combinations(O8, k):
+        V8["+".join(names) or "core"] = core8 + [O8[n] for n in names]
+for nm, mv in V8.items():
+    rr = ev4(mv); print("L8VAR", nm, "|", f4(rr), "| low", slot_after(rr))
+keep8 = {kc["id"], caleb["id"], f"pick:2027:1:{SAM}", f"pick:2028:1:{SAM}", f"pick:2028:1:{MAT}", f"pick:2029:1:{MAT}", stroud["id"]}
+allf = []
+for nm, mv in V8.items():
+    used = {m[2]["id"] for m in mv} | keep8
+    pool = [(ME, a) for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME]
+            if a["id"] not in used and 500 <= a["value"] < 7000]
+    pool.sort(key=lambda x: -x[1]["value"]); pool = pool[:13]
+    for r in (SAM, MAT, DES):
+        l = lineup_ids(r, mv)
+        ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 900 and not (r == SAM and ":1:" in pk["id"])]
+        ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 900]
+        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:4]
+    found = []
+    for k in range(0, 4):
+        for combo in itertools.combinations(pool, k):
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+                rr = ev4(mv + ex)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr):
+                    found.append((k, -rr[ME]["ppg1"], nm, ex, rr))
+        if len(found) >= 8: break
+    found.sort(key=lambda x: (x[0], x[1]))
+    for f in found[:5]:
+        print("L8FIX", f[0], f[2], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3]], "|", f4(f[4]), "| low", slot_after(f[4]))
+    allf += found[:5]
+allf.sort(key=lambda x: (x[0], x[1]))
+for i, f in enumerate(allf[:2]):
+    mathlines(f"L8MATH{i}", V8[f[2]] + f[3])
+
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
