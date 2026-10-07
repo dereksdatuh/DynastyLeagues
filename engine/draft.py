@@ -16,6 +16,7 @@ this league's scoring and lineup treat his position.
 import re
 from statistics import median
 
+from . import record
 from .fetch import get_json, get_text
 from .market import QuantileMap
 from .league import POSITION_GROUP
@@ -99,20 +100,27 @@ def infer_rule(prev_rosters: list, slots: dict, playoff_teams: int) -> dict:
             "record_matched": s_rec, "max_pf_matched": s_mpf}
 
 
-def project_order(teams: list, rule: str, playoff_teams: int, playoff_slots: list | None = None) -> list:
-    """Roster ids in projected draft order for one round (pick 1 first).
+def project_order(teams: list, rule: str, playoff_teams: int, playoff_slots: list | None = None,
+                  key: str = "projection") -> list:
+    """Roster ids in draft order for one round (pick 1 first), from each team's `key`
+    stats: "projection" for the projected order, "record" for the order if the season
+    ended today.
 
-    `playoff_slots` is a league that grants its playoff teams fixed slots: entry i is
-    the first-round slot for the team projected to finish i+1 (champion first). The
-    non-playoff teams, ordered by the league's rule, fill whatever slots are left.
+    Playoff teams are seeded the league's way (division champions, then wildcards,
+    ties to most points for). `playoff_slots` is a league that grants its playoff
+    teams fixed slots: entry i is the first-round slot for the team projected to
+    finish i+1 (champion first). The non-playoff teams, ordered by the league's rule,
+    fill whatever slots are left.
     """
-    standing = sorted(teams, key=lambda t: (-t["projection"]["wins"], -t["projection"]["ppg"]))
-    playoff = standing[:playoff_teams]
-    out = standing[playoff_teams:]
+    st = {t["roster_id"]: standing_stats(t[key]) for t in teams}
+    by_id = {t["roster_id"]: t for t in teams}
+    seeded = record.seed(st, playoff_teams, {t["roster_id"]: t.get("division") for t in teams})
+    playoff = [by_id[r] for r in seeded[:playoff_teams]]
+    out = [by_id[r] for r in seeded[playoff_teams:]]
     if rule == "max_pf":
-        out.sort(key=lambda t: t["projection"]["max_pf"])
+        out.sort(key=lambda t: st[t["roster_id"]]["max_pf"])
     else:
-        out.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["max_pf"]))
+        out.sort(key=lambda t: (st[t["roster_id"]]["wins"], st[t["roster_id"]]["max_pf"]))
     if valid_playoff_slots(playoff_slots, len(teams), len(playoff)):
         order = [None] * len(teams)
         for place, t in enumerate(playoff):  # playoff[0] is the projected champion
@@ -122,8 +130,14 @@ def project_order(teams: list, rule: str, playoff_teams: int, playoff_slots: lis
             if taken is None:
                 order[i] = next(rest)["roster_id"]
         return order
-    playoff.sort(key=lambda t: (t["projection"]["wins"], t["projection"]["ppg"]))
+    playoff.sort(key=lambda t: (st[t["roster_id"]]["wins"], st[t["roster_id"]]["pf"]))
     return [t["roster_id"] for t in out + playoff]
+
+
+def standing_stats(s: dict) -> dict:
+    """Wins (ties count half), points for and max PF from a projection or a current record."""
+    return {"wins": (s.get("wins") or 0) + 0.5 * (s.get("ties") or 0), "ties": 0,
+            "pf": s.get("pf", s.get("fpts")) or 0, "max_pf": s.get("max_pf") or 0}
 
 
 def valid_playoff_slots(slots, n: int, playoff_teams: int) -> bool:

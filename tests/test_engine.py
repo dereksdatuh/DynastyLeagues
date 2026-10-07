@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from engine import build, model, outlook, trade
+from engine import build, draft, model, outlook, record, trade
 from engine.league import fantasy_points, format_from_sleeper
 from engine.market import QuantileMap, build_consensus
 from engine.picks import PickValues, parse_pick, pick_ownership
@@ -341,7 +341,7 @@ def test_league_stated_draft_order_grants_playoff_teams_fixed_slots(offline):
     rd = data["rookie_draft"]
     teams = {t["roster_id"]: t for t in data["teams"]}
     assert rd["rule"]["basis"] == "league_rule" and rd["rule"]["playoff_slots"] == slots
-    seeded = sorted(teams.values(), key=lambda t: (-t["projection"]["wins"], -t["projection"]["ppg"]))
+    seeded = sorted(teams.values(), key=lambda t: t["projection"]["rank"])
     for place, t in enumerate(seeded[: rd["playoff_teams"]]):
         assert rd["order"][slots[place] - 1] == t["roster_id"]
     # The non-playoff teams fill what is left, lowest max PF first.
@@ -457,3 +457,45 @@ def test_draft_after_next_is_priced_by_projected_strength(offline):
     assert all(firsts[r]["value"] > seconds[r]["value"] for r in firsts)
     # Teams holding coming-draft picks get those rookies in next season's roster.
     assert any(t["rookies"] for t in nd["teams"])
+
+
+def test_playoff_seeds_division_champs_then_wildcards_with_ties_to_points_for():
+    stats = {1: {"wins": 9, "pf": 1500}, 2: {"wins": 9, "pf": 1600}, 3: {"wins": 8, "pf": 1400},
+             4: {"wins": 5, "pf": 1300}, 5: {"wins": 7, "pf": 1450}, 6: {"wins": 7, "pf": 1460},
+             7: {"wins": 4, "pf": 1200}, 8: {"wins": 3, "pf": 1100}}
+    # No divisions: best record, ties to most points for.
+    assert record.seed(stats, 4) == [2, 1, 3, 6, 5, 4, 7, 8]
+    # Divisions {1,2,7,8} and {3,4,5,6}: each champion is seeded first, even 8-1 team 3
+    # ahead of 9-win team 1, and the 7-7 wildcard tie goes to the higher points for.
+    div = {1: "A", 2: "A", 7: "A", 8: "A", 3: "B", 4: "B", 5: "B", 6: "B"}
+    assert record.seed(stats, 4, div) == [2, 3, 1, 6, 5, 4, 7, 8]
+    # Two division champions tied on record: points for decides who seeds higher.
+    tied = {**stats, 3: {"wins": 9, "pf": 1700}}
+    assert record.seed(tied, 4, div)[:2] == [3, 2]
+
+
+def test_draft_order_today_uses_current_record_and_max_pf():
+    teams = [{"roster_id": r, "record": {"wins": w, "losses": 10 - w, "ties": 0, "fpts": pf, "max_pf": mpf},
+              "projection": {"wins": 5, "pf": 1000, "max_pf": 1000}}
+             for r, w, pf, mpf in [(1, 8, 1500, 1800), (2, 8, 1550, 1850), (3, 4, 1300, 1700), (4, 3, 1200, 1500)]]
+    # Two playoff teams (2 ahead of 1 on points for); the rest by lowest max PF so far.
+    assert draft.project_order(teams, "max_pf", 2, key="record") == [4, 3, 1, 2]
+    assert draft.project_order(teams, "max_pf", 2, [3, 4], key="record") == [4, 3, 2, 1]
+
+
+def test_build_shows_standings_and_pick_slots_as_of_today(offline):
+    league = copy.deepcopy(STANDARD_LEAGUE)
+    league["settings"]["divisions"] = 4
+    data = _build(league, offline)
+    teams = {t["roster_id"]: t for t in data["teams"]}
+    assert data["league"]["playoff_teams"] == 6 and len(data["league"]["divisions"]) == 4
+    seeds = sorted(teams.values(), key=lambda t: t["record"]["seed"])
+    # The top four seeds are the four division champions.
+    assert len({t["division"] for t in seeds[:4]}) == 4
+    assert sorted(t["record"]["max_pf_rank"] for t in teams.values()) == list(range(1, 13))
+    rd = data["rookie_draft"]
+    assert sorted(rd["order_now"]) == sorted(teams)
+    firsts = [p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1]
+    assert sorted(p["slot_now"] for p in firsts) == list(range(1, 13))
+    for p in firsts:
+        assert rd["order_now"][p["slot_now"] - 1] == p["original_roster_id"]

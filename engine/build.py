@@ -223,6 +223,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "name": (owner.get("metadata") or {}).get("team_name") or owner.get("display_name") or f"Team {r['roster_id']}",
             "owner": owner.get("display_name"),
             "avatar": owner.get("avatar"),
+            "division": st.get("division") or None,
             "record": {"wins": st.get("wins", 0), "losses": st.get("losses", 0), "ties": st.get("ties", 0),
                        "fpts": st.get("fpts", 0) + (st.get("fpts_decimal", 0) or 0) / 100,
                        # Sleeper's "potential points": best possible lineup each week played.
@@ -247,14 +248,23 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     schedule, median_game, current_rows = season_schedule(lid, league, shared.state)
     ppg = {t["roster_id"]: t["ros_ppg"] for t in teams}
     sigma = record.sigma_for(ppg)
-    projected = record.project(ppg, {t["roster_id"]: t["record"] for t in teams}, schedule, median_game, sigma)
+    n = len(teams)
+    playoff_teams = int((league.get("settings") or {}).get("playoff_teams") or max(n // 2, 1))
+    divisions = {t["roster_id"]: t["division"] for t in teams}
+    projected = record.project(ppg, {t["roster_id"]: t["record"] for t in teams}, schedule, median_game, sigma,
+                               playoff_teams, divisions)
     for t in teams:
         t["projection"] = projected[t["roster_id"]]
+    # Standings today: seeded the league's way (division champions, then wildcards,
+    # ties to most points for), plus where each team's max PF ranks so far.
+    now = record.seed({t["roster_id"]: {**t["record"], "pf": t["record"]["fpts"]} for t in teams}, playoff_teams, divisions)
+    max_pf_now = sorted(teams, key=lambda t: -t["record"]["max_pf"])
+    for t in teams:
+        t["record"]["seed"] = now.index(t["roster_id"]) + 1
+        t["record"]["max_pf_rank"] = max_pf_now.index(t) + 1
 
     # Next year's draft order, projected under this league's own rule (read off
     # its last rookie draft), sets next year's pick tiers.
-    n = len(teams)
-    playoff_teams = int((league.get("settings") or {}).get("playoff_teams") or max(n // 2, 1))
     last = shared.optional(lambda: draft.last_rookie_draft(draft.league_chain({**league, "league_id": lid})))
     rule = draft.infer_rule(last["standings"], last["slots"], last["playoff_teams"] or playoff_teams) \
         if last else {"rule": "record", "basis": "default", "matched": None, "of": None}
@@ -269,6 +279,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         playoff_slots = None
     rule = {**rule, "playoff_slots": playoff_slots}
     order = draft.project_order(teams, rule["rule"], playoff_teams, playoff_slots)
+    # The same rule applied to the standings as they are today.
+    order_now = draft.project_order(teams, rule["rule"], playoff_teams, playoff_slots, key="record")
     snake = (last or {}).get("type") == "snake"
     finish_tier = {}
     for i, rid in enumerate(order):
@@ -304,6 +316,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "id": f"pick:{pk['year']}:{pk['round']}:{pk['original_roster_id']}",
             "label": label, "year": pk["year"], "round": pk["round"], "tier": tier,
             "slot": slot, "overall": overall, "value": round(value),
+            # Where the pick would fall if the season ended today.
+            "slot_now": draft.slot_in_round(order_now, pk["round"], pk["original_roster_id"], snake) if first else None,
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
         })
     # The draft after: each team projected a season ahead (aging plus the rookies its
@@ -319,7 +333,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
                 if any(p["class"] == year2 for p in devy["players"]) else []
             value2 = outlook.slot_curve(pick_values, slot_fn, first_year, year2, n, class2)
             exp = outlook.expected_slots({r: s["ppg"] for r, s in strength.items()}, rule["rule"], playoff_teams,
-                                         playoff_slots, snake, rounds, value2)
+                                         playoff_slots, snake, rounds, value2,
+                                         divisions=divisions)
             for pk in later:
                 e = exp.get((pk["round"], pk["original_roster_id"]))
                 if not e:
@@ -350,7 +365,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         rookie = {
             "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",
             "playoff_teams": playoff_teams, "rule": rule, "last_draft_season": (last or {}).get("season"),
-            "order": order, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn),
+            "order": order, "order_now": order_now, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn),
             "class": class_rows[: n * rounds + 24],
             "class_weight": {"slot": draft.CLASS_MARKET_WEIGHT, "ktc_devy": 1 - draft.CLASS_MARKET_WEIGHT if scale else 0},
             "source": {k: v for k, v in devy.items() if k != "players"},
@@ -376,6 +391,10 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "buy_in": config.get("buy_in"), "currency": config.get("currency"),
             "payouts": config.get("payouts"), "notes": config.get("notes"),
             "format": fmt.summary(), "scoring": fmt.scoring, "week": tables["week"],
+            "playoff_teams": playoff_teams,
+            # Division names Sleeper keeps as metadata division_1, division_2, ...
+            "divisions": {str(d): (league.get("metadata") or {}).get(f"division_{d}") or f"Division {d}"
+                          for d in sorted({v for v in divisions.values() if v})},
         },
         "week": week_data(tables, current_rows, fmt, shared, players, owner_of, history),
         "schedule": {"weeks": schedule, "median_game": median_game, "sigma": round(sigma, 2),

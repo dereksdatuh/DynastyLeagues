@@ -71,8 +71,9 @@ for (const id of leagues) {
   const news = await page.$$eval("#news ul.news li", (r) => r.length);
   const injuries = await page.$$eval("#injuries tbody tr", (r) => r.length);
   await page.click('button[data-tab="rookie"]');
-  const mock = await page.$$eval("#rookie table[id^=mock] tbody tr", (rs) => rs.map((r) => [...r.cells].slice(0, 5).map((c) => c.textContent.trim().replace(/\s+/g, " "))));
+  const mock = await page.$$eval("#rookie table[id^=mock] tbody tr", (rs) => rs.map((r) => [...r.cells].slice(0, 6).map((c) => c.textContent.trim().replace(/\s+/g, " "))));
   const prospects = await page.$$eval("#prospects tbody tr", (r) => r.length);
+  const standings = await page.$$eval("#standings-now tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
@@ -80,8 +81,10 @@ for (const id of leagues) {
   if (matchups[0]) console.log(`  first matchup: ${matchups[0]}`);
   if (potw.length) console.log(`  top scorers: ${potw.join("; ")}`);
   if (matchups.length && !lineupRows) errors.push(`${id}: matchup lineups did not open`);
-  console.log(`  rookie mock: ${mock.length} picks, ${prospects} prospects; ${mock.slice(0, 3).map((m) => `${m[0]} ${m[1]} → ${m[3]} ${m[4]}`).join("; ")}`);
+  console.log(`  rookie mock: ${mock.length} picks, ${prospects} prospects; ${mock.slice(0, 3).map((m) => `${m[0]} (today ${m[1]}) ${m[2]} → ${m[4]} ${m[5]}`).join("; ")}`);
   if (!mock.length) errors.push(`${id}: rookie mock did not render`);
+  console.log(`  standings today:\n${standings.map((r) => "    " + r).join("\n")}`);
+  if (mock.length && !standings.length) errors.push(`${id}: standings today did not render`);
   console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 5).join(" | ")}, max PF high ${maxPF[0]?.toFixed(0)}, impact rows ${impact}, owner messages ${pitches.length}`);
   if (pitches[0]) console.log(pitches[0].split("\n").map((l) => "    " + l).join("\n"));
   console.log(`  by each team's situation: ${lens.join("; ")} (to-them values shown ${toThem})`);

@@ -92,20 +92,21 @@ def team_strength(teams: list, by_id: dict, picks: list, class_rows: list, slots
     return out
 
 
-def _order(strength: dict, rule: str, playoff_teams: int, playoff_slots) -> list:
-    rows = [{"roster_id": r, "projection": {"wins": s, "ppg": s, "max_pf": s}} for r, s in strength.items()]
+def _order(strength: dict, rule: str, playoff_teams: int, playoff_slots, divisions=None) -> list:
+    rows = [{"roster_id": r, "division": (divisions or {}).get(r), "projection": {"wins": s, "pf": s, "max_pf": s}}
+            for r, s in strength.items()]
     return draft.project_order(rows, rule, playoff_teams, playoff_slots)
 
 
 def expected_slots(strength: dict, rule: str, playoff_teams: int, playoff_slots, snake: bool,
-                   rounds: int, value_of, seed: int = 7) -> dict:
+                   rounds: int, value_of, seed: int = 7, divisions: dict | None = None) -> dict:
     """For every (round, original team): average slot and average value over many seasons."""
     rng = random.Random(seed)
     n = len(strength)
     acc = {}
     for _ in range(DRAWS):
         drawn = {r: s * (1 + rng.gauss(0, SPREAD)) for r, s in strength.items()}
-        order = _order(drawn, rule, playoff_teams, playoff_slots)
+        order = _order(drawn, rule, playoff_teams, playoff_slots, divisions)
         for rnd in range(1, rounds + 1):
             for orig in order:
                 slot = draft.slot_in_round(order, rnd, orig, snake)
