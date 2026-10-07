@@ -416,6 +416,16 @@ for t in sorted(teams, key=lambda t: -teams[t]["projection"].get("proj_wins", te
     pr = teams[t]["projection"]
     print("STAND", teams[t]["owner"], {k: v for k, v in pr.items() if not isinstance(v, (list, dict))}, "ppg", round(ppg(roster[t]), 1))
 print("MATPPG", round(ppg(roster[MAT]), 1), "->", round(rl[MAT]["ppg1"], 1))
+nd = d.get("next_draft") or {}
+for t in nd.get("teams", []):
+    pk = next((p for p in d["picks"] if p["year"] == nd["year"] and p["round"] == 1 and p["original_roster_id"] == t["roster_id"]), None)
+    print("ND", t["rank"], teams[t["roster_id"]]["owner"], "now", t["now_ppg"], "next", t["ppg"], "slot", t["first_slot"], "val", pk and pk["value"], "holder", pk and teams[pk["roster_id"]]["owner"], "rookies", t["rookies"])
+print("NDCLASS", nd.get("class", [])[:6])
+s28n = K[f"pick:2028:1:{SAM}"]
+e = lambda xs: trade.effective(xs)
+for nm, a, b in (("DEREK", [lamb["value"], m27["value"]], [rice["value"], s28n["value"]]), ("SAM", [s28n["value"]], [young["value"], addison["value"], j27["value"]]), ("MATTY", [rice["value"], young["value"], addison["value"], j27["value"]], [lamb["value"], m27["value"]])):
+    x, y = e(a), e(b); print("LT2", nm, round(x), round(y), f"{(x-y)/max(x,y)*100:+.1f}%")
+print("S28", lbl(s28n), s28n["value"])
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
