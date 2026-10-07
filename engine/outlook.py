@@ -74,7 +74,7 @@ def team_strength(teams: list, by_id: dict, picks: list, class_rows: list, slots
         if o and o <= len(prospects):
             pr = prospects[o - 1]
             rookies.setdefault(pk["roster_id"], []).append({
-                "id": f"rookie:{pk['id']}", "name": pr.get("name"), "pos": pr["pos"], "pick": pk["label"],
+                "id": f"rookie:{pk['id']}", "name": pr.get("name"), "pos": pr["pos"], "pick": pk["label"].split(" (via")[0],
                 "next_ppg": rookie_ppg(pr, list(by_id.values())),
             })
     out = {}
