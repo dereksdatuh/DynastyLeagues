@@ -738,7 +738,7 @@ if found:
 love = fname("Jeremiyah Love")
 prot12 = prot | {love["id"]}
 found = []
-for dop in dumpopts:
+for dop in []:
     base = B11 + dop
     used = {m[2]["id"] for m in base} | prot12
     pool = []
@@ -765,6 +765,42 @@ found.sort(key=lambda x: (x[0], x[1]))
 for f in found[:10]:
     print("L12FIX", f[0], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
 print("L12N", len(found))
+
+# ---- L13: Derek takes Jcarney 1.10, no Matty 1.04 ----
+B13 = [(MAT, ME, lamb), (SAM, ME, j27), (ME, MAT, rice), (SAM, MAT, young), (ME, SAM, s28), (DES, SAM, simpson), (MAT, DES, stroud)]
+rr = ev4(B13); print("L13BASE", f4(rr), f"| samdump {sam_dump(B13)*100:+.1f}% | low", slot_after(rr))
+for dop in dumpopts[1:]:
+    rr = ev4(B13 + dop); print("L13DUMP", [lbl(a) for o, t, a in dop], f4(rr), f"| samdump {sam_dump(B13 + dop)*100:+.1f}% | low", slot_after(rr))
+found = []
+for dop in dumpopts:
+    base = B13 + dop
+    used = {m[2]["id"] for m in base} | prot12 | {m27["id"]}
+    pool = []
+    for r in TEAMS4:
+        l = lineup_ids(r, base) if r != ME else set()
+        ex = [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in used and pk["value"] >= 400 and not (r == SAM and ":1:" in pk["id"])]
+        ex += [(r, p) for p in roster[r] if p["id"] not in used and p["id"] not in l and p["value"] >= 400 and p["value"] < 6000 and p["id"] not in DUMP]
+        ex.sort(key=lambda x: -x[1]["value"]); pool += ex[:9 if r in (ME, DES) else 6]
+    for k in range(0, 4):
+        for combo in itertools.combinations(pool, k):
+            for dest in itertools.product(TEAMS4, repeat=k):
+                if any(o == t for (o, a), t in zip(combo, dest)): continue
+                ex = [(o, t, a) for (o, a), t in zip(combo, dest)]
+                if any(t == SAM and a["id"] in P for o, t, a in ex): continue
+                mv = base + ex
+                if any(t == MAT and a.get("pos") == "QB" and a is not young for o, t, a in mv): continue
+                rr = ev4(mv)
+                sd = sam_dump(mv)
+                if all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr if x != SAM) and (abs(rr[SAM]["m"]) <= 0.05 or abs(sd) <= 0.05):
+                    mine_out = sum(a["value"] for o, t, a in ex if o == ME)
+                    found.append((len(mv), mine_out, ex, dop, rr, sd))
+        if len(found) >= 40: break
+found.sort(key=lambda x: (x[0], x[1]))
+for f in found[:12]:
+    print("L13FIX", f[0], "derek_extra", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
+print("L13N", len(found))
+if found:
+    mathlines("L13MATH", B13 + found[0][3] + found[0][2])
 
 import sys; sys.exit(0)
 results = []
