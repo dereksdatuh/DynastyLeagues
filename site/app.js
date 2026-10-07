@@ -1146,7 +1146,8 @@ function standingsTodayHtml(rd) {
   if (!rd.order_now) return "";
   const lg = state.data.league;
   const divs = lg.divisions || {};
-  const hasDiv = Object.keys(divs).length > 1;
+  // Divisions count only when every team has one (the engine's seeding falls back otherwise).
+  const hasDiv = Object.keys(divs).length > 1 && state.data.teams.every((t) => t.division != null);
   const firsts = new Map(state.data.picks.filter((p) => p.year === rd.year && p.round === 1).map((p) => [p.original_roster_id, p]));
   const mine = myTeam();
   const champs = new Set();
