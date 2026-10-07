@@ -359,6 +359,44 @@ out.sort(key=lambda x: (x[0], x[1]))
 for k, sp, c, rr in out[:10]:
     print("HFIX", k, f"{sp*100:.1f}", c, "||", f3(rr))
 print("NHFIX", len(out))
+daniels = fname("Jayden Daniels")
+my28_2 = [pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2028:2:")]
+print("MY28_2", [(lbl(p), p["value"]) for p in my28_2])
+k28 = my28_2[0]
+fourteen = [(MAT, ME, hurts), (SAM, ME, s27), (ME, DES, daniels), (ME, SAM, s28), (ME, SAM, k28),
+            (SAM, DES, awil), (DES, SAM, simpson), (DES, MAT, pitts), (DES, MAT, mhj), (DES, SAM, des27),
+            (SAM, MAT, young), (SAM, MAT, addison), (SAM, MAT, corum), (MAT, SAM, m27)]
+r14 = ev4(fourteen)
+print("F14", " | ".join(f"{teams[x]['owner']} team {r14[x]['t']*100:+.1f}% mkt {r14[x]['m']*100:+.1f}% ppg {r14[x]['ppg0']:.1f}->{r14[x]['ppg1']:.1f} maxpf {r14[x]['maxpf']:.0f}" for x in r14))
+for r_ in TEAMS4:
+    g = [a for fr, to, a in fourteen if to == r_]; v = [a for fr, to, a in fourteen if fr == r_]
+    print("F14V", teams[r_]["owner"], "IN", [(lbl(a), a["value"]) for a in g], "OUT", [(lbl(a), a["value"]) for a in v])
+print("DANIELS", daniels["value"], daniels["ros_ppg"], "HURTS", hurts["value"], hurts["ros_ppg"])
+print("LOWMAX14", sorted(((teams[t]['owner'], r14[t]['maxpf'] if t in r14 else teams[t]['projection']['max_pf']) for t in teams), key=lambda x: x[1])[:3])
+u14 = {m[2]["id"] for m in fourteen}
+mylu14 = {x["id"] for x in best_lineup([p for p in roster[ME] if p["id"] != daniels["id"]] + [hurts], slots, "ros_ppg")}
+pool14 = []
+for r in TEAMS4:
+    lu_ = {x["id"] for x in best_lineup(roster[r], slots, "ros_ppg")}
+    pool14 += [(r, pk) for pk in d["picks"] if pk["roster_id"] == r and pk["id"] not in u14 and 300 <= pk["value"] < 4000 and not (r == SAM and ":1:" in pk["id"]) and not (r == DES and ":1:" in pk["id"])]
+    pool14 += [(r, p) for p in roster[r] if p["id"] not in u14 and p["id"] not in lu_ and p["id"] not in mylu14 and 400 <= p["value"] < 4000 and p["id"] != kc["id"]]
+pool14.sort(key=lambda x: -x[1]["value"]); pool14 = pool14[:16]
+print("POOL14", [(teams[o]["owner"], lbl(a), a["value"]) for o, a in pool14])
+out = []
+for k in range(1, 4):
+    for combo in itertools.combinations(pool14, k):
+        for dest in itertools.product(TEAMS4, repeat=k):
+            if any(o == t for (o, a), t in zip(combo, dest)): continue
+            if any(t == SAM and a["id"] in P for (o, a), t in zip(combo, dest)): continue
+            rr = ev4(fourteen + [(o, t, a) for (o, a), t in zip(combo, dest)])
+            if all(abs(rr[x]["m"]) <= 0.05 and rr[x]["t"] >= -0.05 for x in rr):
+                sp = max(abs(rr[x]["m"]) for x in rr)
+                out.append((k, sp, [f"{teams[o]['owner']}:{lbl(a)}->{teams[t]['owner']}" for (o, a), t in zip(combo, dest)], rr))
+    if len(out) >= 4: break
+out.sort(key=lambda x: (x[0], x[1]))
+for k, sp, c, rr in out[:10]:
+    print("F14FIX", k, f"{sp*100:.1f}", c, "||", " | ".join(f"{teams[x]['owner']} team {rr[x]['t']*100:+.1f}% mkt {rr[x]['m']*100:+.1f}%" for x in rr))
+print("NF14FIX", len(out))
 import sys; sys.exit(0)
 results = []
 mpool = [(o, a) for o, a in pool if o == ME][:8]
