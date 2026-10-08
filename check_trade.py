@@ -904,7 +904,7 @@ chips = [a for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == 
 chips.sort(key=lambda a: -a["value"]); chips = chips[:20]
 print("L18CHIPS", [(lbl(a), a["value"]) for a in chips])
 res = []
-for X in teams:
+for X in []:
     if X in (ME, KEN): continue
     tg = [p for p in roster[X] if p["value"] >= 300 and ppg(roster[ME] + [p]) - base_me > 0.4]
     tg.sort(key=lambda p: -(ppg(roster[ME] + [p]) - base_me)); tg = tg[:8]
@@ -930,6 +930,27 @@ for dlt, npc, X, gc, vc, r in res:
           f"| me {r[ME]['m']*100:+.1f}/{r[ME]['t']*100:+.1f} them {r[X]['m']*100:+.1f}/{r[X]['t']*100:+.1f} their ppg {r[X]['d']:+.1f}")
     if n >= 30: break
 print("L18N", len(res))
+
+# ---- L19: Sam's pending 3-team offer (Matty/DES/Sam) ----
+m2c = K[f"pick:2027:2:{MAT}"]
+O19 = [(SAM, MAT, young), (MAT, DES, stroud), (MAT, DES, m2c), (SAM, DES, addison), (DES, SAM, simpson), (DES, SAM, des27)]
+print("L19PCS", [(lbl(a), a["value"], teams[a["roster_id"]]["owner"]) for _, _, a in O19])
+rr = ev4(O19); print("L19", f4(rr), "| low", slot_after(rr))
+mathlines("L19MATH", O19)
+# Lamb for Rice + chips with Matty, 2-team, after the offer (factors are pre-offer)
+mchips = [a for a in chips if a["id"] not in (s28["id"],)] + [s28]
+res = []
+for k in range(0, 3):
+    for vc in itertools.combinations(mchips, k):
+        if any(a.get("pos") == "QB" for a in vc): continue
+        mv = [(MAT, ME, lamb), (ME, MAT, rice)] + [(ME, MAT, a) for a in vc]
+        r = ev2(mv, ME, MAT)
+        if all(abs(r[z]["m"]) <= 0.05 and abs(r[z]["t"]) <= 0.05 for z in r):
+            res.append((sum(a["value"] for a in vc), vc, r))
+res.sort(key=lambda x: x[0])
+for v, vc, r in res[:8]:
+    print("L19LAMB", [lbl(a) for a in vc], v, f"| me {r[ME]['m']*100:+.1f}/{r[ME]['t']*100:+.1f} ppg {r[ME]['d']:+.1f} | matty {r[MAT]['m']*100:+.1f}/{r[MAT]['t']*100:+.1f}")
+r = ev2([(MAT, ME, lamb), (ME, MAT, rice)], ME, MAT); print("L19LAMBBARE", r)
 
 import sys; sys.exit(0)
 results = []
