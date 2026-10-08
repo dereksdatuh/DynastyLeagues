@@ -93,6 +93,7 @@ async function loadLeague(id) {
   setupWeek();
   state.liveTrades = [];
   renderTrades();
+  renderSchedule();
   renderRookieMock();
 }
 
@@ -1037,6 +1038,55 @@ function renderNews() {
         <a href="${esc(n.url || "#")}" target="_blank" rel="noopener">${esc(n.headline)}</a>
         <div class="muted">${n.players.map((id) => { const p = playerOf(id); return `${esc(p.name)} (${ownerTag(p.roster_id)})`; }).join(", ")}${n.published ? ` · ${ago(n.published)}` : ""}</div>
         ${n.description ? `<div>${esc(n.description)}</div>` : ""}</li>`).join("")}</ul>` : `<p class="muted">No recent ESPN stories about players in this league.</p>`}`;
+}
+
+// ---------- strength of schedule ----------
+// The build rates every team's remaining regular season (engine/record.py
+// strength_of_schedule): each week's opponent, how many points that opponent's best
+// lineup projects, and the chance to win; difficulty = average opponent points.
+function renderSchedule() {
+  const el = $("#schedule");
+  if (!el) return;
+  const sch = state.data.schedule || {};
+  const sos = sch.strength || {};
+  const teams = state.data.teams.filter((t) => sos[t.roster_id] && sos[t.roster_id].weeks.length);
+  if (!teams.length) {
+    el.innerHTML = `<p class="muted">No regular-season games left to rate.</p>`;
+    return;
+  }
+  const weeks = sos[teams[0].roster_id].weeks.map((w) => w.week);
+  const mine = myTeam();
+  const short = (rid) => { const t = teamOf(rid); return t ? managerOf(t) || t.name : ""; };
+  const pct = (p) => `${Math.round(p * 100)}%`;
+  const winCls = (p) => (p >= 0.6 ? "up" : p <= 0.4 ? "down" : "");
+  const signed = (x) => `${x > 0 ? "+" : ""}${x.toFixed(1)}`;
+  const byRank = [...teams].sort((a, b) => (sos[a.roster_id].rank || 99) - (sos[b.roster_id].rank || 99));
+  const rec = (t) => `${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}`;
+  const summary = byRank.map((t) => {
+    const s = sos[t.roster_id];
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}">
+      <td>${s.rank ?? ""}</td><td class="name">${teamHtml(t.roster_id)}</td><td>${rec(t)}</td>
+      <td class="num">${t.ros_ppg != null ? t.ros_ppg.toFixed(1) : ""}</td>
+      <td class="num strong">${s.opp_ppg != null ? s.opp_ppg.toFixed(1) : ""}</td>
+      <td class="num">${s.exp_wins.toFixed(1)}</td>
+      <td class="num ${s.vs_average <= -0.3 ? "down" : s.vs_average >= 0.3 ? "up" : ""}" data-sort="${s.vs_average}">${signed(s.vs_average)}</td>
+      ${sch.median_game ? `<td class="num">${s.median_wins.toFixed(1)}</td>` : ""}</tr>`;
+  }).join("");
+  const grid = byRank.map((t) => {
+    const s = sos[t.roster_id];
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="name">${teamHtml(t.roster_id)}</td>${s.weeks.map((w) =>
+      `<td class="${winCls(w.win)}" data-sort="${w.opp_ppg ?? ""}" title="${w.opp ? `${esc(teamName(w.opp))}: ${w.opp_ppg} projected per game` : "No opponent listed: rated against the whole league"}">${w.opp ? esc(short(w.opp)) : "League"} <span class="muted">${pct(w.win)}</span></td>`).join("")}</tr>`;
+  }).join("");
+  el.innerHTML = `<p class="muted">Rest of the regular season (week ${weeks[0]}${weeks.length > 1 ? ` to ${weeks[weeks.length - 1]}` : ""}), hardest first.
+      Opponent strength is the points per game that team's best lineup projects from here on, in this league's scoring.
+      "Vs. average" is the wins this schedule is worth compared with playing an average opponent every week; negative means a tougher draw.${sch.median_game ? " Median games don't depend on the schedule, so they're shown on their own." : ""}
+      Updates every build.</p>
+    <div class="table-wrap"><table id="sos"><thead><tr><th>#</th><th>Team</th><th>Record</th><th class="num">Own proj/wk</th>
+      <th class="num" title="Average projected points per game of the opponents left">Opp proj/wk</th>
+      <th class="num" title="Expected head-to-head wins over the games left">Exp. wins</th><th class="num">Vs. average</th>
+      ${sch.median_game ? `<th class="num" title="Expected wins in the weekly league-median games left">Median wins</th>` : ""}</tr></thead><tbody>${summary}</tbody></table></div>
+    <h3>Week by week <span class="muted">(opponent and your chance to win)</span></h3>
+    <div class="table-wrap"><table id="sos-weeks"><thead><tr><th>Team</th>${weeks.map((w) => `<th>Wk ${w}</th>`).join("")}</tr></thead><tbody>${grid}</tbody></table></div>`;
 }
 
 // ---------- recent trades ----------

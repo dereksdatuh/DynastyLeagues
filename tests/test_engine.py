@@ -511,3 +511,25 @@ def test_build_lists_completed_trades_as_moves(offline):
     pick = next(m for m in t["moves"] if m["kind"] == "pick")
     assert pick["id"] == "pick:2028:1:1" and pick["id"] in {p["id"] for p in data["picks"]}
     assert all(m["name"] and m["name"] != m["id"] for m in t["moves"] if m["kind"] == "player")
+
+
+def test_strength_of_schedule_ranks_toughest_remaining_opponents_first():
+    ppg = {1: 100, 2: 150, 3: 80, 4: 120}
+    sched = {5: [[1, 2], [3, 4]], 6: [[1, 4], [2, 3]], 7: [[1, 2], [3, 4]], 8: []}  # week 7 rematches
+    sos = record.strength_of_schedule(ppg, sched, median_game=True, sigma=20)
+    assert [r for r in sorted(sos, key=lambda r: sos[r]["rank"])] == [1, 3, 2, 4]
+    assert sos[1]["opp_ppg"] == pytest.approx(140)
+    assert sos[1]["vs_average"] < 0 < sos[4]["vs_average"]
+    w = sos[1]["weeks"]
+    assert [x["opp"] for x in w] == [2, 4, 2, None] and w[0]["win"] < 0.5 < sos[2]["weeks"][0]["win"]
+    assert w[3]["win"] == pytest.approx(record.vs_field(1, ppg, 20), abs=1e-3)  # no game: plays the field
+    assert sos[1]["median_wins"] > 0 and record.strength_of_schedule(ppg, sched)[1]["median_wins"] is None
+
+
+def test_build_ships_strength_of_schedule(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    sos = data["schedule"]["strength"]
+    assert sorted(v["rank"] for v in sos.values()) == list(range(1, 13))
+    for t in data["teams"]:
+        s = sos[t["roster_id"]]
+        assert len(s["weeks"]) == 10 and s["exp_wins"] == pytest.approx(t["projection"]["remaining_wins"], abs=0.01)
