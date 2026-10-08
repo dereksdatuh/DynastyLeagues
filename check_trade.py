@@ -61,53 +61,34 @@ core = [(DES, ME, gibbs), (ME, DES, arsb), (ME, DES, daniels)]
 print("CORE", fmt(ev(core)))
 KEEP = {fname(n)["id"] for n in ("Caleb Williams", "Jeremiyah Love", "Ja'Marr Chase", "Tucker Kraft")} | {f"pick:2028:1:{SAM}"}
 dumps = {hurts["id"], nix["id"]}
-# Hurts to Derek (he'll take him); Nix to any other team in the deal.
-qbmoves = []
-for hd in ([ME] if H != ME else [None]):
-    for nd in [t for t in TEAMS if t != N] + [None]:
-        mv = []
-        if H in teams and H != ME: mv.append((H, ME, hurts))
-        if N in teams and nd is not None: mv.append((N, nd, nix))
-        qbmoves.append(mv)
-# Filler moves between any two teams in the deal.
+MAT = H
+KEEP |= {fname("Jeremiyah Love")["id"]}
+qbmoves = [[(MAT, ME, hurts)], [(MAT, ME, hurts), (DES, MAT, nix)], [(MAT, ME, hurts), (DES, ME, nix)]]
+used = dumps | {gibbs["id"], arsb["id"], daniels["id"]}
+def top(fr, n, pred=lambda a: True):
+    xs = [a for a in roster[fr] if a["value"] >= 400 and a["id"] not in KEEP | used and pred(a)]
+    xs += [k for k in d["picks"] if k["roster_id"] == fr and k["value"] >= 400 and k["id"] not in KEEP]
+    return sorted(xs, key=lambda a: -a["value"])[:n]
 pool = []
-for fr in TEAMS:
-    assets = [a for a in roster[fr] if a["value"] >= 300 and a["id"] not in KEEP | dumps | {gibbs["id"], arsb["id"], daniels["id"]}]
-    assets += [k for k in d["picks"] if k["roster_id"] == fr and k["value"] >= 300 and k["id"] not in KEEP]
-    for a in sorted(assets, key=lambda a: -a["value"])[:10]:
-        for to in TEAMS:
-            if to != fr: pool.append((fr, to, a))
+for fr, to in itertools.permutations((ME, DES, MAT), 2):
+    for a in top(fr, 8): pool.append((fr, to, a))
 print("POOL", len(pool), "moves")
 found = []
 for qm in qbmoves:
     base = core + qm
-    for k in range(0, 4):
+    for k in range(0, 5):
         for add in itertools.combinations(pool, k):
             if len({a["id"] for _, _, a in add}) < k: continue
             mv = base + list(add)
             res = ev(mv, dumps, fast=True)
-            if res is None: continue
-            if any(abs(res[r]["m"]) > 0.05 or res[r]["t"] < -0.05 for r in TEAMS): continue
-            if res[ME]["d"] < 0 or res[DES]["d"] < 0: continue
+            if res is None or res[ME]["d"] < 0 or res[DES]["d"] < 0: continue
             found.append((len(mv), -res[ME]["d"] - res[DES]["d"], mv, res))
 found.sort(key=lambda x: (x[0], x[1]))
 print("FOUND", len(found))
 seen = set()
 for n, _, mv, res in found:
-    key = frozenset((f, t, a["id"]) for f, t, a in mv if t == ME or f == ME)
+    key = frozenset((f, t, a["id"]) for f, t, a in mv)
     if key in seen: continue
     seen.add(key)
     print("DEAL", desc(mv)); print("   ", fmt(res)); print("    raw", fmt(ev(mv)))
-    if len(seen) >= 15: break
-# Near misses if nothing fits: best by worst side.
-if not found:
-    near = []
-    for qm in qbmoves:
-        for k in range(0, 3):
-            for add in itertools.combinations(pool[:60], k):
-                mv = core + qm + list(add); res = ev(mv, dumps)
-                worst = max(max(abs(res[r]["m"]), -res[r]["t"]) for r in TEAMS) + 0.01 * max(0, -res[ME]["d"]) + 0.01 * max(0, -res[DES]["d"])
-                near.append((worst, mv, res))
-    near.sort(key=lambda x: x[0])
-    for w, mv, res in near[:10]:
-        print("NEAR", round(w, 3), desc(mv)); print("   ", fmt(res))
+    if len(seen) >= 25: break
