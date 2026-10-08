@@ -812,7 +812,20 @@ for pk2 in my28:
            (DES, SAM, simpson), (DES, MAT, des27), (SAM, MAT, young), (SAM, MAT, s2_27)]
     rr = ev4(B14)
     print("L14", lbl(pk2), pk2["value"], "|", f4(rr), f"| samdump {sam_dump(B14)*100:+.1f}% | low", slot_after(rr))
-    mathlines("L14MATH_" + pk2["id"], B14)
+    pass
+
+B14 = [(MAT, ME, lamb), (ME, MAT, rice), (ME, SAM, s28), (ME, SAM, my28[0]), (MAT, DES, stroud), (SAM, DES, awil),
+       (DES, SAM, simpson), (DES, MAT, des27), (SAM, MAT, young), (SAM, MAT, s2_27)]
+sampk = [pk for pk in d["picks"] if pk["roster_id"] == SAM and ":1:" not in pk["id"]]
+despk = [pk for pk in d["picks"] if pk["roster_id"] == DES and pk["value"] < 1600]
+print("L15SAMPK", [(lbl(pk), pk["value"]) for pk in sampk]); print("L15DESPK", [(lbl(pk), pk["value"]) for pk in despk])
+V = {"noWilliams": [m for m in B14 if m[2] is not awil]}
+for pk in despk: V["DES->Sam " + lbl(pk)] = B14 + [(DES, SAM, pk)]
+for pk in sampk:
+    if pk["id"] != s2_27["id"]: V["Sam sends " + lbl(pk) + " not 2.02"] = [m for m in B14 if m[2] is not s2_27] + [(SAM, MAT, pk)]
+for nm, mv in V.items():
+    rr = ev4(mv); ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr)
+    print("L15", "OK" if ok else "--", nm, "|", f4(rr), "| low", slot_after(rr))
 
 import sys; sys.exit(0)
 results = []
