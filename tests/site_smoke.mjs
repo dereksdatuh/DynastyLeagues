@@ -13,7 +13,7 @@ const live = {}; // the browser's own calls to Sleeper and ESPN: host -> [ok, fa
 // the build's snapshot, so they are reported rather than failing the check.
 const external = (u) => /api\.sleeper\.app|espn\.com/.test(u);
 const tally = (u, ok) => { const h = new URL(u).host; (live[h] = live[h] || [0, 0])[ok ? 0 : 1]++; };
-page.on("pageerror", (e) => errors.push(e.message));
+page.on("pageerror", (e) => errors.push(e.stack || e.message));
 page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Failed to load resource") && !/CORS|sleeper|espn/i.test(m.text()) && errors.push(m.text()));
 page.on("response", (r) => (external(r.url()) ? tally(r.url(), r.ok()) : r.status() >= 400 && !r.url().endsWith("favicon.ico") && errors.push(`${r.status()} ${r.url()}`)));
 page.on("requestfailed", (r) => (external(r.url()) ? tally(r.url(), false) : errors.push(`failed ${r.url()}`)));
@@ -73,6 +73,23 @@ for (const id of leagues) {
   await page.click('button[data-tab="schedule"]');
   const sos = await page.$$eval("#sos tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   const sosWeeks = await page.$$eval("#sos-weeks thead th", (r) => r.length - 1);
+  await page.click('button[data-tab="finder"]');
+  const finderRuns = [];
+  for (const kind of ["send", "get"]) {
+    const opt = await page.$eval(`#finder-${kind}-list option`, (o) => o.value).catch(() => null);
+    if (!opt) continue;
+    await page.fill(`#finder-${kind}`, opt);
+    await page.dispatchEvent(`#finder-${kind}`, "change");
+    const t0 = Date.now();
+    await page.click("#finder-run");
+    await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 30000 });
+    const deals = await page.$$eval("#finder-out .finder-deal", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 420)));
+    const note = await page.$eval("#finder-out", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 160));
+    finderRuns.push(`${kind} ${opt}: ${deals.length} deals in ${Date.now() - t0} ms${deals[0] ? "\n      " + deals[0] : " (" + note + ")"}`);
+    await page.click("#finder-out .finder-open").catch(() => {});
+    await page.click('button[data-tab="finder"]');
+    for (let i = 0; i < 6 && (await page.$("#finder .assets button")); i++) await page.click("#finder .assets button");
+  }
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
   const trades = await page.$$eval("#trades .trade-log", (ts) => ts.map((t) => t.textContent.replace(/\s+/g, " ").trim().slice(0, 260)));
@@ -83,6 +100,8 @@ for (const id of leagues) {
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
+  console.log(`  trade finder:\n${finderRuns.map((r) => "    " + r).join("\n")}`);
+  if (!finderRuns.length) errors.push(`${id}: trade finder had no assets to pick`);
   console.log(`  schedule: ${sosWeeks} weeks left; hardest ${sos.join("  //  ")}`);
   console.log(`  trades ${trades.length}${trades.length ? ": " + trades[0] : ""}`);
   console.log(`  matchups ${matchups.length} (lineup rows shown ${lineupRows}), players of the week rows ${potwRows}, movers ${movers}, news ${news}, injuries ${injuries}`);
