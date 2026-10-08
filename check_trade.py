@@ -768,11 +768,11 @@ print("L12N", len(found))
 
 # ---- L13: Derek takes Jcarney 1.10, no Matty 1.04 ----
 B13 = [(MAT, ME, lamb), (SAM, ME, j27), (ME, MAT, rice), (SAM, MAT, young), (ME, SAM, s28), (DES, SAM, simpson), (MAT, DES, stroud)]
-rr = ev4(B13); print("L13BASE", f4(rr), f"| samdump {sam_dump(B13)*100:+.1f}% | low", slot_after(rr))
-for dop in dumpopts[1:]:
+rr = ev4(B13); 0 and print("L13BASE", f4(rr), f"| samdump {sam_dump(B13)*100:+.1f}% | low", slot_after(rr))
+for dop in []:
     rr = ev4(B13 + dop); print("L13DUMP", [lbl(a) for o, t, a in dop], f4(rr), f"| samdump {sam_dump(B13 + dop)*100:+.1f}% | low", slot_after(rr))
 found = []
-for dop in dumpopts:
+for dop in []:
     base = B13 + dop
     used = {m[2]["id"] for m in base} | prot12 | {m27["id"]}
     pool = []
@@ -799,8 +799,20 @@ found.sort(key=lambda x: (x[0], x[1]))
 for f in found[:12]:
     print("L13FIX", f[0], "derek_extra", f[1], [f"{teams[o]['owner']}:{lbl(a)}({a['value']})->{teams[t]['owner']}" for o, t, a in f[3] + f[2]], "|", f4(f[4]), f"| samdump {f[5]*100:+.1f}% | low", slot_after(f[4]))
 print("L13N", len(found))
-if found:
+if False:
     mathlines("L13MATH", B13 + found[0][3] + found[0][2])
+
+# ---- L14: Derek's Sleeper screenshot (00:40) ----
+s2_27 = K.get(f"pick:2027:2:{SAM}")
+print("L14OWN sam2027_2nd", s2_27 and (lbl(s2_27), s2_27["value"], teams[s2_27["roster_id"]]["owner"]), "des1st", lbl(des27), des27["value"], teams[des27["roster_id"]]["owner"])
+my28 = [pk for pk in d["picks"] if pk["roster_id"] == ME and pk["id"].startswith("pick:2028:2:")]
+print("L14MY2028_2", [(pk["id"], lbl(pk), pk["value"]) for pk in my28])
+for pk2 in my28:
+    B14 = [(MAT, ME, lamb), (ME, MAT, rice), (ME, SAM, s28), (ME, SAM, pk2), (MAT, DES, stroud), (SAM, DES, awil),
+           (DES, SAM, simpson), (DES, MAT, des27), (SAM, MAT, young), (SAM, MAT, s2_27)]
+    rr = ev4(B14)
+    print("L14", lbl(pk2), pk2["value"], "|", f4(rr), f"| samdump {sam_dump(B14)*100:+.1f}% | low", slot_after(rr))
+    mathlines("L14MATH_" + pk2["id"], B14)
 
 import sys; sys.exit(0)
 results = []
