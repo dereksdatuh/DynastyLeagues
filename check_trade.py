@@ -37,7 +37,7 @@ for r in TEAMS:
     print("  ROSTER", "; ".join(f"{p['name']} {p['pos']} {p['age']} v{p['value']} r{p['ros_ppg']}" for p in top))
     print("  PICKS", "; ".join(f"{k['label']} v{k['value']}" for k in d["picks"] if k["roster_id"] == r))
 
-def ev(moves, dump=()):
+def ev(moves, dump=(), fast=False):
     gets = {r: [] for r in TEAMS}; gives = {r: [] for r in TEAMS}
     for fr, to, a in moves:
         gets[to].append(a); gives[fr].append(a)
@@ -47,9 +47,12 @@ def ev(moves, dump=()):
         gv = lambda a: a["value"] * (0.5 if a["id"] in dump and a.get("roster_id") == r else 1)
         mg = trade.effective([a["value"] for a in gets[r]]); mv = trade.effective([gv(a) for a in gives[r]])
         tg = trade.effective([a["value"] * fac[r].get(a["id"], 1) for a in gets[r]]); tv = trade.effective([gv(a) * fac[r].get(a["id"], 1) for a in gives[r]])
+        res[r] = {"m": (mg - mv) / max(mg, mv, 1), "t": (tg - tv) / max(tg, tv, 1)}
+        if fast and (abs(res[r]["m"]) > 0.05 or res[r]["t"] < -0.05): return None
+    for r in TEAMS:
         out = {a["id"] for a in gives[r]}
         ps = [p for p in roster[r] if p["id"] not in out] + [a for a in gets[r] if a["id"] in P]
-        res[r] = {"m": (mg - mv) / max(mg, mv, 1), "t": (tg - tv) / max(tg, tv, 1), "d": ppg(ps) - ppg(roster[r])}
+        res[r]["d"] = ppg(ps) - ppg(roster[r])
     return res
 fmt = lambda res: " | ".join(f"{on(r)} mkt {res[r]['m']*100:+.1f}% team {res[r]['t']*100:+.1f}% ppg {res[r]['d']:+.1f}" for r in res)
 desc = lambda mv: "; ".join(f"{on(f)}->{on(t)} {lbl(a)}" for f, t, a in mv)
@@ -71,7 +74,7 @@ pool = []
 for fr in TEAMS:
     assets = [a for a in roster[fr] if a["value"] >= 300 and a["id"] not in KEEP | dumps | {gibbs["id"], arsb["id"], daniels["id"]}]
     assets += [k for k in d["picks"] if k["roster_id"] == fr and k["value"] >= 300 and k["id"] not in KEEP]
-    for a in sorted(assets, key=lambda a: -a["value"])[:14]:
+    for a in sorted(assets, key=lambda a: -a["value"])[:10]:
         for to in TEAMS:
             if to != fr: pool.append((fr, to, a))
 print("POOL", len(pool), "moves")
@@ -82,7 +85,8 @@ for qm in qbmoves:
         for add in itertools.combinations(pool, k):
             if len({a["id"] for _, _, a in add}) < k: continue
             mv = base + list(add)
-            res = ev(mv, dumps)
+            res = ev(mv, dumps, fast=True)
+            if res is None: continue
             if any(abs(res[r]["m"]) > 0.05 or res[r]["t"] < -0.05 for r in TEAMS): continue
             if res[ME]["d"] < 0 or res[DES]["d"] < 0: continue
             found.append((len(mv), -res[ME]["d"] - res[DES]["d"], mv, res))
@@ -100,7 +104,7 @@ if not found:
     near = []
     for qm in qbmoves:
         for k in range(0, 3):
-            for add in itertools.combinations(pool, k):
+            for add in itertools.combinations(pool[:60], k):
                 mv = core + qm + list(add); res = ev(mv, dumps)
                 worst = max(max(abs(res[r]["m"]), -res[r]["t"]) for r in TEAMS) + 0.01 * max(0, -res[ME]["d"]) + 0.01 * max(0, -res[DES]["d"])
                 near.append((worst, mv, res))
