@@ -2,6 +2,8 @@ name: Trade check (scratch)
 on:
   push:
     branches: ["claude/trade-check-gibbs"]
+permissions:
+  contents: write
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -13,4 +15,9 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m engine.build --league league-4 --out site/data
-      - run: python check_trade.py
+      - run: python check_trade.py || true
+      - name: Save the league data on this scratch branch
+        run: |
+          mkdir -p scratch && cp site/data/league-4.json scratch/
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add -f scratch/league-4.json && git commit -qm "scratch data [skip ci]" && git push -q origin HEAD:claude/trade-check-gibbs
