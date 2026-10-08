@@ -827,15 +827,66 @@ for nm, mv in []:
     rr = ev4(mv); ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr)
     print("L15", "OK" if ok else "--", nm, "|", f4(rr), "| low", slot_after(rr))
 
-rr = ev4(B14); print("L16BASE", f4(rr), "| low", slot_after(rr))
+rr = ev4(B14); 0 and print("L16BASE", f4(rr), "| low", slot_after(rr))
 e2 = next(pk for pk in sampk if lbl(pk) == "2028 Early 2nd")
 base16 = [m for m in B14 if m[2] is not s2_27] + [(SAM, MAT, e2)]
-for pk in despk + [None]:
+for pk in []:
     for to in (MAT, SAM):
         mv = base16 + ([(DES, to, pk)] if pk else [])
         rr = ev4(mv); ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr)
         print("L16", "OK" if ok else "--", lbl(pk) if pk else "none", "->", teams[to]["owner"], "|", f4(rr), "| low", slot_after(rr))
         if not pk: break
+
+# ---- L17: win-now even trades for Derek (keep Sam's 2028 1st and Love) ----
+print("L17PROJKEYS", list(teams[ME]["projection"].keys()), list(teams[ME]["record"].keys()))
+for t in sorted(teams.values(), key=lambda t: t["record"].get("seed", 99)):
+    pr = t["projection"]
+    print("L17TEAM", t["roster_id"], t.get("owner"), "|", t.get("name"), "|", t.get("division"), "| rec", t["record"].get("wins"), t["record"].get("losses"),
+          "pf", t["record"].get("pf"), "seed", t["record"].get("seed"), "| ppg", round(ppg(roster[t["roster_id"]]), 1),
+          "| proj", {k: v for k, v in pr.items() if not isinstance(v, (list, dict))})
+kens = [t for t in teams.values() if "ken" in ((t.get("owner") or "") + " " + (t.get("name") or "")).lower()]
+print("L17KEN", [(t.get("owner"), t.get("name")) for t in kens])
+def ev2(moves, a, b):
+    out = {}
+    for r in (a, b):
+        g = [x for fr, to, x in moves if to == r]; v = [x for fr, to, x in moves if fr == r]
+        mg, mv = trade.effective([x["value"] for x in g]), trade.effective([x["value"] for x in v])
+        tg = trade.effective([x["value"] * fac[r].get(x["id"], 1) for x in g]); tv = trade.effective([x["value"] * fac[r].get(x["id"], 1) for x in v])
+        ids = {x["id"] for x in v}
+        ps = [p for p in roster[r] if p["id"] not in ids] + [x for x in g if x["id"] in P]
+        out[r] = {"m": (mg - mv) / max(mg, mv, 1), "t": (tg - tv) / max(tg, tv, 1), "d": ppg(ps) - ppg(roster[r])}
+    return out
+keep17 = {f"pick:2028:1:{SAM}", love["id"]}
+base_me = ppg(roster[ME])
+mine = [a for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME] if a["id"] not in keep17 and a["value"] >= 300]
+mine.sort(key=lambda a: -a["value"]); mine = mine[:26]
+res = []
+for X in teams:
+    if X == ME: continue
+    tg = [p for p in roster[X] if p["value"] >= 300 and ppg(roster[ME] + [p]) - base_me > 0.4]
+    tg.sort(key=lambda p: -(ppg(roster[ME] + [p]) - base_me)); tg = tg[:8]
+    gets = [c for k in (1, 2) for c in itertools.combinations(tg, k)]
+    gives = [c for k in (1, 2) for c in itertools.combinations(mine, k)]
+    for gc in gets:
+        gv = sum(x["value"] for x in gc)
+        for vc in gives:
+            vv = sum(x["value"] for x in vc)
+            if not (0.6 * gv <= vv <= 1.6 * gv): continue
+            if X == SAM and any(x["id"] in P for x in vc): continue
+            mv = [(X, ME, x) for x in gc] + [(ME, X, x) for x in vc]
+            r = ev2(mv, ME, X)
+            if all(abs(r[z]["m"]) <= 0.05 and abs(r[z]["t"]) <= 0.05 for z in r) and r[ME]["d"] > 0.5:
+                res.append((r[ME]["d"], X, gc, vc, r))
+res.sort(key=lambda x: -x[0])
+seen = set(); n = 0
+for dlt, X, gc, vc, r in res:
+    key = (X, tuple(sorted(x["id"] for x in gc)))
+    if key in seen: continue
+    seen.add(key); n += 1
+    print("L17", f"+{dlt:.1f}ppg", teams[X]["owner"], "| get", [(lbl(x), x["value"]) for x in gc], "| give", [(lbl(x), x["value"]) for x in vc],
+          f"| me {r[ME]['m']*100:+.1f}/{r[ME]['t']*100:+.1f} them {r[X]['m']*100:+.1f}/{r[X]['t']*100:+.1f} their ppg {r[X]['d']:+.1f}")
+    if n >= 30: break
+print("L17N", len(res))
 
 import sys; sys.exit(0)
 results = []
