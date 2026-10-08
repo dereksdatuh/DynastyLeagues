@@ -861,7 +861,7 @@ base_me = ppg(roster[ME])
 mine = [a for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME] if a["id"] not in keep17 and a["value"] >= 300]
 mine.sort(key=lambda a: -a["value"]); mine = mine[:26]
 res = []
-for X in teams:
+for X in []:
     if X == ME: continue
     tg = [p for p in roster[X] if p["value"] >= 300 and ppg(roster[ME] + [p]) - base_me > 0.4]
     tg.sort(key=lambda p: -(ppg(roster[ME] + [p]) - base_me)); tg = tg[:8]
@@ -887,6 +887,49 @@ for dlt, X, gc, vc, r in res:
           f"| me {r[ME]['m']*100:+.1f}/{r[ME]['t']*100:+.1f} them {r[X]['m']*100:+.1f}/{r[X]['t']*100:+.1f} their ppg {r[X]['d']:+.1f}")
     if n >= 30: break
 print("L17N", len(res))
+
+# ---- L18: win-now without touching Derek's young core; no Ken ----
+KEN = own("kturner")
+myl = {x["id"] for x in best_lineup(roster[ME], slots, "ros_ppg")}
+for p in sorted(roster[ME], key=lambda p: -p["value"]):
+    print("L18ME", p["name"], p["pos"], "age", p.get("age"), "val", p["value"], "ros", p["ros_ppg"], "START" if p["id"] in myl else "bench")
+print("L18PICKS", [(lbl(pk), pk["value"]) for pk in d["picks"] if pk["roster_id"] == ME])
+def givable(a):
+    if a["id"] in keep17: return False
+    if a["id"] in K: return True
+    age = a.get("age") or 0
+    if age >= 27: return True
+    return a["id"] not in myl and a["value"] < 2500
+chips = [a for a in roster[ME] + [pk for pk in d["picks"] if pk["roster_id"] == ME] if givable(a) and a["value"] >= 250]
+chips.sort(key=lambda a: -a["value"]); chips = chips[:20]
+print("L18CHIPS", [(lbl(a), a["value"]) for a in chips])
+res = []
+for X in teams:
+    if X in (ME, KEN): continue
+    tg = [p for p in roster[X] if p["value"] >= 300 and ppg(roster[ME] + [p]) - base_me > 0.4]
+    tg.sort(key=lambda p: -(ppg(roster[ME] + [p]) - base_me)); tg = tg[:8]
+    gets = [c for k in (1, 2) for c in itertools.combinations(tg, k)]
+    gives = [c for k in (1, 2, 3) for c in itertools.combinations(chips, k)]
+    for gc in gets:
+        gv = sum(x["value"] for x in gc)
+        for vc in gives:
+            vv = sum(x["value"] for x in vc)
+            if not (0.7 * gv <= vv <= 1.8 * gv): continue
+            if X == SAM and any(x["id"] in P for x in vc): continue
+            mv = [(X, ME, x) for x in gc] + [(ME, X, x) for x in vc]
+            r = ev2(mv, ME, X)
+            if all(abs(r[z]["m"]) <= 0.05 and abs(r[z]["t"]) <= 0.05 for z in r) and r[ME]["d"] > 0.5:
+                res.append((r[ME]["d"], len(vc) + len(gc), X, gc, vc, r))
+res.sort(key=lambda x: (-round(x[0], 0), x[1]))
+seen = set(); n = 0
+for dlt, npc, X, gc, vc, r in res:
+    key = (X, tuple(sorted(x["id"] for x in gc)))
+    if key in seen: continue
+    seen.add(key); n += 1
+    print("L18", f"+{dlt:.1f}ppg", teams[X]["owner"], ctx[X]["label"], "| get", [(lbl(x), x["value"], x.get("age")) for x in gc], "| give", [(lbl(x), x["value"]) for x in vc],
+          f"| me {r[ME]['m']*100:+.1f}/{r[ME]['t']*100:+.1f} them {r[X]['m']*100:+.1f}/{r[X]['t']*100:+.1f} their ppg {r[X]['d']:+.1f}")
+    if n >= 30: break
+print("L18N", len(res))
 
 import sys; sys.exit(0)
 results = []
