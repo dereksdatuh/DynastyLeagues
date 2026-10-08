@@ -104,6 +104,41 @@ def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False,
     return out
 
 
+def strength_of_schedule(ppg: dict, schedule: dict, median_game: bool = False, sigma: float | None = None) -> dict:
+    """How hard each team's remaining regular season is.
+
+    For each week left: the opponent, that opponent's projected points per game and the
+    team's chance to win. Difficulty is the average opponent's points per game (rank 1 =
+    hardest); "vs_average" is the head-to-head wins this schedule is worth minus the wins
+    the same team would expect against an average schedule (every week vs the field), so
+    negative means a tougher draw. Median games don't depend on the schedule and are
+    reported apart.
+    """
+    sigma = sigma or sigma_for(ppg)
+    out = {}
+    for rid in ppg:
+        weeks, opp_pts, exp_w, avg_w, med_w = [], [], 0.0, 0.0, 0.0
+        for week in sorted(schedule, key=int):
+            opp = next((b if a == rid else a for a, b in schedule[week] if rid in (a, b)), None)
+            field = vs_field(rid, ppg, sigma)
+            p = win_prob(ppg[rid], ppg[opp], sigma) if opp in ppg else field
+            weeks.append({"week": int(week), "opp": opp if opp in ppg else None,
+                          "opp_ppg": round(ppg[opp], 1) if opp in ppg else None, "win": round(p, 3)})
+            if opp in ppg:
+                opp_pts.append(ppg[opp])
+            exp_w += p
+            avg_w += field
+            if median_game:
+                med_w += vs_median(rid, ppg, sigma)
+        out[rid] = {"weeks": weeks, "opp_ppg": round(sum(opp_pts) / len(opp_pts), 1) if opp_pts else None,
+                    "exp_wins": round(exp_w, 2), "avg_wins": round(avg_w, 2), "vs_average": round(exp_w - avg_w, 2),
+                    "median_wins": round(med_w, 2) if median_game else None}
+    rated = sorted((r for r in out if out[r]["opp_ppg"] is not None), key=lambda r: -out[r]["opp_ppg"])
+    for i, rid in enumerate(rated, 1):
+        out[rid]["rank"] = i
+    return out
+
+
 def remaining_weeks(league: dict, state: dict) -> list[int]:
     """Regular-season weeks still to play for this league."""
     last = int((league.get("settings") or {}).get("playoff_week_start") or DEFAULT_PLAYOFF_WEEK) - 1

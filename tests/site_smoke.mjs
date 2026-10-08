@@ -70,6 +70,9 @@ for (const id of leagues) {
   await page.click('button[data-tab="news"]');
   const news = await page.$$eval("#news ul.news li", (r) => r.length);
   const injuries = await page.$$eval("#injuries tbody tr", (r) => r.length);
+  await page.click('button[data-tab="schedule"]');
+  const sos = await page.$$eval("#sos tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
+  const sosWeeks = await page.$$eval("#sos-weeks thead th", (r) => r.length - 1);
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
   const trades = await page.$$eval("#trades .trade-log", (ts) => ts.map((t) => t.textContent.replace(/\s+/g, " ").trim().slice(0, 260)));
@@ -80,6 +83,7 @@ for (const id of leagues) {
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
+  console.log(`  schedule: ${sosWeeks} weeks left; hardest ${sos.join("  //  ")}`);
   console.log(`  trades ${trades.length}${trades.length ? ": " + trades[0] : ""}`);
   console.log(`  matchups ${matchups.length} (lineup rows shown ${lineupRows}), players of the week rows ${potwRows}, movers ${movers}, news ${news}, injuries ${injuries}`);
   if (matchups[0]) console.log(`  first matchup: ${matchups[0]}`);
