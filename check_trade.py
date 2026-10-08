@@ -936,7 +936,7 @@ m2c = K[f"pick:2027:2:{MAT}"]
 O19 = [(SAM, MAT, young), (MAT, DES, stroud), (MAT, DES, m2c), (SAM, DES, addison), (DES, SAM, simpson), (DES, SAM, des27)]
 print("L19PCS", [(lbl(a), a["value"], teams[a["roster_id"]]["owner"]) for _, _, a in O19])
 rr = ev4(O19); print("L19", f4(rr), "| low", slot_after(rr))
-mathlines("L19MATH", O19)
+print("L19SAMDUMP", round(sam_dump(O19)*100,1))
 # Lamb for Rice + chips with Matty, 2-team, after the offer (factors are pre-offer)
 mchips = [a for a in chips if a["id"] not in (s28["id"],)] + [s28]
 res = []
