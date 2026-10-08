@@ -499,3 +499,15 @@ def test_build_shows_standings_and_pick_slots_as_of_today(offline):
     assert sorted(p["slot_now"] for p in firsts) == list(range(1, 13))
     for p in firsts:
         assert rd["order_now"][p["slot_now"] - 1] == p["original_roster_id"]
+
+
+def test_build_lists_completed_trades_as_moves(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    assert [t["id"] for t in data["trades"]] == ["T1"]  # failed trade and waiver skipped
+    t = data["trades"][0]
+    assert t["rosters"] == [1, 2] and t["leg"] == 3
+    kinds = sorted((m["kind"], m["from"], m["to"]) for m in t["moves"])
+    assert kinds == [("faab", 2, 1), ("pick", 1, 2), ("player", 1, 2), ("player", 2, 1)]
+    pick = next(m for m in t["moves"] if m["kind"] == "pick")
+    assert pick["id"] == "pick:2028:1:1" and pick["id"] in {p["id"] for p in data["picks"]}
+    assert all(m["name"] and m["name"] != m["id"] for m in t["moves"] if m["kind"] == "player")

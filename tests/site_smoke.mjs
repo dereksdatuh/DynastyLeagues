@@ -70,6 +70,9 @@ for (const id of leagues) {
   await page.click('button[data-tab="news"]');
   const news = await page.$$eval("#news ul.news li", (r) => r.length);
   const injuries = await page.$$eval("#injuries tbody tr", (r) => r.length);
+  await page.click('button[data-tab="trades"]');
+  await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
+  const trades = await page.$$eval("#trades .trade-log", (ts) => ts.map((t) => t.textContent.replace(/\s+/g, " ").trim().slice(0, 260)));
   await page.click('button[data-tab="rookie"]');
   const mock = await page.$$eval("#rookie table[id^=mock] tbody tr", (rs) => rs.map((r) => [...r.cells].slice(0, 6).map((c) => c.textContent.trim().replace(/\s+/g, " "))));
   const prospects = await page.$$eval("#prospects tbody tr", (r) => r.length);
@@ -77,6 +80,7 @@ for (const id of leagues) {
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
+  console.log(`  trades ${trades.length}${trades.length ? ": " + trades[0] : ""}`);
   console.log(`  matchups ${matchups.length} (lineup rows shown ${lineupRows}), players of the week rows ${potwRows}, movers ${movers}, news ${news}, injuries ${injuries}`);
   if (matchups[0]) console.log(`  first matchup: ${matchups[0]}`);
   if (potw.length) console.log(`  top scorers: ${potw.join("; ")}`);

@@ -134,6 +134,18 @@ def fake_responses(world, league):
                 r["points"] = sum(r["players_points"][pid] for pid in mine[:8])
         schedule[f"/league/{league['league_id']}/matchups/{week}"] = rows
         order = [order[0], order[-1]] + order[1:-1]
+    # Week 3: roster 1 sends its best-listed player and its 2028 1st to roster 2 for one player.
+    # Also a waiver claim and a failed trade, which the trade log must skip.
+    a, b = rosters[0]["players"][0], rosters[1]["players"][0]
+    tx = {f"/league/{league['league_id']}/transactions/{leg}": [] for leg in range(0, 19)}
+    tx[f"/league/{league['league_id']}/transactions/3"] = [
+        {"transaction_id": "T1", "type": "trade", "status": "complete", "status_updated": 1759500000000, "leg": 3,
+         "roster_ids": [1, 2], "adds": {a: 2, b: 1}, "drops": {a: 1, b: 2},
+         "draft_picks": [{"season": "2028", "round": 1, "roster_id": 1, "previous_owner_id": 1, "owner_id": 2}],
+         "waiver_budget": [{"sender": 2, "receiver": 1, "amount": 15}]},
+        {"transaction_id": "T2", "type": "trade", "status": "failed", "leg": 3, "roster_ids": [3, 4], "adds": {}, "drops": {}},
+        {"transaction_id": "W1", "type": "waiver", "status": "complete", "leg": 3, "roster_ids": [5], "adds": {}, "drops": {}},
+    ]
     traded = [{"season": "2027", "round": 1, "roster_id": 2, "previous_owner_id": 2, "owner_id": 5}]
 
     fc, ktc, dp = [], [], []
@@ -186,6 +198,7 @@ def fake_responses(world, league):
         "/league/P1": prev_league,
         "keeptradecut.com/devy-rankings": devy_html,
         **schedule,
+        **tx,
         "/players/nfl": world.players,
         "/projections/nfl/2026/5": list(world.proj.values()),
         "/projections/nfl/2026": list(world.proj.values()),

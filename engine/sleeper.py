@@ -79,3 +79,8 @@ def week_stats(season: str | int, week: int, include_idp: bool) -> dict:
     params = {"season_type": "regular", "position[]": _positions(include_idp), "order_by": "pts_ppr"}
     rows = get_json(f"sleeper_stats_{season}_w{week}_{int(include_idp)}", f"{STATS}/{season}/{week}", params, ttl=HOUR)
     return _by_player(rows)
+
+
+def transactions(league_id: str, leg: int) -> list:
+    """Every transaction in one leg (week) of the season: trades, waivers, free agents."""
+    return get_json(f"sleeper_tx_{league_id}_{leg}", f"{V1}/league/{league_id}/transactions/{leg}", ttl=HOUR)

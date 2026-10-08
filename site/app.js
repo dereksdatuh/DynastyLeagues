@@ -91,6 +91,8 @@ async function loadLeague(id) {
   renderTeams();
   renderLeague();
   setupWeek();
+  state.liveTrades = [];
+  renderTrades();
   renderRookieMock();
 }
 
@@ -101,6 +103,7 @@ document.querySelectorAll(".tabs button").forEach((btn) =>
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== `tab-${btn.dataset.tab}`));
     // Coming back to Matchups after a while: refresh scores now rather than at the next poll.
     const L = state.live;
+    if (btn.dataset.tab === "trades") refreshTrades();
     if (btn.dataset.tab === "matchups" && L && L.week && (!L.at || Date.now() - L.at > LIVE_MS)) refreshLive();
   })
 );
@@ -1034,6 +1037,92 @@ function renderNews() {
         <a href="${esc(n.url || "#")}" target="_blank" rel="noopener">${esc(n.headline)}</a>
         <div class="muted">${n.players.map((id) => { const p = playerOf(id); return `${esc(p.name)} (${ownerTag(p.roster_id)})`; }).join(", ")}${n.published ? ` · ${ago(n.published)}` : ""}</div>
         ${n.description ? `<div>${esc(n.description)}</div>` : ""}</li>`).join("")}</ul>` : `<p class="muted">No recent ESPN stories about players in this league.</p>`}`;
+}
+
+// ---------- recent trades ----------
+// The build ships this season's completed trades (data.trades). Opening the tab also
+// asks Sleeper directly, so a trade made since the last build shows right away.
+// Every asset is valued with today's numbers: market, and each team's own lens.
+function tradeMove(m) {
+  if (m.kind === "faab") return { label: `$${m.amount} FAAB`, value: 0, id: null };
+  if (m.kind === "pick") {
+    const pk = assetById(m.id);
+    return pk ? { label: pk.label, value: pk.value, id: m.id }
+      : { label: `${m.season} round ${m.round} (${pickOwner(m.original_roster_id) || "pick"})`, value: 0, id: m.id };
+  }
+  const p = assetById(m.id);
+  return p ? { label: `${p.name} (${p.pos}${p.team ? ", " + p.team : ""})`, value: p.value, id: m.id }
+    : { label: m.name || playerOf(m.id).name, value: 0, id: m.id };
+}
+
+function tradeFromSleeper(t) {
+  const moves = [];
+  const drops = t.drops || {};
+  for (const [pid, to] of Object.entries(t.adds || {})) moves.push({ kind: "player", id: pid, from: drops[pid], to });
+  for (const pk of t.draft_picks || [])
+    moves.push({ kind: "pick", id: `pick:${pk.season}:${pk.round}:${pk.roster_id}`, season: String(pk.season), round: pk.round,
+      original_roster_id: pk.roster_id, from: pk.previous_owner_id, to: pk.owner_id });
+  for (const w of t.waiver_budget || []) moves.push({ kind: "faab", id: "faab", amount: w.amount, from: w.sender, to: w.receiver });
+  return { id: t.transaction_id, at: t.status_updated || t.created, leg: t.leg, rosters: t.roster_ids || [], moves };
+}
+
+async function refreshTrades() {
+  const data = state.data, lid = data.league.sleeper_league_id;
+  const week = Math.min((data.league.week || 0) + 1, 18);
+  try {
+    const legs = Array.from({ length: week + 1 }, (_, i) => i);
+    const got = await Promise.all(legs.map((leg) =>
+      fetch(`https://api.sleeper.app/v1/league/${lid}/transactions/${leg}`).then((r) => (r.ok ? r.json() : [])).catch(() => [])));
+    if (state.data !== data) return; // league switched meanwhile
+    const live = got.flat().filter((t) => t.type === "trade" && t.status === "complete").map(tradeFromSleeper);
+    const known = new Set((data.trades || []).map((t) => t.id));
+    state.liveTrades = live.filter((t) => !known.has(t.id));
+  } catch (e) {
+    state.liveTrades = [];
+  }
+  renderTrades();
+}
+
+function renderTrades() {
+  const el = $("#trades");
+  if (!el) return;
+  const built = new Date(state.data.generated_at).getTime();
+  const all = [...(state.liveTrades || []), ...(state.data.trades || [])].sort((a, b) => (b.at || 0) - (a.at || 0));
+  if (!all.length) {
+    el.innerHTML = `<p class="muted">No completed trades in this league this season yet.</p>`;
+    return;
+  }
+  const mine = myTeam();
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const cls = (x) => (x >= FAIR_MARGIN ? "up" : x <= -FAIR_MARGIN ? "down" : "");
+  const newer = all.some((t) => t.at > built);
+  el.innerHTML = `<p class="muted">Completed trades this season, newest first, valued with today's numbers.
+      Market is the league-wide value; Own needs is how much each team's own situation says it gained.${newer
+        ? " <strong>Trades marked new happened after the last build, so rosters and values elsewhere on the site catch up at the next build.</strong>" : ""}</p>
+    ${all.map((t) => {
+      const when = t.at ? new Date(t.at) : null;
+      const sides = t.rosters.map((rid) => {
+        const gets = t.moves.filter((m) => m.to === rid).map(tradeMove);
+        const gives = t.moves.filter((m) => m.from === rid).map(tradeMove);
+        const mg = effective(gets.map((a) => a.value)), mv = effective(gives.map((a) => a.value));
+        const tg = effective(gets.map((a) => a.value * (a.id ? teamFactor(rid, a.id) : 1)));
+        const tv = effective(gives.map((a) => a.value * (a.id ? teamFactor(rid, a.id) : 1)));
+        const m = (mg - mv) / Math.max(mg, mv, 1), tl = (tg - tv) / Math.max(tg, tv, 1);
+        return { rid, gets, gives, m, tl };
+      });
+      const list = (xs) => (xs.length ? `<ul>${xs.map((a) => `<li><span>${esc(a.label)}</span><span>${a.value ? fmt(a.value) : ""}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing</p>`);
+      const best = sides.reduce((b, s) => (s.m > b.m ? s : b), sides[0]);
+      const verdict = best && best.m >= FAIR_MARGIN ? `Market winner: ${teamHtml(best.rid)}` : "Even by market";
+      return `<div class="trade-log${mine && t.rosters.includes(mine.roster_id) ? " mine-row" : ""}">
+        <h3>${when ? esc(when.toLocaleDateString(undefined, { month: "short", day: "numeric" })) : ""}${t.leg ? ` · Week ${t.leg}` : ""}${t.at > built ? ' <span class="badge new">new</span>' : ""} <span class="muted">${verdict}</span></h3>
+        <div class="cols">${sides.map((s) => `<div class="card">
+          <h4>${teamHtml(s.rid)}</h4>
+          <div class="muted">Gets</div>${list(s.gets)}
+          <div class="muted">Gives</div>${list(s.gives)}
+          <table class="net"><tbody><tr><td>Market</td><td class="${cls(s.m)}">${pct(s.m)}</td></tr>
+            <tr><td>Own needs</td><td class="${cls(s.tl)}">${pct(s.tl)}</td></tr></tbody></table>
+        </div>`).join("")}</div></div>`;
+    }).join("")}`;
 }
 
 // ---------- rookie mock draft ----------
