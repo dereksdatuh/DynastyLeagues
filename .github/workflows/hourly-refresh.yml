@@ -1,0 +1,38 @@
+name: Hourly refresh
+
+# GitHub runs scheduled workflows late or skips them when it is busy; build-values'
+# hourly cron has been firing only every 4 to 6 hours. This job stays up for almost
+# the 6-hour job limit and starts a build every hour itself. Its own schedule only has
+# to fire once every few hours to keep the chain going; a newer run replaces an older one.
+on:
+  schedule:
+    - cron: "41 */3 * * *"
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/hourly-refresh.yml"]
+
+concurrency:
+  group: hourly-refresh
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+
+jobs:
+  tick:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Start a build every hour
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          end=$(( $(date +%s) + 350 * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            gh workflow run build-values.yml --repo "$REPO" --ref "$BRANCH" && echo "started a build at $(date -u +%H:%M)"
+            left=$(( end - $(date +%s) ))
+            sleep $(( left < 3600 ? (left > 0 ? left : 0) : 3600 ))
+          done

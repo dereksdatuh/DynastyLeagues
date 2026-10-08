@@ -136,3 +136,9 @@ thead th[aria-sort="ascending"]::after { content: " ▲"; }
 .mine-card { margin-bottom: 12px; max-width: 520px; }
 tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 .num .tv { display: block; font-size: 11px; font-weight: normal; }
+.trade-log { margin-bottom: 18px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.trade-log h3 { margin: 10px 0 8px; }
+.trade-log h4 { margin: 0 0 6px; }
+.trade-log.mine-row { border-left: 3px solid #eab308; padding-left: 10px; }
+.trade-log table.net { margin: 8px 0 0; }
+.badge.new { background: #eab308; color: #000; border-radius: 6px; padding: 1px 6px; font-size: 12px; }

@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import draft, fetch, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
 from .picks import PickValues, pick_label, pick_ownership, slot_pick_label
@@ -408,6 +409,9 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "next_draft": next_draft,
         "teams": teams,
         "team_values": tv,
+        # Completed trades this season, newest first; the site values them with today's numbers.
+        "trades": trade_log.recent(lid, range(0, min(int(shared.state.get("week") or 0) + 1, 18) + 1),
+                                   shared.players, shared.optional),
     }
 
 
