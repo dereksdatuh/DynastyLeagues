@@ -823,9 +823,19 @@ V = {"noWilliams": [m for m in B14 if m[2] is not awil]}
 for pk in despk: V["DES->Sam " + lbl(pk)] = B14 + [(DES, SAM, pk)]
 for pk in sampk:
     if pk["id"] != s2_27["id"]: V["Sam sends " + lbl(pk) + " not 2.02"] = [m for m in B14 if m[2] is not s2_27] + [(SAM, MAT, pk)]
-for nm, mv in V.items():
+for nm, mv in []:
     rr = ev4(mv); ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr)
     print("L15", "OK" if ok else "--", nm, "|", f4(rr), "| low", slot_after(rr))
+
+rr = ev4(B14); print("L16BASE", f4(rr), "| low", slot_after(rr))
+e2 = next(pk for pk in sampk if lbl(pk) == "2028 Early 2nd")
+base16 = [m for m in B14 if m[2] is not s2_27] + [(SAM, MAT, e2)]
+for pk in despk + [None]:
+    for to in (MAT, SAM):
+        mv = base16 + ([(DES, to, pk)] if pk else [])
+        rr = ev4(mv); ok = all(abs(rr[x]["m"]) <= 0.05 and abs(rr[x]["t"]) <= 0.05 for x in rr)
+        print("L16", "OK" if ok else "--", lbl(pk) if pk else "none", "->", teams[to]["owner"], "|", f4(rr), "| low", slot_after(rr))
+        if not pk: break
 
 import sys; sys.exit(0)
 results = []
