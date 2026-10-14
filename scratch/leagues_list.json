@@ -1,0 +1,1057 @@
+{
+ "user": {
+  "avatar": "ed0271afddc15a5f8195075b7b9edaff",
+  "cookies": null,
+  "created": null,
+  "currencies": null,
+  "data_updated": null,
+  "deleted": null,
+  "display_name": "DS107",
+  "email": null,
+  "is_bot": false,
+  "metadata": null,
+  "notifications": null,
+  "pending": null,
+  "phone": null,
+  "real_name": null,
+  "solicitable": null,
+  "summoner_name": null,
+  "summoner_region": null,
+  "token": null,
+  "user_id": "733377873888587776",
+  "username": "ds107",
+  "verification": null
+ },
+ "leagues": {
+  "1372064212313985024": {
+   "season": "2026",
+   "name": "Dynasty Villains",
+   "total_rosters": 14,
+   "status": "in_season",
+   "previous": "0",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 4,
+    "num_teams": 14
+   },
+   "scoring": {
+    "rec": 1.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.0
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ],
+   "users": {
+    "72824592427008000": "raiderrob",
+    "428340816017096704": "chh11",
+    "444984888488095744": "BAtwater",
+    "454417202418806784": "chrismedic",
+    "482632444630003712": "ZeroChi11",
+    "486930751850278912": "TormundG",
+    "730782994767409152": "samk206",
+    "733377873888587776": "DS107",
+    "737903311415623680": "Patouchdown",
+    "934517172062281728": "TNewman10",
+    "972575459508625408": "ScottyBoops",
+    "979843519093215232": "cjschul",
+    "1094712461980229632": "DonkeyDs",
+    "1128742490074480640": "AUNI10",
+    "1171913215085993984": "JCONNNN"
+   },
+   "rosters": [
+    {
+     "roster_id": 1,
+     "owner": "DS107",
+     "n": 29
+    },
+    {
+     "roster_id": 2,
+     "owner": "BAtwater",
+     "n": 28
+    },
+    {
+     "roster_id": 3,
+     "owner": "chh11",
+     "n": 31
+    },
+    {
+     "roster_id": 4,
+     "owner": "ZeroChi11",
+     "n": 32
+    },
+    {
+     "roster_id": 5,
+     "owner": "Patouchdown",
+     "n": 34
+    },
+    {
+     "roster_id": 6,
+     "owner": "chrismedic",
+     "n": 26
+    },
+    {
+     "roster_id": 7,
+     "owner": "AUNI10",
+     "n": 36
+    },
+    {
+     "roster_id": 8,
+     "owner": "samk206",
+     "n": 34
+    },
+    {
+     "roster_id": 9,
+     "owner": "JCONNNN",
+     "n": 33
+    },
+    {
+     "roster_id": 10,
+     "owner": "raiderrob",
+     "n": 33
+    },
+    {
+     "roster_id": 11,
+     "owner": "cjschul",
+     "n": 33
+    },
+    {
+     "roster_id": 12,
+     "owner": "TNewman10",
+     "n": 35
+    },
+    {
+     "roster_id": 13,
+     "owner": "ScottyBoops",
+     "n": 34
+    },
+    {
+     "roster_id": 14,
+     "owner": "DonkeyDs",
+     "n": 32
+    }
+   ],
+   "traded_picks": [
+    {
+     "round": 2,
+     "season": "2026",
+     "roster_id": 1,
+     "owner_id": 8,
+     "previous_owner_id": 1
+    },
+    {
+     "round": 3,
+     "season": "2026",
+     "roster_id": 1,
+     "owner_id": 7,
+     "previous_owner_id": 1
+    },
+    {
+     "round": 4,
+     "season": "2026",
+     "roster_id": 1,
+     "owner_id": 11,
+     "previous_owner_id": 1
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 1,
+     "owner_id": 10,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 1,
+     "owner_id": 9,
+     "previous_owner_id": 1
+    },
+    {
+     "round": 1,
+     "season": "2026",
+     "roster_id": 2,
+     "owner_id": 10,
+     "previous_owner_id": 2
+    },
+    {
+     "round": 2,
+     "season": "2026",
+     "roster_id": 2,
+     "owner_id": 6,
+     "previous_owner_id": 2
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 2,
+     "owner_id": 10,
+     "previous_owner_id": 2
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 2,
+     "owner_id": 10,
+     "previous_owner_id": 7
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 2,
+     "owner_id": 3,
+     "previous_owner_id": 2
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 4,
+     "owner_id": 10,
+     "previous_owner_id": 7
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 4,
+     "owner_id": 5,
+     "previous_owner_id": 4
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 4,
+     "owner_id": 9,
+     "previous_owner_id": 4
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 5,
+     "owner_id": 14,
+     "previous_owner_id": 9
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 5,
+     "owner_id": 14,
+     "previous_owner_id": 12
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 5,
+     "owner_id": 3,
+     "previous_owner_id": 5
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 6,
+     "owner_id": 10,
+     "previous_owner_id": 6
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 6,
+     "owner_id": 3,
+     "previous_owner_id": 6
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 6,
+     "owner_id": 2,
+     "previous_owner_id": 6
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 7,
+     "owner_id": 4,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 7,
+     "owner_id": 3,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 8,
+     "owner_id": 4,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 8,
+     "owner_id": 14,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 8,
+     "owner_id": 9,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 8,
+     "owner_id": 11,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 2,
+     "season": "2028",
+     "roster_id": 8,
+     "owner_id": 3,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 4,
+     "season": "2028",
+     "roster_id": 8,
+     "owner_id": 3,
+     "previous_owner_id": 8
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 9,
+     "owner_id": 12,
+     "previous_owner_id": 9
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 9,
+     "owner_id": 6,
+     "previous_owner_id": 9
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 10,
+     "owner_id": 10,
+     "previous_owner_id": 7
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 10,
+     "owner_id": 9,
+     "previous_owner_id": 10
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 10,
+     "owner_id": 3,
+     "previous_owner_id": 10
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 11,
+     "owner_id": 10,
+     "previous_owner_id": 11
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 11,
+     "owner_id": 6,
+     "previous_owner_id": 12
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 11,
+     "owner_id": 3,
+     "previous_owner_id": 11
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 12,
+     "owner_id": 9,
+     "previous_owner_id": 12
+    },
+    {
+     "round": 1,
+     "season": "2027",
+     "roster_id": 13,
+     "owner_id": 12,
+     "previous_owner_id": 13
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 13,
+     "owner_id": 10,
+     "previous_owner_id": 7
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 13,
+     "owner_id": 5,
+     "previous_owner_id": 13
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 13,
+     "owner_id": 11,
+     "previous_owner_id": 13
+    },
+    {
+     "round": 2,
+     "season": "2027",
+     "roster_id": 14,
+     "owner_id": 6,
+     "previous_owner_id": 14
+    },
+    {
+     "round": 3,
+     "season": "2027",
+     "roster_id": 14,
+     "owner_id": 3,
+     "previous_owner_id": 11
+    },
+    {
+     "round": 4,
+     "season": "2027",
+     "roster_id": 14,
+     "owner_id": 3,
+     "previous_owner_id": 14
+    }
+   ],
+   "drafts": [
+    {
+     "draft_id": "1379534974071341056",
+     "season": "2026",
+     "type": "linear",
+     "status": "complete",
+     "draft_order": {
+      "1094712461980229632": 11,
+      "1128742490074480640": 14,
+      "1171913215085993984": 10,
+      "428340816017096704": 4,
+      "444984888488095744": 6,
+      "454417202418806784": 8,
+      "482632444630003712": 2,
+      "72824592427008000": 3,
+      "730782994767409152": 7,
+      "733377873888587776": 1,
+      "737903311415623680": 12,
+      "934517172062281728": 9,
+      "972575459508625408": 5,
+      "979843519093215232": 13
+     },
+     "slot_to_roster_id": null,
+     "settings": {
+      "alpha_sort": 0,
+      "autopause_enabled": 0,
+      "autopause_end_time": 840,
+      "autopause_start_time": 120,
+      "autostart": 0,
+      "cpu_autopick": 1,
+      "enforce_position_limits": 1,
+      "nomination_timer": 60,
+      "pick_timer": 14400,
+      "player_type": 1,
+      "reversal_round": 0,
+      "rounds": 4,
+      "slots_bn": 16,
+      "slots_flex": 3,
+      "slots_k": 1,
+      "slots_qb": 1,
+      "slots_rb": 2,
+      "slots_super_flex": 1,
+      "slots_te": 1,
+      "slots_wr": 3,
+      "teams": 14
+     }
+    },
+    {
+     "draft_id": "1379525240937279488",
+     "season": "2026",
+     "type": "linear",
+     "status": "complete",
+     "draft_order": {
+      "1094712461980229632": 9,
+      "1128742490074480640": 3,
+      "1171913215085993984": 14,
+      "428340816017096704": 6,
+      "444984888488095744": 5,
+      "454417202418806784": 2,
+      "482632444630003712": 1,
+      "72824592427008000": 7,
+      "730782994767409152": 8,
+      "733377873888587776": 11,
+      "737903311415623680": 10,
+      "934517172062281728": 4,
+      "972575459508625408": 12,
+      "979843519093215232": 13
+     },
+     "slot_to_roster_id": null,
+     "settings": {
+      "autostart": 0,
+      "cpu_autopick": 1,
+      "pick_timer": 14400,
+      "rounds": 4,
+      "slots_bn": 16,
+      "slots_flex": 3,
+      "slots_k": 1,
+      "slots_qb": 1,
+      "slots_rb": 2,
+      "slots_super_flex": 1,
+      "slots_te": 1,
+      "slots_wr": 3,
+      "teams": 14
+     }
+    },
+    {
+     "draft_id": "1374596569201926144",
+     "season": "2026",
+     "type": "auction",
+     "status": "complete",
+     "draft_order": null,
+     "slot_to_roster_id": null,
+     "settings": {
+      "alpha_sort": 0,
+      "autopause_enabled": 0,
+      "autopause_end_time": 840,
+      "autopause_start_time": 120,
+      "autostart": 0,
+      "budget": 1000,
+      "cpu_autopick": 1,
+      "enforce_position_limits": 1,
+      "nomination_timer": 60,
+      "pick_timer": 14400,
+      "player_type": 0,
+      "reversal_round": 0,
+      "rounds": 30,
+      "slots_bn": 14,
+      "slots_flex": 3,
+      "slots_k": 1,
+      "slots_qb": 1,
+      "slots_rb": 2,
+      "slots_super_flex": 1,
+      "slots_te": 1,
+      "slots_wr": 3,
+      "teams": 14
+     }
+    }
+   ]
+  },
+  "1367263576678473728": {
+   "season": "2026",
+   "name": "IDPs Most Wanted",
+   "total_rosters": 14,
+   "status": "in_season",
+   "previous": null,
+   "settings": {
+    "type": 2,
+    "draft_rounds": 5,
+    "taxi_slots": 4,
+    "num_teams": 14
+   },
+   "scoring": {
+    "rec": 1.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.0
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "DL",
+    "DL",
+    "LB",
+    "LB",
+    "DB",
+    "DB",
+    "IDP_FLEX",
+    "IDP_FLEX",
+    "IDP_FLEX",
+    "IDP_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1358966325422092288": {
+   "season": "2026",
+   "name": "Gold Star Dynasty",
+   "total_rosters": 14,
+   "status": "in_season",
+   "previous": null,
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 3,
+    "num_teams": 14
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1354113258109280256": {
+   "season": "2026",
+   "name": "Centurion",
+   "total_rosters": 12,
+   "status": "in_season",
+   "previous": null,
+   "settings": {
+    "type": 2,
+    "draft_rounds": 3,
+    "taxi_slots": 4,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 1.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 0.5
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1313291882029158400": {
+   "season": "2026",
+   "name": "Ultimate Dynasty",
+   "total_rosters": 12,
+   "status": "in_season",
+   "previous": "1181451137499242496",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 3,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1304536310471467008": {
+   "season": "2026",
+   "name": "The Boneyard",
+   "total_rosters": 12,
+   "status": "in_season",
+   "previous": "0",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 4,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 1.0,
+    "pass_td": 4.0,
+    "bonus_rec_te": 0.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1204888683744874496": {
+   "season": "2025",
+   "name": "Obi-Wan\u2019s Dynasty",
+   "total_rosters": 12,
+   "status": "complete",
+   "previous": "0",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 3,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.5
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1183070627689619456": {
+   "season": "2025",
+   "name": "Zenith Dynasty",
+   "total_rosters": 12,
+   "status": "complete",
+   "previous": "1053537841151582208",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 0,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1204654152173494272": {
+   "season": "2025",
+   "name": "Star Wars Dynasty",
+   "total_rosters": 16,
+   "status": "complete",
+   "previous": "0",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 3,
+    "num_teams": 16
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1181451137499242496": {
+   "season": "2025",
+   "name": "Ultimate Dynasty",
+   "total_rosters": 12,
+   "status": "complete",
+   "previous": "1048297332955111424",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 3,
+    "num_teams": 12
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  },
+  "1181450100446068736": {
+   "season": "2025",
+   "name": "Dream Dynasty",
+   "total_rosters": 14,
+   "status": "complete",
+   "previous": "1078912294551166976",
+   "settings": {
+    "type": 2,
+    "draft_rounds": 4,
+    "taxi_slots": 2,
+    "num_teams": 14
+   },
+   "scoring": {
+    "rec": 0.0,
+    "pass_td": 6.0,
+    "bonus_rec_te": 1.75
+   },
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
+  }
+ }
+}
