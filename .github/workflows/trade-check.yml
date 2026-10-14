@@ -18,6 +18,6 @@ jobs:
       - run: python check_trade.py || true
       - name: Save the league data on this scratch branch
         run: |
-          mkdir -p scratch && cp site/data/league-*.json scratch/
+          mkdir -p scratch && cp site/data/league-*.json scratch/; ls scratch
           git config user.name "github-actions" && git config user.email "actions@github.com"
           git add -f scratch/ && git commit -qm "scratch data [skip ci]" && git push -q origin HEAD:claude/trade-check-gibbs
