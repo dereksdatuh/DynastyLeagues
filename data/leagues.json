@@ -70,6 +70,88 @@
         "notes": "TBD"
       },
       "notes": ""
+    },
+    {
+      "id": "league-6",
+      "name": "Dynasty League 6",
+      "sleeper_league_id": "1372064212313985024",
+      "buy_in": 0,
+      "currency": "USD",
+      "payouts": {
+        "notes": "TBD"
+      },
+      "notes": "Dynasty Villains: started as an auction draft, moved to Sleeper.",
+      "draft_order": {
+        "fixed": {
+          "2027": [
+            [
+              "DS107",
+              "ZeroChi11",
+              "raiderrob",
+              "chh11",
+              "ScottyBoops",
+              "BAtwater",
+              "samk206",
+              "chrismedic",
+              "TNewman10",
+              "JCONNNN",
+              "DonkeyDs",
+              "AUNI10",
+              "Patouchdown",
+              "cjschul"
+            ],
+            [
+              "samk206",
+              "chrismedic",
+              "JCONNNN",
+              "DonkeyDs",
+              "TNewman10",
+              "cjschul",
+              "Patouchdown",
+              "chh11",
+              "DS107",
+              "AUNI10",
+              "ZeroChi11",
+              "raiderrob",
+              "ScottyBoops",
+              "BAtwater"
+            ],
+            [
+              "AUNI10",
+              "chh11",
+              "Patouchdown",
+              "JCONNNN",
+              "ZeroChi11",
+              "BAtwater",
+              "cjschul",
+              "chrismedic",
+              "DonkeyDs",
+              "TNewman10",
+              "ScottyBoops",
+              "DS107",
+              "raiderrob",
+              "samk206"
+            ],
+            [
+              "cjschul",
+              "chh11",
+              "JCONNNN",
+              "raiderrob",
+              "BAtwater",
+              "ZeroChi11",
+              "ScottyBoops",
+              "DonkeyDs",
+              "chrismedic",
+              "TNewman10",
+              "AUNI10",
+              "samk206",
+              "Patouchdown",
+              "DS107"
+            ]
+          ]
+        },
+        "notes": "The 2027 rookie draft order Derek gave on 2026-10-14, one list per round of the slot's original owner (Sleeper display names; JordanConnors is JCONNNN on Sleeper). Pick holders come from Sleeper's traded picks."
+      }
     }
   ]
 }
