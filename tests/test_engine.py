@@ -483,6 +483,20 @@ def test_draft_order_today_uses_current_record_and_max_pf():
     assert draft.project_order(teams, "max_pf", 2, [3, 4], key="record") == [4, 3, 2, 1]
 
 
+def test_fixed_round_orders_place_each_pick_at_its_listed_slot():
+    teams = [{"roster_id": r, "owner": o} for r, o in [(1, "DS107"), (2, "Amy"), (3, "Bo")]]
+    orders = draft.fixed_round_orders([["ds107", "Amy", "Bo"], ["Bo", "@DS107", "Amy"]], teams)
+    assert orders == {1: [1, 2, 3], 2: [3, 1, 2]}
+    # A listed round beats the snake; rounds not listed fall back to round one's order.
+    assert draft.slot_in_round([1, 2, 3], 2, 1, True, orders) == 2
+    assert draft.slot_in_round([1, 2, 3], 3, 3, False, orders) == 3
+    board = draft.draft_board([1, 2, 3], [], 2027, 2, False, round_orders=orders)
+    assert [b["original_roster_id"] for b in board] == [1, 2, 3, 3, 1, 2]
+    # A name that matches no team, or a team listed twice, drops the whole order.
+    assert draft.fixed_round_orders([["DS107", "Amy", "Cy"]], teams) is None
+    assert draft.fixed_round_orders([["DS107", "Amy", "Amy"]], teams) is None
+
+
 def test_build_shows_standings_and_pick_slots_as_of_today(offline):
     league = copy.deepcopy(STANDARD_LEAGUE)
     league["settings"]["divisions"] = 4

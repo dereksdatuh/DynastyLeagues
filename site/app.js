@@ -1480,6 +1480,9 @@ function renderRookieMock() {
   const playoffText = rule.playoff_slots
     ? `then the ${rd.playoff_teams} playoff teams at the slots this league grants by finish (champion picks last)`
     : `then the ${rd.playoff_teams} playoff teams, weakest projected record first`;
+  const orderText = rule.fixed
+    ? `Set ${rd.year} order: this league wrote down every slot, round by round, so each pick stays at its listed slot whatever the standings do.`
+    : `Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}.`;
   const src = rd.source || {};
   const srcText = src.ok
     ? `Prospects from KeepTradeCut's devy rankings (${state.data.league.format.superflex ? "superflex" : "1QB"} values), refreshed every build, valued at what the market pays for the pick where each one ranks and adjusted for how this league scores his position.`
@@ -1499,7 +1502,7 @@ function renderRookieMock() {
   const rounds = [...new Set(mock.map((m) => m.round))];
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
   el.innerHTML = `
-    <p class="muted">Projected ${rd.year} order: non-playoff teams by ${ruleText}, ${playoffText}. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, half from what the market pays for that slot and half from the prospect projected to go there, so a loaded class lifts its picks.${rd.class_weight && rd.class_weight.ktc_devy ? " Prospects are priced half from their slot and half from their own KTC devy value on this league's scale" : ""}${rd.class.some((p) => p.pinned) ? `; pinned: ${rd.class.filter((p) => p.pinned).map((p) => `${esc(p.name)} as ${p.pinned}`).join(", ")}` : ""}. ${evidence} ${srcText}</p>
+    <p class="muted">${orderText} ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, half from what the market pays for that slot and half from the prospect projected to go there, so a loaded class lifts its picks.${rd.class_weight && rd.class_weight.ktc_devy ? " Prospects are priced half from their slot and half from their own KTC devy value on this league's scale" : ""}${rd.class.some((p) => p.pinned) ? `; pinned: ${rd.class.filter((p) => p.pinned).map((p) => `${esc(p.name)} as ${p.pinned}`).join(", ")}` : ""}. ${evidence} ${srcText}</p>
     ${standingsTodayHtml(rd)}
     ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
     ${rounds.map((r) => `<h3>Round ${r}</h3><div class="table-wrap"><table id="mock-r${r}"><thead><tr><th>Pick</th><th title="Where this pick would fall if the season ended today">Today</th><th>Holder</th><th>Original team, projected</th><th>Mock pick</th><th>Pos</th><th>School</th><th class="num" title="Prospect value in this league / what this exact pick slot trades for">Value / slot</th><th>Analysis</th></tr></thead><tbody>${mock.filter((m) => m.round === r).map(row).join("")}</tbody></table></div>`).join("")}
@@ -1512,7 +1515,9 @@ function renderRookieMock() {
 
 // Slot this round's pick would take if the season ended today.
 function nowSlot(m) {
-  const now = state.data.rookie_draft.order_now;
+  const rd = state.data.rookie_draft;
+  if (rd.round_orders) return m.slot;  // a set order doesn't move with the standings
+  const now = rd.order_now;
   if (!now) return null;
   const seq = state.data.rookie_draft.type === "snake" && m.round % 2 === 0 ? [...now].reverse() : now;
   const i = seq.indexOf(m.original_roster_id);
