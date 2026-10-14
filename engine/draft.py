@@ -146,24 +146,49 @@ def valid_playoff_slots(slots, n: int, playoff_teams: int) -> bool:
         and all(isinstance(s, int) and 1 <= s <= n for s in slots)
 
 
-def slot_in_round(order: list, rnd: int, original_roster_id: int, snake: bool) -> int | None:
+def round_seq(order: list, rnd: int, snake: bool, round_orders: dict | None = None) -> list:
+    """Roster ids in pick order for round `rnd`: the league's own order for that round
+    when it set one, else round one's order (reversed on even rounds of a snake)."""
+    if round_orders and rnd in round_orders:
+        return round_orders[rnd]
+    return order[::-1] if snake and rnd % 2 == 0 else order
+
+
+def slot_in_round(order: list, rnd: int, original_roster_id: int, snake: bool,
+                  round_orders: dict | None = None) -> int | None:
     """Which slot of `rnd` the pick originally owned by that team falls at."""
-    seq = order[::-1] if snake and rnd % 2 == 0 else order
+    seq = round_seq(order, rnd, snake, round_orders)
     return seq.index(original_roster_id) + 1 if original_roster_id in seq else None
+
+
+def fixed_round_orders(rounds: list | None, teams: list) -> dict | None:
+    """{round: roster ids in pick order} from an order a league wrote down (one list of
+    manager names per round, original owners). None unless every name matches a team
+    and every round lists each team once."""
+    if not rounds:
+        return None
+    by_name = {(t.get("owner") or "").lower(): t["roster_id"] for t in teams}
+    out = {}
+    for rnd, names in enumerate(rounds, 1):
+        ids = [by_name.get(str(nm).lstrip("@").lower()) for nm in names]
+        if None in ids or len(set(ids)) != len(teams):
+            return None
+        out[rnd] = ids
+    return out
 
 
 def slot_label(rnd: int, slot: int) -> str:
     return f"{rnd}.{slot:02d}"
 
 
-def draft_board(order: list, picks: list, year: int, rounds: int, snake: bool, pick_values=None, slot_fn=None) -> list:
+def draft_board(order: list, picks: list, year: int, rounds: int, snake: bool, pick_values=None, slot_fn=None,
+                round_orders: dict | None = None) -> list:
     """Every pick of `year` in projected order, with its current holder."""
     held = {(p["round"], p["original_roster_id"]): p for p in picks if p["year"] == year}
     n = len(order)
     board = []
     for rnd in range(1, rounds + 1):
-        seq = order[::-1] if snake and rnd % 2 == 0 else order
-        for i, orig in enumerate(seq, 1):
+        for i, orig in enumerate(round_seq(order, rnd, snake, round_orders), 1):
             pk = held.get((rnd, orig))
             board.append({"overall": (rnd - 1) * n + i, "round": rnd, "slot": i, "label": slot_label(rnd, i),
                           "original_roster_id": orig, "roster_id": pk["roster_id"] if pk else orig,

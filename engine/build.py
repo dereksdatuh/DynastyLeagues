@@ -302,12 +302,21 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
                                     prospect_overrides()) if first_year and devy["players"] else []
     slot_fn = draft.class_slot_fn(pick_values, first_year, n, class_rows) if class_rows \
         else (lambda overall: draft.slot_value(pick_values, first_year, overall, n))
+    # A league can also write down the coming draft's exact order, round by round
+    # (`fixed`: year -> one list of original owners per round). Then every pick of that
+    # draft sits at its listed slot, whatever the standings do.
+    round_orders = draft.fixed_round_orders((stated.get("fixed") or {}).get(str(first_year)), teams) \
+        if first_year else None
+    if round_orders:
+        order = order_now = round_orders[1]
+        rule = {**rule, "basis": "league_rule", "fixed": True}
+        finish_tier = {rid: "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late" for i, rid in enumerate(order)}
     for pk in owned:
         first = pk["year"] == first_year
         tier = finish_tier.get(pk["original_roster_id"]) if first else None
         # The coming draft is ordered, so each of its picks is worth what its own
         # projected slot is worth; later years only have a tier to go on.
-        slot = draft.slot_in_round(order, pk["round"], pk["original_roster_id"], snake) if first else None
+        slot = draft.slot_in_round(order, pk["round"], pk["original_roster_id"], snake, round_orders) if first else None
         overall = (pk["round"] - 1) * n + slot if slot else None
         label = slot_pick_label(pk["year"], pk["round"], slot) if slot else pick_label(pk["year"], pk["round"], tier)
         if pk["original_roster_id"] != pk["owner_roster_id"]:
@@ -318,7 +327,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "label": label, "year": pk["year"], "round": pk["round"], "tier": tier,
             "slot": slot, "overall": overall, "value": round(value),
             # Where the pick would fall if the season ended today.
-            "slot_now": draft.slot_in_round(order_now, pk["round"], pk["original_roster_id"], snake) if first else None,
+            "slot_now": draft.slot_in_round(order_now, pk["round"], pk["original_roster_id"], snake, round_orders)
+            if first else None,
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
         })
     # The draft after: each team projected a season ahead (aging plus the rookies its
@@ -366,7 +376,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         rookie = {
             "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",
             "playoff_teams": playoff_teams, "rule": rule, "last_draft_season": (last or {}).get("season"),
-            "order": order, "order_now": order_now, "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn),
+            "order": order, "order_now": order_now, "round_orders": round_orders,
+            "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn, round_orders),
             "class": class_rows[: n * rounds + 24],
             "class_weight": {"slot": draft.CLASS_MARKET_WEIGHT, "ktc_devy": 1 - draft.CLASS_MARKET_WEIGHT if scale else 0},
             "source": {k: v for k, v in devy.items() if k != "players"},
