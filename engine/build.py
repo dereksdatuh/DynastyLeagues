@@ -459,7 +459,7 @@ def main(argv=None):
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
-                      "buy_in": lg["buy_in"], "teams": len(data["teams"]),
+                      "buy_in": lg["buy_in"], "payouts": lg.get("payouts"), "teams": len(data["teams"]),
                       "sources": [s for s in data["sources"]], "generated_at": data["generated_at"]})
         ok = [s["source"] for s in data["sources"] if s["ok"]]
         print(f"built {config['id']} ({lg['name']}): {len(data['players'])} players, "

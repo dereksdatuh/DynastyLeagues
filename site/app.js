@@ -72,6 +72,7 @@ async function init() {
   if (saved && state.index.leagues.some((l) => l.id === saved)) sel.value = saved;
   sel.addEventListener("change", () => loadLeague(sel.value));
   if (state.index.leagues.length) loadLeague(sel.value);
+  renderBank();
 }
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -1654,3 +1655,228 @@ new MutationObserver(() => {
 }).observe(document.body, { childList: true, subtree: true });
 
 init();
+
+// ---------- money bank ----------
+// Dues, payouts and winnings across every league, kept only in this browser
+// (localStorage). The site is public, so nothing here is ever sent anywhere or built
+// into the data; Export/Import moves it between devices.
+const BANK_KEY = "moneybank.v1";
+const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round((n || 0) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const num = (v) => { const n = parseFloat(String(v ?? "").replace(/[$,\s]/g, "")); return Number.isFinite(n) ? n : 0; };
+
+function bankLoad() {
+  try {
+    const b = JSON.parse(localStorageGet(BANK_KEY) || "null");
+    if (b && Array.isArray(b.entries)) return { leagues: {}, ...b };
+  } catch {}
+  return { leagues: {}, entries: [] };
+}
+function bankSave(b) { localStorageSet(BANK_KEY, JSON.stringify(b)); }
+
+// Every league the site knows, plus any the bank added by hand (an old or non-Sleeper league).
+function bankLeagues(b) {
+  const out = (state.index?.leagues || []).map((l) => ({ id: l.id, name: l.name, teams: l.teams, buy_in: l.buy_in, season: l.season, payouts: l.payouts }));
+  for (const [id, l] of Object.entries(b.leagues)) if (l.custom && !out.some((o) => o.id === id)) out.push({ id, name: l.name, teams: l.teams, custom: true });
+  return out;
+}
+function leagueSetup(b, l) {
+  const s = b.leagues[l.id] || {};
+  return {
+    dues: s.dues ?? (l.buy_in || 0),
+    teams: s.teams ?? l.teams ?? 0,
+    // Until edited here, payouts come from the league's config (data/leagues.json).
+    payouts: s.payouts || Object.entries(l.payouts || {}).filter(([k, v]) => k !== "notes" && num(v)).map(([k, v]) => ({ place: k.replace(/_/g, " "), amount: v })),
+    notes: s.notes ?? (l.payouts?.notes && l.payouts.notes !== "TBD" ? l.payouts.notes : ""),
+  };
+}
+
+function bankTotals(entries) {
+  const t = { invested: 0, owed: 0, won: 0, n: 0 };
+  for (const e of entries) {
+    const cost = num(e.dues) + num(e.extra);
+    if (e.paid) t.invested += cost; else t.owed += cost;
+    t.won += num(e.winnings); t.n++;
+  }
+  t.net = t.won - t.invested;
+  t.roi = t.invested ? t.net / t.invested : null;
+  return t;
+}
+const pct = (r) => (r == null ? "—" : `${r >= 0 ? "+" : ""}${Math.round(r * 100)}%`);
+const signCls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
+
+function groupTotals(entries, key, label) {
+  const groups = new Map();
+  for (const e of entries) {
+    const k = key(e);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  return [...groups.entries()].map(([k, es]) => ({ k, label: label(k), ...bankTotals(es), titles: es.filter((e) => /^(1|1st|champ)/i.test(String(e.finish || "").trim())).length }));
+}
+
+function renderBank() {
+  const el = $("#bank");
+  if (!el) return;
+  const b = bankLoad();
+  const leagues = bankLeagues(b);
+  const lname = (id) => leagues.find((l) => l.id === id)?.name || b.leagues[id]?.name || id || "Other";
+  const year = new Date().getFullYear();
+  const entries = [...b.entries].sort((x, y) => (y.year - x.year) || lname(x.league).localeCompare(lname(y.league)));
+  const all = bankTotals(entries);
+  const byLeague = groupTotals(entries, (e) => e.league, lname).sort((x, y) => y.net - x.net);
+  const byYear = groupTotals(entries, (e) => e.year, (k) => k).sort((x, y) => y.k - x.k);
+  // Paid-ahead seasons: dues already paid for a year after this one.
+  const ahead = entries.filter((e) => e.paid && e.year > year);
+  const leagueOpts = (sel) => leagues.map((l) => `<option value="${esc(l.id)}" ${l.id === sel ? "selected" : ""}>${esc(l.name)}</option>`).join("");
+  const totalsRow = (g) => `<tr><td>${esc(g.label)}</td><td class="num">${g.n}</td><td class="num">${money(g.invested)}</td><td class="num">${g.owed ? money(g.owed) : ""}</td><td class="num">${money(g.won)}</td><td class="num ${signCls(g.net)}">${money(g.net)}</td><td class="num">${pct(g.roi)}</td><td class="num">${g.titles || ""}</td></tr>`;
+  const totalsHead = (first) => `<thead><tr><th>${first}</th><th class="num">Seasons</th><th class="num">Invested</th><th class="num">Still owed</th><th class="num">Won</th><th class="num">Net</th><th class="num">ROI</th><th class="num">Titles</th></tr></thead>`;
+
+  el.innerHTML = `
+    <p class="muted">Your money stays in this browser only. Nothing here is uploaded or shared, and the public site never sees it. Use Export to back it up or move it to another device.</p>
+    <div class="stats">
+      <div><label>Invested</label><b>${money(all.invested)}</b></div>
+      <div><label>Won</label><b>${money(all.won)}</b></div>
+      <div><label>Net</label><b class="${signCls(all.net)}">${money(all.net)}</b></div>
+      <div><label>ROI</label><b>${pct(all.roi)}</b></div>
+      <div><label>Still owed</label><b>${money(all.owed)}</b></div>
+      <div><label>Paid ahead</label><b>${ahead.length ? money(bankTotals(ahead).invested) : "$0"}</b></div>
+    </div>
+    ${ahead.length ? `<p class="muted">Paid ahead: ${ahead.map((e) => `${esc(lname(e.league))} ${e.year}`).join(", ")}.</p>` : ""}
+
+    <h3>Ledger <span class="muted">(one row per league per season)</span></h3>
+    <div class="toolbar">
+      <select id="bank-new-league" aria-label="League">${leagueOpts(state.data?.league?.id || leagues[0]?.id)}</select>
+      <input id="bank-new-year" type="number" value="${year}" min="2000" max="2100" style="width:90px" aria-label="Season" />
+      <button id="bank-add" class="chip">Add season</button>
+      <button id="bank-add-all" class="chip">Add ${year} for every league</button>
+    </div>
+    <div class="table-wrap"><table id="bank-ledger" class="bank-table"><thead><tr><th>League</th><th>Season</th><th class="num">Dues</th><th>Paid</th><th class="num">Other costs</th><th>Finish</th><th class="num">Winnings</th><th class="num">Net</th><th>Notes</th><th></th></tr></thead><tbody>${entries
+      .map((e) => {
+        const net = num(e.winnings) - (e.paid ? num(e.dues) + num(e.extra) : 0);
+        return `<tr data-id="${esc(e.id)}">
+          <td><select data-f="league">${leagueOpts(e.league)}</select></td>
+          <td><input data-f="year" type="number" value="${esc(e.year)}" style="width:76px" /></td>
+          <td class="num"><input data-f="dues" inputmode="decimal" value="${esc(e.dues ?? "")}" style="width:80px" /></td>
+          <td><input data-f="paid" type="checkbox" ${e.paid ? "checked" : ""} aria-label="Paid" /></td>
+          <td class="num"><input data-f="extra" inputmode="decimal" value="${esc(e.extra ?? "")}" placeholder="0" style="width:72px" title="Trade fees, side bets, anything else you put in" /></td>
+          <td><input data-f="finish" value="${esc(e.finish ?? "")}" placeholder="e.g. 1st" style="width:72px" /></td>
+          <td class="num"><input data-f="winnings" inputmode="decimal" value="${esc(e.winnings ?? "")}" placeholder="0" style="width:80px" /></td>
+          <td class="num ${signCls(net)}">${money(net)}</td>
+          <td><input data-f="note" value="${esc(e.note ?? "")}" style="width:180px" /></td>
+          <td><button class="bank-del" title="Remove row" aria-label="Remove row">×</button></td>
+        </tr>`;
+      })
+      .join("") || `<tr><td colspan="10" class="muted">No seasons yet. Add one above.</td></tr>`}</tbody></table></div>
+
+    <h3>By league</h3>
+    <div class="table-wrap"><table>${totalsHead("League")}<tbody>${byLeague.map(totalsRow).join("") || `<tr><td colspan="8" class="muted">—</td></tr>`}</tbody></table></div>
+    <h3>By season</h3>
+    <div class="table-wrap"><table>${totalsHead("Season")}<tbody>${byYear.map(totalsRow).join("") || `<tr><td colspan="8" class="muted">—</td></tr>`}</tbody></table></div>
+
+    <h3>Payout structure <span class="muted">(per league; the pot is dues × teams)</span></h3>
+    <div class="cols bank-leagues">${leagues
+      .map((l) => {
+        const s = leagueSetup(b, l);
+        const pot = num(s.dues) * num(s.teams);
+        const paidOut = s.payouts.reduce((a, p) => a + num(p.amount), 0);
+        const mine = bankTotals(b.entries.filter((e) => e.league === l.id));
+        return `<div class="card" data-league="${esc(l.id)}">
+          <h4>${esc(l.name)}${l.custom ? ' <button class="bank-del-league chip" title="Remove this league">remove</button>' : ""}</h4>
+          <div class="bank-setup">
+            <label>Dues <input data-s="dues" inputmode="decimal" value="${esc(s.dues)}" style="width:80px" /></label>
+            <label>Teams <input data-s="teams" type="number" value="${esc(s.teams)}" style="width:60px" /></label>
+          </div>
+          <ul>${s.payouts
+            .map((p, i) => `<li><span><input data-p="${i}" data-k="place" value="${esc(p.place)}" style="width:120px" aria-label="Place" /></span><span><input data-p="${i}" data-k="amount" inputmode="decimal" value="${esc(p.amount)}" style="width:80px" aria-label="Amount" /> <button class="bank-del-payout" data-p="${i}" aria-label="Remove payout">×</button></span></li>`)
+            .join("")}</ul>
+          <button class="bank-add-payout chip">Add payout</button>
+          <p class="muted">Pot ${money(pot)} · paid out ${money(paidOut)}${pot && Math.abs(pot - paidOut) > 0.5 ? ` · <span class="${paidOut > pot ? "down" : ""}">${money(pot - paidOut)} unassigned</span>` : ""}</p>
+          <p class="muted">Your record here: in ${money(mine.invested)}, won ${money(mine.won)}, net <span class="${signCls(mine.net)}">${money(mine.net)}</span></p>
+          <textarea data-s="notes" rows="2" placeholder="Payout rules, who holds the money, deadlines" style="width:100%">${esc(s.notes)}</textarea>
+        </div>`;
+      })
+      .join("")}</div>
+    <div class="toolbar" style="margin-top:12px">
+      <input id="bank-custom-name" placeholder="Another league (name)" />
+      <button id="bank-custom-add" class="chip">Add league</button>
+    </div>
+
+    <h3>Back up</h3>
+    <div class="toolbar">
+      <button id="bank-export" class="chip">Export</button>
+      <label class="chip">Import <input id="bank-import" type="file" accept="application/json,.json" hidden /></label>
+      <button id="bank-clear" class="chip">Clear everything</button>
+      <span id="bank-msg" class="muted"></span>
+    </div>`;
+
+  const save = () => { bankSave(b); renderBank(); };
+  const entryOf = (node) => b.entries.find((e) => e.id === node.closest("tr")?.dataset.id);
+  const newEntry = (league, yr) => {
+    const l = leagues.find((x) => x.id === league) || { id: league };
+    return { id: `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, league, year: yr, dues: leagueSetup(b, l).dues || "", paid: false, extra: "", finish: "", winnings: "", note: "" };
+  };
+  el.querySelector("#bank-add").onclick = () => {
+    b.entries.push(newEntry($("#bank-new-league").value, Number($("#bank-new-year").value) || year));
+    save();
+  };
+  el.querySelector("#bank-add-all").onclick = () => {
+    for (const l of leagues) if (!b.entries.some((e) => e.league === l.id && e.year === year)) b.entries.push(newEntry(l.id, year));
+    save();
+  };
+  el.querySelectorAll("#bank-ledger [data-f]").forEach((inp) =>
+    inp.addEventListener("change", () => {
+      const e = entryOf(inp);
+      if (!e) return;
+      const f = inp.dataset.f;
+      e[f] = f === "paid" ? inp.checked : f === "year" ? Number(inp.value) || year : inp.value;
+      save();
+    })
+  );
+  el.querySelectorAll(".bank-del").forEach((btn) =>
+    btn.addEventListener("click", () => { const e = entryOf(btn); b.entries = b.entries.filter((x) => x !== e); save(); })
+  );
+  el.querySelectorAll(".bank-leagues .card").forEach((card) => {
+    const id = card.dataset.league;
+    const l = leagues.find((x) => x.id === id);
+    const setup = () => (b.leagues[id] = { ...(b.leagues[id] || {}), ...(b.leagues[id]?.payouts ? {} : { payouts: leagueSetup(b, l).payouts }) });
+    card.querySelectorAll("[data-s]").forEach((inp) => inp.addEventListener("change", () => { setup()[inp.dataset.s] = inp.value; save(); }));
+    card.querySelectorAll("[data-p][data-k]").forEach((inp) => inp.addEventListener("change", () => { setup().payouts[inp.dataset.p][inp.dataset.k] = inp.value; save(); }));
+    card.querySelector(".bank-add-payout").onclick = () => { const s = setup(); s.payouts = [...(s.payouts || []), { place: s.payouts?.length ? "" : "1st", amount: "" }]; save(); };
+    card.querySelectorAll(".bank-del-payout").forEach((btn) => (btn.onclick = () => { setup().payouts.splice(Number(btn.dataset.p), 1); save(); }));
+    const del = card.querySelector(".bank-del-league");
+    if (del) del.onclick = () => { delete b.leagues[id]; b.entries = b.entries.filter((e) => e.league !== id); save(); };
+  });
+  el.querySelector("#bank-custom-add").onclick = () => {
+    const name = $("#bank-custom-name").value.trim();
+    if (!name) return;
+    b.leagues[`custom-${Date.now().toString(36)}`] = { custom: true, name, dues: "", teams: "", payouts: [] };
+    save();
+  };
+  el.querySelector("#bank-export").onclick = () => {
+    const blob = new Blob([JSON.stringify(b, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `money-bank-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  el.querySelector("#bank-import").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || !Array.isArray(data.entries)) throw new Error("not a Money Bank export");
+      bankSave({ leagues: data.leagues || {}, entries: data.entries });
+      renderBank();
+      $("#bank-msg").textContent = `Imported ${data.entries.length} seasons.`;
+    } catch (e) {
+      $("#bank-msg").textContent = `Couldn't import that file (${e.message}).`;
+    }
+  });
+  el.querySelector("#bank-clear").onclick = () => {
+    const btn = el.querySelector("#bank-clear");
+    if (btn.dataset.armed) { bankSave({ leagues: {}, entries: [] }); renderBank(); return; }
+    btn.dataset.armed = "1";
+    btn.textContent = "Click again to erase";
+  };
+}
