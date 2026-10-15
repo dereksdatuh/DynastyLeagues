@@ -35,6 +35,8 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
 - `engine/record.py` and `site/app.js` (`projectRecords`): projected records from
   rest-of-season lineup ppg and the remaining schedule; `SIGMA_SHARE` (weekly score
   spread) and `AVAILABILITY` (injury discounts). Keep both in sync.
+  Rest-of-season ppg leans on Sleeper's next `UPCOMING_WEEKS` weekly projections
+  (`UPCOMING_WEIGHT`), so role changes from injuries show up right away.
 - `site/app.js` (`pitchFor`): owner trade messages; each reason is only included
   when it holds for that owner.
 - `engine/weekly.py` and `site/app.js` (week block): matchup snapshot, ESPN game

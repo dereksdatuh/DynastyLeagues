@@ -10,12 +10,35 @@ The same math runs in the browser (site/app.js) to re-project after a trade.
 
 from math import erf, sqrt
 
+from .league import fantasy_points
+
 # Spread of a team's weekly score as a share of the league average: about 0.18
 # week to week, widened to cover the error in each lineup's projection itself.
 SIGMA_SHARE = 0.21
 # Rest-of-season availability for injury designations.
 AVAILABILITY = {"IR": 0.35, "PUP": 0.35, "Sus": 0.35, "NFI": 0.35, "Out": 0.85, "Doubtful": 0.9}
 DEFAULT_PLAYOFF_WEEK = 15
+
+
+# Sleeper's projections for the next few weeks see depth-chart and injury news
+# (a backup taking over a starter's job) that season-long numbers miss, so they
+# carry most of the rest-of-season estimate whenever Sleeper has them.
+UPCOMING_WEEKS = 3
+UPCOMING_WEIGHT = 0.7
+LAST_REGULAR_WEEK = 18
+
+
+def upcoming_ppg(pid, group, weeks: list, scoring: dict):
+    """Average projected points over the upcoming weeks he's projected to play (byes skipped)."""
+    pts = [fantasy_points(w[pid].get("stats"), scoring, group) for w in weeks if w.get(pid)]
+    pts = [x for x in pts if x > 0]
+    return round(sum(pts) / len(pts), 2) if pts else None
+
+
+def blend_ppg(ppg, upcoming):
+    if upcoming is None:
+        return ppg
+    return UPCOMING_WEIGHT * upcoming + (1 - UPCOMING_WEIGHT) * (ppg or 0)
 
 
 def ros_ppg(ppg, injury) -> float:
