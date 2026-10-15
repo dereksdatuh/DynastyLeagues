@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-10-15T14:39:20+00:00",
- "build": "8944e87",
+ "generated_at": "2026-10-15T16:56:05+00:00",
+ "build": "c3e6488",
  "leagues": [
   {
    "id": "league-1",
@@ -41,15 +41,21 @@
     "draft_rounds": 5
    },
    "buy_in": 50,
+   "payouts": {
+    "1st": 500,
+    "2nd": 150,
+    "most_points_for": 50,
+    "notes": "Champion: $500, Runner-up: $150, Most points scored (regular season): $50"
+   },
    "teams": 14,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -58,7 +64,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -67,11 +73,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:38:55+00:00"
+   "generated_at": "2026-10-15T16:55:38+00:00"
   },
   {
    "id": "league-2",
@@ -103,15 +109,18 @@
     "draft_rounds": 4
    },
    "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
    "teams": 14,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -120,7 +129,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -129,11 +138,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:39:01+00:00"
+   "generated_at": "2026-10-15T16:55:45+00:00"
   },
   {
    "id": "league-3",
@@ -165,15 +174,18 @@
     "draft_rounds": 3
    },
    "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
    "teams": 12,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -182,7 +194,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -191,11 +203,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:39:04+00:00"
+   "generated_at": "2026-10-15T16:55:49+00:00"
   },
   {
    "id": "league-4",
@@ -227,15 +239,18 @@
     "draft_rounds": 4
    },
    "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
    "teams": 12,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -244,7 +259,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -253,11 +268,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:39:09+00:00"
+   "generated_at": "2026-10-15T16:55:54+00:00"
   },
   {
    "id": "league-5",
@@ -288,15 +303,18 @@
     "draft_rounds": 4
    },
    "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
    "teams": 12,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -305,7 +323,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -314,11 +332,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:39:12+00:00"
+   "generated_at": "2026-10-15T16:55:58+00:00"
   },
   {
    "id": "league-6",
@@ -350,15 +368,18 @@
     "draft_rounds": 4
    },
    "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
    "teams": 14,
    "sources": [
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 398,
-     "matched": 398,
+     "players": 397,
+     "matched": 397,
      "picks": 24,
-     "shared_with_reference": 398,
+     "shared_with_reference": 397,
      "reference": "fantasycalc"
     },
     {
@@ -367,7 +388,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 383,
+     "shared_with_reference": 381,
      "reference": "fantasycalc"
     },
     {
@@ -376,11 +397,11 @@
      "players": 398,
      "matched": 398,
      "picks": 85,
-     "shared_with_reference": 355,
+     "shared_with_reference": 353,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-15T14:39:18+00:00"
+   "generated_at": "2026-10-15T16:56:04+00:00"
   }
  ]
 }
