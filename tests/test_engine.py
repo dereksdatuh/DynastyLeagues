@@ -547,3 +547,30 @@ def test_build_ships_strength_of_schedule(offline):
     for t in data["teams"]:
         s = sos[t["roster_id"]]
         assert len(s["weeks"]) == 10 and s["exp_wins"] == pytest.approx(t["projection"]["remaining_wins"], abs=0.01)
+
+
+def test_builds_place_every_team_in_one_of_eight():
+    from engine import builds
+
+    def team(rid, ppg, value, picks, ages, proj):
+        players = [f"{rid}-{i}" for i in range(len(ages))]
+        return {"roster_id": rid, "ros_ppg": ppg, "players": players, "player_value": value - picks,
+                "pick_value": picks, "total_value": value, "projection": {"rank": proj}}, \
+            {pid: {"id": pid, "age": a, "value": (value - picks) / len(ages)} for pid, a in zip(players, ages)}
+
+    specs = [(1, 200, 90000, 5000, [25] * 12, 1), (2, 195, 60000, 4000, [30] * 12, 2),
+             (3, 150, 50000, 40000, [23] * 12, 9), (4, 120, 30000, 3000, [29] * 12, 10),
+             (5, 160, 40000, 6000, [27] * 12, 4), (6, 130, 45000, 6000, [22] * 12, 8)]
+    teams, by_id = [], {}
+    for s in specs:
+        t, ps = team(*s)
+        teams.append(t)
+        by_id.update(ps)
+    out = builds.assign(teams, by_id, playoff_teams=4)
+    assert set(out) == {1, 2, 3, 4, 5, 6}
+    assert out[1]["key"] == "juggernaut"
+    assert out[2]["key"] == "all_in"
+    assert out[3]["key"] == "pick_hoarder"
+    assert out[4]["key"] == "teardown"
+    assert out[6]["key"] == "youth"
+    assert all(b["key"] in builds.BUILDS and b["reasons"] and b["plan"] for b in out.values())
