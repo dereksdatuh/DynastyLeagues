@@ -51,6 +51,17 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 .pos-DL { background: var(--DL); } .pos-LB { background: var(--LB); } .pos-DB { background: var(--DB); } .pos-DEF { background: var(--DEF); }
 .fit { font-size: 12px; font-weight: 600; } .fit.up { color: var(--good); } .fit.down { color: var(--bad); }
 .inj { font-size: 11px; color: var(--bad); font-weight: 600; }
+.player-link { cursor: pointer; } .player-link:hover { color: var(--accent); text-decoration: underline; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 24px 12px; overflow-y: auto; }
+.modal-box { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; width: 100%; max-width: 760px; }
+.modal-box h2 { margin: 0 32px 4px 0; }
+.modal-close { position: absolute; top: 10px; right: 12px; border: none; background: none; font-size: 24px; cursor: pointer; color: var(--muted); }
+.spark { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.spark-axis { display: flex; justify-content: space-between; font-size: 12px; }
+.parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; font-size: 13px; }
+.parts label { display: inline-block; min-width: 76px; color: var(--muted); text-transform: capitalize; }
+.parts .pbar { display: inline-block; width: 40px; height: 6px; background: var(--border); border-radius: 3px; vertical-align: middle; overflow: hidden; }
+.parts .pbar span { display: block; height: 100%; background: var(--accent); }
 .call { display: inline-block; min-width: 44px; text-align: center; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: var(--tier); }
 .call-buy { background: rgba(34, 197, 94, 0.18); color: var(--good); } .call-sell { background: rgba(239, 68, 68, 0.16); color: var(--bad); }
 .call-keep { background: rgba(37, 99, 235, 0.15); color: var(--accent); } .call-hold { color: var(--muted); }

@@ -32,6 +32,14 @@ for (const id of leagues) {
   await page.waitForFunction((id) => document.querySelector("#rankings tbody tr") && document.querySelector("#league-select").value === id, id);
   await page.waitForTimeout(500);
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
+  // Player page: open the top player, check the pieces, close it.
+  await page.click("#rankings .player-link");
+  await page.waitForSelector("#player-modal:not(.hidden) .buyers tbody tr");
+  await page.waitForFunction(() => !/Loading/.test(document.querySelector("#player-history").textContent));
+  const playerPage = await page.$eval("#player-body", (b) => `${b.querySelector("h2").textContent.trim()}: ${b.querySelectorAll(".buyers tbody tr").length} team prices, top buyer ${b.querySelector(".buyers tbody tr td").textContent.trim()}, trend ${b.querySelector("#player-history svg") ? "chart" : b.querySelector("#player-history").textContent.trim()}`);
+  console.log(`  player page: ${playerPage}`);
+  await page.click("#player-modal .modal-close");
+  if (!(await page.$("#player-modal.hidden"))) errors.push(`${id}: player page did not close`);
   await page.click('button[data-tab="teams"]');
   const teams = await page.$$eval("#teams tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim())));
   // Sorting: click "Proj. max PF" and check the column comes out high to low.

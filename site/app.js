@@ -159,7 +159,7 @@ function renderRankings() {
       const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}`).join("\n");
       return `${sep}<tr>
         <td>${byPos ? p.pos_rank : p.rank}</td>
-        <td><span class="name">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
+        <td><span class="name player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
         <td><span class="pos pos-${p.pos}">${p.pos}${p.pos_rank}</span></td>
         <td>${esc(p.team || "FA")}</td>
         <td class="num">${p.age ?? ""}</td>
@@ -177,6 +177,105 @@ function renderRankings() {
     <th class="num" title="League scoring production model">Model</th><th title="Scoring fit">Fit</th>
     <th class="num" title="Points per game in this league's scoring / projected this week">PPG / Wk</th><th>Owner</th></tr></thead><tbody>${body}</tbody>`;
 }
+
+// ---------- player page ----------
+// Click any player name with data-pid to open everything known about him: how his
+// value is built, every site's price, his value over the last weeks, what each team
+// in the league would pay given its own situation, and his formula score and call.
+const historyCache = {};
+async function loadHistory(id) {
+  if (historyCache[id] !== undefined) return historyCache[id];
+  try { historyCache[id] = await getJSON(`data/history/${id}.json`); } catch { historyCache[id] = null; }
+  return historyCache[id];
+}
+
+function sparkline(points) {
+  if (points.length < 2) return "";
+  const w = 320, h = 70, pad = 4;
+  const vs = points.map((p) => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const xy = points.map(([, v], i) => [pad + (i * (w - 2 * pad)) / (points.length - 1), h - pad - ((v - lo) * (h - 2 * pad)) / span]);
+  const up = vs[vs.length - 1] >= vs[0];
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="Value over time">
+    <polyline fill="none" stroke="var(--${up ? "good" : "bad"})" stroke-width="2" points="${xy.map((p) => p.map((n) => n.toFixed(1)).join(",")).join(" ")}" />
+    ${xy.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--${up ? "good" : "bad"})"><title>${esc(points[i][0])}: ${fmt(points[i][1])}</title></circle>`).join("")}
+  </svg><div class="spark-axis muted"><span>${esc(points[0][0])} · ${fmt(vs[0])}</span><span>${esc(points[points.length - 1][0])} · ${fmt(vs[vs.length - 1])}</span></div>`;
+}
+
+async function openPlayer(id) {
+  const p = state.data.players.find((x) => x.id === id);
+  if (!p) return;
+  let modal = $("#player-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "player-modal";
+    modal.className = "modal hidden";
+    modal.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true"><button class="modal-close" aria-label="Close">×</button><div id="player-body"></div></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".modal-close")) modal.classList.add("hidden"); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.add("hidden"); });
+  }
+  const mine = myTeam();
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`;
+  const srcRows = Object.entries(p.sources || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join("");
+  // What each team would pay: league value times that team's own multiplier.
+  const buyers = state.data.teams.map((t) => ({ t, v: p.value * teamFactor(t.roster_id, p.id), c: teamCtx(t.roster_id) }))
+    .sort((a, b) => b.v - a.v);
+  const buyRows = buyers.map(({ t, v, c }) => `<tr class="${p.roster_id === t.roster_id ? "mine-row" : ""}"><td>${teamHtml(t.roster_id)}${p.roster_id === t.roster_id ? ' <span class="muted">(owner)</span>' : ""}</td>
+    <td class="muted">${esc(t.build ? t.build.name : c ? c.label : "")}</td><td class="num">${fmt(v)}</td><td class="num ${v > p.value * 1.02 ? "up" : v < p.value * 0.98 ? "down" : ""}">${pct(v / p.value - 1)}</td></tr>`).join("");
+  const f = p.formula, c = p.call;
+  const formulaHtml = f ? `<h3>Formula <span class="muted">#${f.rank} · score ${f.score}</span></h3>
+    <div class="parts">${Object.entries(f.parts).map(([k, v]) => `<div><label>${esc(k)}</label><span class="pbar"><span style="width:${Math.max(2, v)}%"></span></span> ${Math.round(v)}</div>`).join("")}</div>
+    ${c ? `<p>${typeof callBadge === "function" ? callBadge(c.signal) : `<b>${c.signal}</b>`} ${esc(c.why)}.</p>` : ""}` : "";
+  const ownerTxt = p.roster_id ? teamHtml(p.roster_id) : "Free agent";
+  $("#player-body").innerHTML = `
+    <h2>${esc(p.name)} <span class="pos pos-${p.pos}">${p.pos}${p.pos_rank ?? ""}</span></h2>
+    <p class="muted">${esc(p.team || "FA")}${p.age ? ` · age ${p.age}` : ""}${p.exp != null ? ` · year ${p.exp + 1}` : ""}${p.injury ? ` · <span class="inj">${esc(p.injury)}</span>` : ""} · ${ownerTxt}</p>
+    <div class="stats">
+      <div><label>Value</label><b>${fmt(p.value)}</b></div>
+      <div><label>Overall</label><b>#${p.rank ?? "–"}</b></div>
+      <div><label>Tier</label><b>${p.tier ?? "–"} / ${p.pos} ${p.pos_tier ?? "–"}</b></div>
+      <div><label>PPG</label><b>${p.ppg ?? "–"}</b></div>
+      <div><label>Rest of season</label><b>${p.ros_ppg ?? "–"}</b></div>
+      <div><label>This week</label><b>${p.proj_week ?? "–"}</b></div>
+    </div>
+    <h3>How his value is built</h3>
+    <table class="net"><tbody>
+      <tr><td>Market consensus</td><td class="num">${p.market ? fmt(p.market) : "–"}</td><td class="muted">average of the sites below${p.spread != null ? `, ${Math.round(p.spread * 100)}% spread between them` : ""}</td></tr>
+      <tr><td>× scoring fit</td><td class="num">${p.premium ? p.premium.toFixed(2) : "–"}</td><td class="muted">this league's scoring vs generic</td></tr>
+      <tr><td>= adjusted market</td><td class="num">${p.market_adj ? fmt(p.market_adj) : "–"}</td><td></td></tr>
+      <tr><td>Points model</td><td class="num">${p.model ? fmt(p.model) : "–"}</td><td class="muted">points over replacement here, aged forward</td></tr>
+      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model</td></tr>
+    </tbody></table>
+    ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Value on our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
+    <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
+    ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
+    ${formulaHtml}
+    <h3>What each team would pay <span class="muted">(his value through each team's own situation; best buyers first)</span></h3>
+    <div class="table-wrap"><table class="buyers"><thead><tr><th>Team</th><th>Build</th><th class="num">Their price</th><th class="num">vs value</th></tr></thead><tbody>${buyRows}</tbody></table></div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="chip active" id="player-shop">${mine && p.roster_id === mine.roster_id ? "Shop him in the Trade Finder" : p.roster_id ? "Find a deal for him" : "Free agent"}</button>
+    </div>`;
+  modal.classList.remove("hidden");
+  const shop = $("#player-shop");
+  if (!p.roster_id) shop.disabled = true;
+  shop.onclick = () => {
+    if (!mine) return;
+    finder.me = mine.roster_id; finder.goal = null;
+    if (p.roster_id === mine.roster_id) { finder.send = [p.id]; finder.get = []; finder.partner = null; }
+    else { finder.get = [p.id]; finder.send = []; finder.partner = p.roster_id; }
+    modal.classList.add("hidden");
+    document.querySelector('.tabs button[data-tab="finder"]').click();
+    renderFinder();
+  };
+  const hist = await loadHistory(state.data.league.id);
+  const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
+  const el = $("#player-history");
+  if (el) el.innerHTML = pts.length >= 2 ? sparkline(pts) : `<p class="muted">Not enough daily snapshots yet${pts.length ? ` (one on ${esc(pts[0][0])})` : ""}.</p>`;
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-pid]");
+  if (a && !e.target.closest("#player-modal")) openPlayer(a.dataset.pid);
+});
 
 // ---------- trade calculator ----------
 // Each side lists what that team receives. An asset is sent by the team that
@@ -808,7 +907,7 @@ function renderTeamDetail() {
     <div class="cols">${Object.entries(groups)
       .sort((a, b) => POSITIONS.indexOf(a[0]) - POSITIONS.indexOf(b[0]))
       .map(([pos, ps]) => `<div class="card"><h4>${pos}</h4><ul>${ps
-        .map((p) => `<li class="${starters.has(p.id) ? "starter" : ""}"><span>${esc(p.name)}${t.taxi.includes(p.id) ? ' <span class="muted">taxi</span>' : ""}</span><span class="num">${fmt(p.value)}</span></li>`)
+        .map((p) => `<li class="${starters.has(p.id) ? "starter" : ""}"><span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}${t.taxi.includes(p.id) ? ' <span class="muted">taxi</span>' : ""}</span><span class="num">${fmt(p.value)}</span></li>`)
         .join("")}</ul></div>`)
       .join("")}
       <div class="card"><h4>Picks</h4><ul>${picks.map((p) => `<li><span>${esc(p.label)}</span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li>None</li>"}</ul></div>
@@ -916,7 +1015,7 @@ function drawFormulaTable() {
     .map((p) => {
       const c = mine && p.roster_id === mine.roster_id ? myCall(p, mine) : p.call;
       return `<tr class="${mine && p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="num">${p.formula.rank}</td>
-        <td class="name"><span class="pos pos-${p.pos}">${p.pos}</span> ${esc(p.name)} <span class="muted">${p.age ?? ""}</span></td>
+        <td class="name"><span class="pos pos-${p.pos}">${p.pos}</span> <span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span> <span class="muted">${p.age ?? ""}</span></td>
         <td>${p.roster_id ? teamHtml(p.roster_id) : '<span class="muted">FA</span>'}</td>
         <td class="num strong">${p.formula.score}</td>${PARTS.map(([k]) => bar(p.formula.parts[k])).join("")}
         <td class="num">${fmt(p.value)}</td><td class="num">${p.rank ?? ""}</td><td data-sort="${c.signal}">${callBadge(c.signal)}</td><td class="why">${esc(c.why)}</td></tr>`;
