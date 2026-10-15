@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import draft, fetch, formula, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, ids, outlook, record, sleeper, team_value, valuation, weekly
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -390,6 +390,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["starter_rank"] = starter_rank[t["roster_id"]]
         sr = t["starter_rank"]
         t["outlook"] = "contender" if sr <= n / 3 else "rebuilding" if sr > 2 * n / 3 else "middle"
+    for rid, b in builds.assign(teams, by_id, playoff_teams).items():
+        next(t for t in teams if t["roster_id"] == rid)["build"] = b
 
     # What each team would pay for every player and pick, from its own situation.
     tv_ctx = team_value.contexts(teams, by_id, fmt.slots, fmt.superflex)
@@ -462,7 +464,7 @@ def main(argv=None):
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
-                      "buy_in": lg["buy_in"], "teams": len(data["teams"]),
+                      "buy_in": lg["buy_in"], "payouts": lg.get("payouts"), "teams": len(data["teams"]),
                       "sources": [s for s in data["sources"]], "generated_at": data["generated_at"]})
         ok = [s["source"] for s in data["sources"] if s["ok"]]
         print(f"built {config['id']} ({lg['name']}): {len(data['players'])} players, "

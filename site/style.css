@@ -78,6 +78,9 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--tier); }
 .outlook { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--tier); }
 .outlook.contender { color: var(--good); } .outlook.rebuilding { color: var(--bad); }
+.build-card { margin: 10px 0 14px; max-width: 760px; }
+.build-card p { margin: 4px 0 8px; } .build-card ul.plan { list-style: disc; padding-left: 18px; }
+.card ul.plan li { display: list-item; border: none; padding: 2px 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .card ul { list-style: none; margin: 0; padding: 0; }
@@ -158,3 +161,10 @@ tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 @media (max-width: 720px) { .finder-grid { grid-template-columns: 1fr; } }
 .finder-grid input { width: 100%; box-sizing: border-box; }
 .finder-deal .why { margin: 6px 0 0; }
+/* money bank */
+.bank-table td { vertical-align: middle; }
+.bank-table input, .bank-table select, .bank-leagues input { padding: 4px 6px; }
+.bank-setup { display: flex; gap: 10px; margin-bottom: 6px; }
+.bank-setup label { font-size: 12px; color: var(--muted); }
+.bank-leagues textarea { margin-top: 6px; background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font: inherit; font-size: 13px; box-sizing: border-box; }
+b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }
