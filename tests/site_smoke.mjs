@@ -79,6 +79,11 @@ for (const id of leagues) {
   const sos = await page.$$eval("#sos tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   const sosWeeks = await page.$$eval("#sos-weeks thead th", (r) => r.length - 1);
   await page.click('button[data-tab="finder"]');
+  // Lock your most valuable asset, then check no finder deal offers it.
+  const lockOpt = await page.$eval("#finder-send-list option", (o) => o.value).catch(() => null);
+  if (lockOpt) { await page.fill("#finder-lock", lockOpt); await page.dispatchEvent("#finder-lock", "change"); }
+  const lockedLabel = await page.$eval(".untouchables li span", (s) => s.textContent.replace("🔒", "").trim()).catch(() => "");
+  if (lockOpt && lockedLabel !== lockOpt) errors.push(`${id}: untouchable did not save (${lockedLabel})`);
   const finderRuns = [];
   for (const kind of ["send", "get"]) {
     const opt = await page.$eval(`#finder-${kind}-list option`, (o) => o.value).catch(() => null);
@@ -88,12 +93,14 @@ for (const id of leagues) {
     const t0 = Date.now();
     await page.click("#finder-run");
     await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 30000 });
+    const sentLocked = await page.$$eval("#finder-out .finder-deal", (ds, l) => ds.filter((d) => d.querySelectorAll(".card")[1]?.textContent.includes(l)).length, lockedLabel);
+    if (lockedLabel && kind === "get" && sentLocked) errors.push(`${id}: finder offered untouchable ${lockedLabel}`);
     const deals = await page.$$eval("#finder-out .finder-deal", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 420)));
     const note = await page.$eval("#finder-out", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 160));
     finderRuns.push(`${kind} ${opt}: ${deals.length} deals in ${Date.now() - t0} ms${deals[0] ? "\n      " + deals[0] : " (" + note + ")"}`);
     await page.click("#finder-out .finder-open").catch(() => {});
     await page.click('button[data-tab="finder"]');
-    for (let i = 0; i < 6 && (await page.$("#finder .assets button")); i++) await page.click("#finder .assets button");
+    for (let i = 0; i < 6 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
   }
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
@@ -154,6 +161,7 @@ const bank = await page.$$eval("#bank .stats div", (ds) => ds.map((d) => d.textC
 console.log(`money bank after reload: ${bank.join(" | ")}`);
 if (!bank.some((t) => t.includes("Net") && t.includes("$150"))) errors.push(`money bank totals wrong after reload: ${bank}`);
 await page.evaluate(() => localStorage.removeItem("moneybank.v1"));
+await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("untouchable.")).forEach((k) => localStorage.removeItem(k)));
 await browser.close();
 console.log("Live calls from the browser (ok, failed):", JSON.stringify(live));
 if (errors.length) {

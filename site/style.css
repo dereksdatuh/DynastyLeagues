@@ -160,6 +160,7 @@ tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 .finder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
 @media (max-width: 720px) { .finder-grid { grid-template-columns: 1fr; } }
 .finder-grid input { width: 100%; box-sizing: border-box; }
+.untouchables { margin-bottom: 12px; } .untouchables input { width: 100%; max-width: 420px; box-sizing: border-box; }
 .finder-deal .why { margin: 6px 0 0; }
 /* money bank */
 .bank-table td { vertical-align: middle; }
