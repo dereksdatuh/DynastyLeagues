@@ -853,6 +853,9 @@ function renderFormula() {
   el.innerHTML = `
     <p class="muted">Your formula ranks every player 0-100 from seven parts, each a percentile in this league: ${PARTS.map(([k, , d]) => `<b>${Math.round((w[k] || 0) * 100)}%</b> ${esc(d.toLowerCase())}`).join("; ")}. The call compares what his points are worth in this league with what the market pays, then checks age and the last month's market move.</p>
     ${myBlock}
+    ${mine ? `<h3>Trade ideas for you <span class="muted">(your sells shopped to every team and the top buy targets priced from your roster, using the Trade Finder's fair line)</span></h3>
+      <div class="toolbar"><button id="ideas-run" class="chip active">Find my trade ideas</button></div>
+      <div id="ideas-out">${ideas.list && ideas.league === state.data.league.id ? ideasHtml(ideas.list) : ""}</div>` : ""}
     ${buyBlock}
     <h3>Full formula rankings</h3>
     <div class="toolbar">
@@ -891,6 +894,74 @@ function drawFormulaTable() {
     })
     .join("")}</tbody>`;
 }
+
+// Trade ideas: the Trade Finder run for you from your own calls. Each SELL on your
+// roster is shopped to every team, and each top BUY target is priced from your roster;
+// the best fair deal for each (same rules as the finder) is listed with the reason.
+const IDEAS_SELL = 4, IDEAS_BUY = 4;
+const ideas = { list: null, league: null };
+
+function ideaSeeds(mine) {
+  const roster = mine.players.map(assetById).filter((p) => p && p.formula);
+  const sells = roster.map((p) => ({ p, c: myCall(p, mine) })).filter((x) => x.c.signal === "SELL")
+    .sort((a, b) => b.p.value - a.p.value).slice(0, IDEAS_SELL).map(({ p, c }) => ({ kind: "sell", a: p, why: c.why }));
+  const buys = state.data.players.filter((p) => p.formula && p.call.signal === "BUY" && p.roster_id && p.roster_id !== mine.roster_id && p.value >= 800)
+    .sort((a, b) => b.formula.score - a.formula.score).slice(0, IDEAS_BUY).map((p) => ({ kind: "buy", a: p, why: p.call.why }));
+  return [...sells, ...buys];
+}
+
+function runIdeas(done) {
+  const mine = myTeam();
+  if (!mine) { done([]); return; }
+  const seeds = ideaSeeds(mine);
+  const saved = { me: finder.me, partner: finder.partner, goal: finder.goal, send: finder.send, get: finder.get, last: finder.last };
+  const c = teamCtx(mine.roster_id);
+  const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
+  const out = [];
+  const step = (i) => {
+    if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
+    const s = seeds[i];
+    Object.assign(finder, { me: mine.roster_id, partner: null, goal, send: s.kind === "sell" ? [s.a.id] : [], get: s.kind === "buy" ? [s.a.id] : [] });
+    const r = findTrades();
+    const d = r.picked && r.picked[0];
+    out.push({ ...s, deal: d || null, goal });
+    const el = $("#ideas-out");
+    if (el) el.innerHTML = `<p class="muted">Working… ${i + 1} of ${seeds.length}</p>`;
+    setTimeout(() => step(i + 1), 0);
+  };
+  setTimeout(() => step(0), 20);
+}
+
+function ideasHtml(list) {
+  if (!list.length) return `<p class="muted">No sells on your roster and no buy targets to price right now.</p>`;
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const names = (xs) => xs.map((a) => esc(a.label || a.name)).join(", ");
+  return list.map((x, i) => {
+    const head = x.kind === "sell" ? `${callBadge("SELL")} Sell ${esc(x.a.name)}` : `${callBadge("BUY")} Buy ${esc(x.a.name)} <span class="muted">from ${teamHtml(x.a.roster_id)}</span>`;
+    if (!x.deal) return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}. No deal passes the fair line for both teams right now.</p></div>`;
+    const d = x.deal;
+    return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}.</p>
+      <p><b>Deal with ${teamHtml(d.B)}:</b> you get ${names(d.gets)}; you send ${names(d.gives)}.</p>
+      <p class="muted">Market ${pct(d.mkt)} for you · your goal ${pct(d.mine)} · their needs ${pct(d.them)} · your lineup ${d.dMe >= 0 ? "+" : ""}${d.dMe.toFixed(1)} pts/wk · record ${recordText(d.rec.me[0])} → ${recordText(d.rec.me[1])}</p>
+      <button class="chip idea-open" data-i="${i}">Open in Trade Calculator</button></div>`;
+  }).join("");
+}
+
+document.addEventListener("click", (e) => {
+  const run = e.target.closest("#ideas-run");
+  if (run) {
+    run.disabled = true;
+    $("#ideas-out").innerHTML = `<p class="muted">Working…</p>`;
+    runIdeas((list) => { ideas.list = list; ideas.league = state.data.league.id; $("#ideas-out").innerHTML = ideasHtml(list); run.disabled = false; });
+    return;
+  }
+  const b = e.target.closest(".idea-open");
+  if (!b || !ideas.list) return;
+  const x = ideas.list[Number(b.dataset.i)];
+  if (!x || !x.deal) return;
+  finder.me = myTeam().roster_id;
+  openInCalculator(x.deal);
+});
 
 // ---------- league & sources ----------
 function renderLeague() {
