@@ -547,3 +547,21 @@ def test_build_ships_strength_of_schedule(offline):
     for t in data["teams"]:
         s = sos[t["roster_id"]]
         assert len(s["weeks"]) == 10 and s["exp_wins"] == pytest.approx(t["projection"]["remaining_wins"], abs=0.01)
+
+
+def test_formula_scores_and_calls():
+    from engine import formula
+
+    def pl(pid, pos, age, value, model, trend=0, ppg=15):
+        return {"id": pid, "pos": pos, "age": age, "value": value, "market": value, "market_adj": value,
+                "model": model, "trend": trend, "ros_ppg": ppg, "premium": 1.0, "spread": 0.1, "pos_rank": 5}
+
+    players = [pl("old", "RB", 29, 4000, 4000), pl("cheap", "WR", 24, 4000, 6000),
+               pl("pricey", "WR", 25, 4000, 2500), pl("dip", "QB", 25, 4000, 4000, trend=-800),
+               pl("fair", "TE", 26, 4000, 4100), pl("tiny", "WR", 22, 50, 50)]
+    formula.score(players, {"RB": 8, "WR": 9, "QB": 16, "TE": 8}, {"RB": 24, "WR": 36, "QB": 12, "TE": 12})
+    sig = {p["id"]: p.get("call", {}).get("signal") for p in players}
+    assert sig == {"old": "SELL", "cheap": "BUY", "pricey": "SELL", "dip": "BUY", "fair": "HOLD", "tiny": None}
+    scores = [p["formula"]["score"] for p in players if "formula" in p]
+    assert all(0 <= s <= 100 for s in scores)
+    assert sorted(p["formula"]["rank"] for p in players if "formula" in p) == [1, 2, 3, 4, 5]

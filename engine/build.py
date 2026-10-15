@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import draft, fetch, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import draft, fetch, formula, ids, outlook, record, sleeper, team_value, valuation, weekly
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -395,6 +395,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     tv_ctx = team_value.contexts(teams, by_id, fmt.slots, fmt.superflex)
     tv = {"context": tv_ctx, "factors": team_value.factors(teams, players, picks, fmt.slots, tv_ctx, first_year)}
 
+    formula.score(players, model_info.get("replacement_ppg") or {}, model_info.get("starters_per_position") or {})
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "league": {
@@ -415,6 +417,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "history": history,
         "sources": source_status,
         "model": model_info,
+        "formula": {"weights": formula.WEIGHTS, "cliff": formula.CLIFF, "gap": formula.GAP, "swing": formula.SWING},
         "players": players,
         "picks": picks,
         "rookie_draft": rookie,

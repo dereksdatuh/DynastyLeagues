@@ -97,6 +97,7 @@ async function loadLeague(id) {
   finder.me = null; finder.goal = null; finder.last = null;
   renderFinder();
   renderRookieMock();
+  renderFormula();
 }
 
 // ---------- tabs ----------
@@ -783,6 +784,112 @@ function renderTeamDetail() {
       .join("")}
       <div class="card"><h4>Picks</h4><ul>${picks.map((p) => `<li><span>${esc(p.label)}</span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li>None</li>"}</ul></div>
     </div><p class="muted">Bold = in the optimal starting lineup by value.</p>`;
+}
+
+// ---------- formula & calls ----------
+// engine/formula.py scores every priced player 0-100 from seven parts and makes a
+// buy / sell / hold call. For your own players the call is read through your team's
+// situation: a contender keeps aging starters for the run, a rebuilder sells them.
+const PARTS = [
+  ["value", "Value", "League value: market blended with the points model"],
+  ["production", "Prod", "Rest-of-season points a game over replacement in this scoring"],
+  ["longevity", "Long", "Years left before the position's age cliff"],
+  ["fit", "Fit", "How much this league's scoring lifts him over generic scoring"],
+  ["momentum", "Mom", "Market move over the last 30 days"],
+  ["consensus", "Cons", "How closely the market sources agree"],
+  ["scarcity", "Scar", "Rank at his position against the league's starters there"],
+];
+const formulaView = { pos: "ALL", signal: "ALL", who: "all", q: "" };
+
+// Your team's read on one of your own players.
+function myCall(p, team) {
+  const c = p.call;
+  if (!c) return null;
+  const mode = state.data.team_values?.context?.teams?.[team.roster_id]?.mode ?? 0;
+  const starts = (team.ros_lineup || team.lineup || []).some((x) => x.id === p.id);
+  const cliff = state.data.formula?.cliff?.[p.pos];
+  const yearsLeft = cliff && p.age ? Math.max(0, cliff - p.age) : null;
+  if (c.signal === "SELL" && mode >= 0.3 && starts)
+    return { signal: "HOLD", why: `you're contending and he starts for you, so ride him this season and sell in the offseason (${c.why})` };
+  if (mode <= -0.3 && c.signal !== "SELL" && yearsLeft != null && yearsLeft <= 3 && p.age >= 26)
+    return { signal: "SELL", why: `you're rebuilding and he has about ${yearsLeft} prime years left; turn him into picks or younger players` };
+  if (c.signal === "BUY") return { signal: "KEEP", why: `${c.why}, so don't sell him at market price` };
+  return c;
+}
+
+function callBadge(sig) {
+  return `<span class="call call-${sig.toLowerCase()}">${sig}</span>`;
+}
+
+function renderFormula() {
+  const el = $("#formula");
+  if (!el) return;
+  const ps = state.data.players.filter((p) => p.formula);
+  if (!ps.length) { el.innerHTML = `<p class="muted">The formula scores appear after the next data build.</p>`; return; }
+  const w = state.data.formula?.weights || {};
+  const mine = myTeam();
+  const owner = (p) => (p.roster_id ? teamHtml(p.roster_id) : `<span class="muted">Free agent</span>`);
+
+  let myBlock = "";
+  if (mine) {
+    const calls = mine.players.map(assetById).filter((p) => p && p.formula).map((p) => ({ p, c: myCall(p, mine) }));
+    const group = (sig) => calls.filter((x) => x.c.signal === sig).sort((a, b) => b.p.value - a.p.value);
+    const list = (xs) => xs.map(({ p, c }) => `<li><span><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span><br><span class="muted">${esc(c.why)}</span></span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li><span class='muted'>None</span></li>";
+    const sit = state.data.teams.length && mine.build ? mine.build.name : situationText(mine.roster_id);
+    myBlock = `<h3>Your calls <span class="muted">(${esc(mine.name)}${sit ? " · " + esc(sit) : ""})</span></h3>
+      <div class="cols calls-grid">
+        <div class="card"><h4>${callBadge("SELL")} Sell</h4><ul>${list(group("SELL"))}</ul></div>
+        <div class="card"><h4>${callBadge("KEEP")} Keep: worth more than the market says</h4><ul>${list(group("KEEP"))}</ul></div>
+        <div class="card"><h4>${callBadge("HOLD")} Hold</h4><ul>${list(group("HOLD"))}</ul></div>
+      </div>`;
+  }
+  const targets = ps.filter((p) => p.call.signal === "BUY" && (!mine || p.roster_id !== mine.roster_id)).sort((a, b) => b.formula.score - a.formula.score).slice(0, 15);
+  const buyBlock = `<h3>Best buy targets <span class="muted">(top formula scores the market underprices; take them to the Trade Calculator)</span></h3>
+    <div class="table-wrap"><table id="buy-targets"><thead><tr><th>Player</th><th>Owner</th><th class="num">Score</th><th class="num">Value</th><th>Why</th></tr></thead><tbody>${targets
+      .map((p) => `<tr><td class="name">${esc(p.name)} <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span></td><td>${owner(p)}</td><td class="num">${p.formula.score}</td><td class="num">${fmt(p.value)}</td><td class="why">${esc(p.call.why)}</td></tr>`)
+      .join("")}</tbody></table></div>`;
+
+  const positions = ["ALL", ...POSITIONS.filter((x) => ps.some((p) => p.pos === x))];
+  el.innerHTML = `
+    <p class="muted">Your formula ranks every player 0-100 from seven parts, each a percentile in this league: ${PARTS.map(([k, , d]) => `<b>${Math.round((w[k] || 0) * 100)}%</b> ${esc(d.toLowerCase())}`).join("; ")}. The call compares what his points are worth in this league with what the market pays, then checks age and the last month's market move.</p>
+    ${myBlock}
+    ${buyBlock}
+    <h3>Full formula rankings</h3>
+    <div class="toolbar">
+      <div id="formula-pos" class="chips">${positions.map((x) => `<button class="chip ${x === formulaView.pos ? "active" : ""}" data-pos="${x}">${x === "ALL" ? "Overall" : x}</button>`).join("")}</div>
+      <select id="formula-signal" aria-label="Call">${["ALL", "BUY", "HOLD", "SELL"].map((x) => `<option value="${x}" ${x === formulaView.signal ? "selected" : ""}>${x === "ALL" ? "All calls" : x}</option>`).join("")}</select>
+      <select id="formula-who" aria-label="Owner">${[["all", "All players"], ["mine", "My team"], ["others", "Other teams"], ["fa", "Free agents"]].map(([v, l]) => `<option value="${v}" ${v === formulaView.who ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input id="formula-search" type="search" placeholder="Search players" value="${esc(formulaView.q)}" />
+    </div>
+    <div class="table-wrap"><table id="formula-table"></table></div>`;
+  drawFormulaTable();
+  el.querySelectorAll("#formula-pos button").forEach((b) => b.addEventListener("click", () => { formulaView.pos = b.dataset.pos; el.querySelectorAll("#formula-pos button").forEach((x) => x.classList.toggle("active", x === b)); drawFormulaTable(); }));
+  $("#formula-signal").addEventListener("change", (e) => { formulaView.signal = e.target.value; drawFormulaTable(); });
+  $("#formula-who").addEventListener("change", (e) => { formulaView.who = e.target.value; drawFormulaTable(); });
+  $("#formula-search").addEventListener("input", (e) => { formulaView.q = e.target.value; drawFormulaTable(); });
+}
+
+function drawFormulaTable() {
+  const mine = myTeam();
+  const q = formulaView.q.trim().toLowerCase();
+  const rows = state.data.players
+    .filter((p) => p.formula)
+    .filter((p) => formulaView.pos === "ALL" || p.pos === formulaView.pos)
+    .filter((p) => formulaView.signal === "ALL" || p.call.signal === formulaView.signal)
+    .filter((p) => formulaView.who === "all" || (formulaView.who === "fa" ? !p.roster_id : formulaView.who === "mine" ? mine && p.roster_id === mine.roster_id : p.roster_id && (!mine || p.roster_id !== mine.roster_id)))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .sort((a, b) => a.formula.rank - b.formula.rank);
+  const bar = (v) => `<td class="num part" data-sort="${v}"><span class="pbar"><span style="width:${Math.max(2, v)}%"></span></span>${Math.round(v)}</td>`;
+  $("#formula-table").innerHTML = `<thead><tr><th class="num">#</th><th>Player</th><th>Owner</th><th class="num" title="Formula score, 0-100">Score</th>${PARTS.map(([, s, d]) => `<th class="num" title="${esc(d)}">${s}</th>`).join("")}<th class="num">Value</th><th class="num" title="Overall value rank">Val #</th><th>Call</th><th>Why</th></tr></thead><tbody>${rows
+    .map((p) => {
+      const c = mine && p.roster_id === mine.roster_id ? myCall(p, mine) : p.call;
+      return `<tr class="${mine && p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="num">${p.formula.rank}</td>
+        <td class="name"><span class="pos pos-${p.pos}">${p.pos}</span> ${esc(p.name)} <span class="muted">${p.age ?? ""}</span></td>
+        <td>${p.roster_id ? teamHtml(p.roster_id) : '<span class="muted">FA</span>'}</td>
+        <td class="num strong">${p.formula.score}</td>${PARTS.map(([k]) => bar(p.formula.parts[k])).join("")}
+        <td class="num">${fmt(p.value)}</td><td class="num">${p.rank ?? ""}</td><td data-sort="${c.signal}">${callBadge(c.signal)}</td><td class="why">${esc(c.why)}</td></tr>`;
+    })
+    .join("")}</tbody>`;
 }
 
 // ---------- league & sources ----------
