@@ -855,6 +855,30 @@ function buildCard(t) {
     <p class="muted">Why: ${b.reasons.map(esc).join("; ")}.</p>
     <h4>Playbook</h4><ul class="plan">${b.plan.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
 }
+// Future power rankings (engine/future.py): each roster aged one to three seasons,
+// with picks turned into rookies from their draft year.
+function renderFuture() {
+  const el = $("#future");
+  if (!el) return;
+  const teams = state.data.teams.filter((t) => t.future);
+  if (!teams.length) { el.innerHTML = ""; return; }
+  const avg = (t) => t.future.years.reduce((s, y) => s + y.rank, 0) / t.future.years.length;
+  const mine = myTeam();
+  const cell = (y) => `<td class="num" data-sort="${-y.rank}"><b>${ordinal(y.rank)}</b> <span class="muted">${y.ppg.toFixed(1)}</span></td>`;
+  const years = teams[0].future.years.map((y) => y.year);
+  const rows = [...teams].sort((a, b) => avg(a) - avg(b)).map((t, i) => {
+    const f = t.future, tr = f.trend;
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}"><td>${i + 1}</td><td class="name">${teamHtml(t.roster_id)}</td>
+      <td>${t.build ? buildBadge(t) : ""}</td>${cell(f.now)}${f.years.map(cell).join("")}
+      <td class="num ${tr < 0 ? "up" : tr > 0 ? "down" : ""}" data-sort="${-tr}">${tr < 0 ? "▲" + -tr : tr > 0 ? "▼" + tr : "–"}</td>
+      <td>${f.best_year === f.now.year ? "Now" : f.best_year}</td><td class="num">${fmt(t.pick_value)}</td></tr>`;
+  }).join("");
+  el.innerHTML = `<h3>Future power rankings <span class="muted">(best lineup points a week, rosters aged with the age curves; picks become rookies from their draft year)</span></h3>
+    <div class="table-wrap"><table id="future-table"><thead><tr><th>#</th><th>Team</th><th>Build</th><th class="num">Now</th>${years.map((y) => `<th class="num">${y}</th>`).join("")}
+      <th class="num" title="Rank change from now to ${years[years.length - 1]}">Trend</th><th title="Season this roster ranks highest">Window</th><th class="num">Pick value</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted">Sorted by average rank over the next ${years.length} seasons. Young players who haven't produced yet are credited with the points their value implies, so treat later years as a direction, not a forecast.</p>`;
+}
+
 function renderBuildLegend() {
   const el = $("#build-legend");
   if (!el) return;
@@ -887,6 +911,7 @@ function renderTeams() {
   );
   $("#record-note").textContent = recordNote();
   renderBuildLegend();
+  renderFuture();
   renderRooms();
   renderTeamDetail();
 }

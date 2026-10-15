@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import builds, draft, fetch, formula, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, future, ids, outlook, record, sleeper, team_value, valuation, weekly
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -392,6 +392,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["outlook"] = "contender" if sr <= n / 3 else "rebuilding" if sr > 2 * n / 3 else "middle"
     for rid, b in builds.assign(teams, by_id, playoff_teams).items():
         next(t for t in teams if t["roster_id"] == rid)["build"] = b
+    for rid, f in future.project(teams, players, fmt.slots, int(league.get("season") or datetime.now().year), picks).items():
+        next(t for t in teams if t["roster_id"] == rid)["future"] = f
 
     # What each team would pay for every player and pick, from its own situation.
     tv_ctx = team_value.contexts(teams, by_id, fmt.slots, fmt.superflex)
