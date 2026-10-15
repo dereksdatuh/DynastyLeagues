@@ -98,6 +98,7 @@ async function loadLeague(id) {
   finder.me = null; finder.goal = null; finder.last = null;
   renderFinder();
   renderRookieMock();
+  renderFormula();
 }
 
 // ---------- tabs ----------
@@ -913,6 +914,185 @@ function renderTeamDetail() {
     </div><p class="muted">Bold = in the optimal starting lineup by value.</p>`;
 }
 
+// ---------- formula & calls ----------
+// engine/formula.py scores every priced player 0-100 from seven parts and makes a
+// buy / sell / hold call. For your own players the call is read through your team's
+// situation: a contender keeps aging starters for the run, a rebuilder sells them.
+const PARTS = [
+  ["value", "Value", "League value: market blended with the points model"],
+  ["production", "Prod", "Rest-of-season points a game over replacement in this scoring"],
+  ["longevity", "Long", "Years left before the position's age cliff"],
+  ["fit", "Fit", "How much this league's scoring lifts him over generic scoring"],
+  ["momentum", "Mom", "Market move over the last 30 days"],
+  ["consensus", "Cons", "How closely the market sources agree"],
+  ["scarcity", "Scar", "Rank at his position against the league's starters there"],
+];
+const formulaView = { pos: "ALL", signal: "ALL", who: "all", q: "" };
+
+// Your team's read on one of your own players.
+function myCall(p, team) {
+  const c = p.call;
+  if (!c) return null;
+  const mode = state.data.team_values?.context?.teams?.[team.roster_id]?.mode ?? 0;
+  const starts = (team.ros_lineup || team.lineup || []).some((x) => x.id === p.id);
+  const cliff = state.data.formula?.cliff?.[p.pos];
+  const yearsLeft = cliff && p.age ? Math.max(0, cliff - p.age) : null;
+  if (c.signal === "SELL" && mode >= 0.3 && starts)
+    return { signal: "HOLD", why: `you're contending and he starts for you, so ride him this season and sell in the offseason (${c.why})` };
+  if (mode <= -0.3 && c.signal !== "SELL" && yearsLeft != null && yearsLeft <= 3 && p.age >= 26)
+    return { signal: "SELL", why: `you're rebuilding and he has about ${yearsLeft} prime years left; turn him into picks or younger players` };
+  if (c.signal === "BUY") return { signal: "KEEP", why: `${c.why}, so don't sell him at market price` };
+  return c;
+}
+
+function callBadge(sig) {
+  return `<span class="call call-${sig.toLowerCase()}">${sig}</span>`;
+}
+
+function renderFormula() {
+  const el = $("#formula");
+  if (!el) return;
+  const ps = state.data.players.filter((p) => p.formula);
+  if (!ps.length) { el.innerHTML = `<p class="muted">The formula scores appear after the next data build.</p>`; return; }
+  const w = state.data.formula?.weights || {};
+  const mine = myTeam();
+  const owner = (p) => (p.roster_id ? teamHtml(p.roster_id) : `<span class="muted">Free agent</span>`);
+
+  let myBlock = "";
+  if (mine) {
+    const calls = mine.players.map(assetById).filter((p) => p && p.formula).map((p) => ({ p, c: myCall(p, mine) }));
+    const group = (sig) => calls.filter((x) => x.c.signal === sig).sort((a, b) => b.p.value - a.p.value);
+    const list = (xs) => xs.map(({ p, c }) => `<li><span><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span><br><span class="muted">${esc(c.why)}</span></span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li><span class='muted'>None</span></li>";
+    const sit = state.data.teams.length && mine.build ? mine.build.name : situationText(mine.roster_id);
+    myBlock = `<h3>Your calls <span class="muted">(${esc(mine.name)}${sit ? " · " + esc(sit) : ""})</span></h3>
+      <div class="cols calls-grid">
+        <div class="card"><h4>${callBadge("SELL")} Sell</h4><ul>${list(group("SELL"))}</ul></div>
+        <div class="card"><h4>${callBadge("KEEP")} Keep: worth more than the market says</h4><ul>${list(group("KEEP"))}</ul></div>
+        <div class="card"><h4>${callBadge("HOLD")} Hold</h4><ul>${list(group("HOLD"))}</ul></div>
+      </div>`;
+  }
+  const targets = ps.filter((p) => p.call.signal === "BUY" && (!mine || p.roster_id !== mine.roster_id)).sort((a, b) => b.formula.score - a.formula.score).slice(0, 15);
+  const buyBlock = `<h3>Best buy targets <span class="muted">(top formula scores the market underprices; take them to the Trade Calculator)</span></h3>
+    <div class="table-wrap"><table id="buy-targets"><thead><tr><th>Player</th><th>Owner</th><th class="num">Score</th><th class="num">Value</th><th>Why</th></tr></thead><tbody>${targets
+      .map((p) => `<tr><td class="name">${esc(p.name)} <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span></td><td>${owner(p)}</td><td class="num">${p.formula.score}</td><td class="num">${fmt(p.value)}</td><td class="why">${esc(p.call.why)}</td></tr>`)
+      .join("")}</tbody></table></div>`;
+
+  const positions = ["ALL", ...POSITIONS.filter((x) => ps.some((p) => p.pos === x))];
+  el.innerHTML = `
+    <p class="muted">Your formula ranks every player 0-100 from seven parts, each a percentile in this league: ${PARTS.map(([k, , d]) => `<b>${Math.round((w[k] || 0) * 100)}%</b> ${esc(d.toLowerCase())}`).join("; ")}. The call compares what his points are worth in this league with what the market pays, then checks age and the last month's market move.</p>
+    ${myBlock}
+    ${mine ? `<h3>Trade ideas for you <span class="muted">(your sells shopped to every team and the top buy targets priced from your roster, using the Trade Finder's fair line)</span></h3>
+      <div class="toolbar"><button id="ideas-run" class="chip active">Find my trade ideas</button></div>
+      <div id="ideas-out">${ideas.list && ideas.league === state.data.league.id ? ideasHtml(ideas.list) : ""}</div>` : ""}
+    ${buyBlock}
+    <h3>Full formula rankings</h3>
+    <div class="toolbar">
+      <div id="formula-pos" class="chips">${positions.map((x) => `<button class="chip ${x === formulaView.pos ? "active" : ""}" data-pos="${x}">${x === "ALL" ? "Overall" : x}</button>`).join("")}</div>
+      <select id="formula-signal" aria-label="Call">${["ALL", "BUY", "HOLD", "SELL"].map((x) => `<option value="${x}" ${x === formulaView.signal ? "selected" : ""}>${x === "ALL" ? "All calls" : x}</option>`).join("")}</select>
+      <select id="formula-who" aria-label="Owner">${[["all", "All players"], ["mine", "My team"], ["others", "Other teams"], ["fa", "Free agents"]].map(([v, l]) => `<option value="${v}" ${v === formulaView.who ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input id="formula-search" type="search" placeholder="Search players" value="${esc(formulaView.q)}" />
+    </div>
+    <div class="table-wrap"><table id="formula-table"></table></div>`;
+  drawFormulaTable();
+  el.querySelectorAll("#formula-pos button").forEach((b) => b.addEventListener("click", () => { formulaView.pos = b.dataset.pos; el.querySelectorAll("#formula-pos button").forEach((x) => x.classList.toggle("active", x === b)); drawFormulaTable(); }));
+  $("#formula-signal").addEventListener("change", (e) => { formulaView.signal = e.target.value; drawFormulaTable(); });
+  $("#formula-who").addEventListener("change", (e) => { formulaView.who = e.target.value; drawFormulaTable(); });
+  $("#formula-search").addEventListener("input", (e) => { formulaView.q = e.target.value; drawFormulaTable(); });
+}
+
+function drawFormulaTable() {
+  const mine = myTeam();
+  const q = formulaView.q.trim().toLowerCase();
+  const rows = state.data.players
+    .filter((p) => p.formula)
+    .filter((p) => formulaView.pos === "ALL" || p.pos === formulaView.pos)
+    .filter((p) => formulaView.signal === "ALL" || p.call.signal === formulaView.signal)
+    .filter((p) => formulaView.who === "all" || (formulaView.who === "fa" ? !p.roster_id : formulaView.who === "mine" ? mine && p.roster_id === mine.roster_id : p.roster_id && (!mine || p.roster_id !== mine.roster_id)))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .sort((a, b) => a.formula.rank - b.formula.rank);
+  const bar = (v) => `<td class="num part" data-sort="${v}"><span class="pbar"><span style="width:${Math.max(2, v)}%"></span></span>${Math.round(v)}</td>`;
+  $("#formula-table").innerHTML = `<thead><tr><th class="num">#</th><th>Player</th><th>Owner</th><th class="num" title="Formula score, 0-100">Score</th>${PARTS.map(([, s, d]) => `<th class="num" title="${esc(d)}">${s}</th>`).join("")}<th class="num">Value</th><th class="num" title="Overall value rank">Val #</th><th>Call</th><th>Why</th></tr></thead><tbody>${rows
+    .map((p) => {
+      const c = mine && p.roster_id === mine.roster_id ? myCall(p, mine) : p.call;
+      return `<tr class="${mine && p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="num">${p.formula.rank}</td>
+        <td class="name"><span class="pos pos-${p.pos}">${p.pos}</span> <span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span> <span class="muted">${p.age ?? ""}</span></td>
+        <td>${p.roster_id ? teamHtml(p.roster_id) : '<span class="muted">FA</span>'}</td>
+        <td class="num strong">${p.formula.score}</td>${PARTS.map(([k]) => bar(p.formula.parts[k])).join("")}
+        <td class="num">${fmt(p.value)}</td><td class="num">${p.rank ?? ""}</td><td data-sort="${c.signal}">${callBadge(c.signal)}</td><td class="why">${esc(c.why)}</td></tr>`;
+    })
+    .join("")}</tbody>`;
+}
+
+// Trade ideas: the Trade Finder run for you from your own calls. Each SELL on your
+// roster is shopped to every team, and each top BUY target is priced from your roster;
+// the best fair deal for each (same rules as the finder) is listed with the reason.
+const IDEAS_SELL = 4, IDEAS_BUY = 4;
+const ideas = { list: null, league: null };
+
+function ideaSeeds(mine) {
+  const roster = mine.players.map(assetById).filter((p) => p && p.formula);
+  // Respect the Trade Finder's untouchable list when that feature is present.
+  const locked = (id) => typeof untouchable === "function" && untouchable(id, mine.roster_id);
+  const sells = roster.map((p) => ({ p, c: myCall(p, mine) })).filter((x) => x.c.signal === "SELL" && !locked(x.p.id))
+    .sort((a, b) => b.p.value - a.p.value).slice(0, IDEAS_SELL).map(({ p, c }) => ({ kind: "sell", a: p, why: c.why }));
+  const buys = state.data.players.filter((p) => p.formula && p.call.signal === "BUY" && p.roster_id && p.roster_id !== mine.roster_id && p.value >= 800)
+    .sort((a, b) => b.formula.score - a.formula.score).slice(0, IDEAS_BUY).map((p) => ({ kind: "buy", a: p, why: p.call.why }));
+  return [...sells, ...buys];
+}
+
+function runIdeas(done) {
+  const mine = myTeam();
+  if (!mine) { done([]); return; }
+  const seeds = ideaSeeds(mine);
+  const saved = { me: finder.me, partner: finder.partner, goal: finder.goal, send: finder.send, get: finder.get, last: finder.last };
+  const c = teamCtx(mine.roster_id);
+  const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
+  const out = [];
+  const step = (i) => {
+    if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
+    const s = seeds[i];
+    Object.assign(finder, { me: mine.roster_id, partner: null, goal, send: s.kind === "sell" ? [s.a.id] : [], get: s.kind === "buy" ? [s.a.id] : [] });
+    const r = findTrades();
+    const d = r.picked && r.picked[0];
+    out.push({ ...s, deal: d || null, goal });
+    const el = $("#ideas-out");
+    if (el) el.innerHTML = `<p class="muted">Working… ${i + 1} of ${seeds.length}</p>`;
+    setTimeout(() => step(i + 1), 0);
+  };
+  setTimeout(() => step(0), 20);
+}
+
+function ideasHtml(list) {
+  if (!list.length) return `<p class="muted">No sells on your roster and no buy targets to price right now.</p>`;
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const names = (xs) => xs.map((a) => esc(a.label || a.name)).join(", ");
+  return list.map((x, i) => {
+    const head = x.kind === "sell" ? `${callBadge("SELL")} Sell ${esc(x.a.name)}` : `${callBadge("BUY")} Buy ${esc(x.a.name)} <span class="muted">from ${teamHtml(x.a.roster_id)}</span>`;
+    if (!x.deal) return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}. No deal passes the fair line for both teams right now.</p></div>`;
+    const d = x.deal;
+    return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}.</p>
+      <p><b>Deal with ${teamHtml(d.B)}:</b> you get ${names(d.gets)}; you send ${names(d.gives)}.</p>
+      <p class="muted">Market ${pct(d.mkt)} for you · your goal ${pct(d.mine)} · their needs ${pct(d.them)} · your lineup ${d.dMe >= 0 ? "+" : ""}${d.dMe.toFixed(1)} pts/wk · record ${recordText(d.rec.me[0])} → ${recordText(d.rec.me[1])}</p>
+      <button class="chip idea-open" data-i="${i}">Open in Trade Calculator</button></div>`;
+  }).join("");
+}
+
+document.addEventListener("click", (e) => {
+  const run = e.target.closest("#ideas-run");
+  if (run) {
+    run.disabled = true;
+    $("#ideas-out").innerHTML = `<p class="muted">Working…</p>`;
+    runIdeas((list) => { ideas.list = list; ideas.league = state.data.league.id; $("#ideas-out").innerHTML = ideasHtml(list); run.disabled = false; });
+    return;
+  }
+  const b = e.target.closest(".idea-open");
+  if (!b || !ideas.list) return;
+  const x = ideas.list[Number(b.dataset.i)];
+  if (!x || !x.deal) return;
+  finder.me = myTeam().roster_id;
+  openInCalculator(x.deal);
+});
+
 // ---------- league & sources ----------
 function renderLeague() {
   const lg = state.data.league, f = lg.format;
@@ -1200,6 +1380,15 @@ function goalFactor(a, goal, rid, startsForMe) {
   return old <= 23 ? 1.2 : old <= 25 ? 1.1 : old <= 27 ? 1.0 : old <= 29 ? 0.85 : 0.7;
 }
 
+// Untouchables: players and picks the finder (and the trade ideas) never offer from
+// your side unless you add them to "You send" yourself. Kept in this browser per team.
+const lockKey = (rid) => `untouchable.${state.data.league.id}.${rid}`;
+function lockedIds(rid = finder.me ?? myTeam()?.roster_id) {
+  try { return new Set(JSON.parse(localStorageGet(lockKey(rid)) || "[]")); } catch { return new Set(); }
+}
+function untouchable(id, rid) { return lockedIds(rid).has(id); }
+function setLocked(rid, ids) { localStorageSet(lockKey(rid), JSON.stringify([...ids])); }
+
 function renderFinder() {
   const el = $("#finder");
   if (!el) return;
@@ -1227,6 +1416,9 @@ function renderFinder() {
         <h4>You get</h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul></div>
     </div>
+    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(never offered unless you add them to "You send" yourself)</span></h3>
+      <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
+      <ul class="assets">${[...lockedIds(finder.me)].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
       .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div>
       <button id="finder-run" class="chip active">Find trades</button></div>
@@ -1245,9 +1437,17 @@ function renderFinder() {
       renderFinder();
     };
   };
+  $("#finder-lock").onchange = (e) => {
+    const a = mine.find((x) => x.label === e.target.value || x.name === e.target.value);
+    if (a) { const ids = lockedIds(finder.me); ids.add(a.id); setLocked(finder.me, ids); }
+    renderFinder();
+  };
+  el.querySelectorAll("[data-unlock]").forEach((b) => b.addEventListener("click", () => {
+    const ids = lockedIds(finder.me); ids.delete(b.dataset.unlock); setLocked(finder.me, ids); renderFinder();
+  }));
   pick($("#finder-send"), mine, "send");
   pick($("#finder-get"), theirs, "get");
-  el.querySelectorAll(".assets button").forEach((b) => b.addEventListener("click", () => {
+  el.querySelectorAll(".assets button[data-kind]").forEach((b) => b.addEventListener("click", () => {
     finder[b.dataset.kind] = finder[b.dataset.kind].filter((id) => id !== b.dataset.id); renderFinder();
   }));
   el.querySelectorAll("#finder-goal button").forEach((b) => b.addEventListener("click", () => { finder.goal = b.dataset.goal; renderFinder(); }));
@@ -1271,7 +1471,8 @@ function findTrades() {
   // Your extra pieces the finder may add: picks and players outside your core for the goal.
   // Naming a piece to get with nothing to send opens your whole roster and picks to pay for it.
   const open = get.length && !send.length;
-  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id)
+  const locked = lockedIds(me);
+  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id) && !locked.has(a.id)
     && (open || (goal === "rebuild" ? a.kind === "player" && goalFactor(a, goal, me, startsForMe) < 1
       : a.kind === "pick" || !startsForMe.has(a.id))))
     .sort((a, b) => b.value - a.value).slice(0, open ? 14 : 10);
