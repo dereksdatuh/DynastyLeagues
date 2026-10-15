@@ -611,3 +611,15 @@ def test_future_ages_rosters_and_counts_picks():
     assert old[0] > old[1] > old[2]           # the 29-year-old RB fades
     assert young[0] > 10                       # value-implied points plus the 2027 rookie
     assert out[1]["now"]["rank"] == 1 and [y["year"] for y in out[1]["years"]] == [2027, 2028, 2029]
+
+
+def test_upcoming_weekly_projections_lead_rest_of_season():
+    scoring = {"rush_yd": 0.1, "rush_td": 6, "rec": 1, "rec_yd": 0.1}
+    weeks = [{}, {"b": {"stats": {"rush_yd": 80, "rush_td": 1, "rec": 3, "rec_yd": 20}}},
+             {"b": {"stats": {"rush_yd": 70, "rec": 2, "rec_yd": 10}}}]  # week one is his bye
+    up = record.upcoming_ppg("b", "RB", weeks, scoring)
+    assert up == pytest.approx((19 + 10) / 2)
+    # A backup who just inherited the job: his old 4.6 points a game barely drags the number.
+    assert record.blend_ppg(4.65, up) == pytest.approx(0.7 * 14.5 + 0.3 * 4.65)
+    assert record.blend_ppg(4.65, None) == 4.65
+    assert record.upcoming_ppg("nobody", "RB", weeks, scoring) is None

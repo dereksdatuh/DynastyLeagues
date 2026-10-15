@@ -114,6 +114,9 @@ class Shared:
             "week": week if in_season else None,
             "proj": safe(sleeper.season_projections, season, idp),
             "week_proj": safe(sleeper.week_projections, season, week, idp) if in_season and week else {},
+            "upcoming": [safe(sleeper.week_projections, season, w, idp)
+                         for w in range(week, min(week + record.UPCOMING_WEEKS, record.LAST_REGULAR_WEEK + 1))]
+            if in_season and week else [],
             "cur": safe(sleeper.season_stats, season, idp) if in_season else {},
             "last": safe(sleeper.season_stats, season - 1, idp),
         }
@@ -209,7 +212,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     )
     for p in players:
         p["roster_id"] = owner_of.get(p["id"])
-        p["ros_ppg"] = record.ros_ppg(p.get("ppg"), p.get("injury"))
+        p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
+        p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
     by_id = {p["id"]: p for p in players}
     history = weekly.update_history(load_history(config["id"]), players)
 

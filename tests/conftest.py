@@ -200,7 +200,10 @@ def fake_responses(world, league):
         **schedule,
         **tx,
         "/players/nfl": world.players,
-        "/projections/nfl/2026/5": list(world.proj.values()),
+        # Weekly projections: one game's share of the season line.
+        **{f"/projections/nfl/2026/{w}": [
+            {"player_id": k, "stats": {kk: vv / max(v["stats"].get("gp") or 17, 1) for kk, vv in v["stats"].items()}}
+            for k, v in world.proj.items()] for w in (5, 6, 7)},
         "/projections/nfl/2026": list(world.proj.values()),
         "/stats/nfl/2026": list(world.cur.values()),
         "/stats/nfl/2026/5": [{"player_id": k, "stats": {kk: vv / 4 for kk, vv in v["stats"].items()}} for k, v in list(world.cur.items())[:200]],
