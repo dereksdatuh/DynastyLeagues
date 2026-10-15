@@ -742,6 +742,32 @@ function renderPitches(ctx) {
 }
 
 // ---------- teams ----------
+// Eight roster builds from engine/builds.py; older data only has the three outlooks.
+function buildBadge(t) {
+  const b = t.build;
+  if (!b) return `<span class="outlook ${t.outlook}">${t.outlook}</span>`;
+  return `<span class="outlook ${b.tone === "middle" ? "middle" : b.tone === "contender" ? "contender" : "rebuilding"}" title="${esc(b.about)}">${esc(b.name)}</span>`;
+}
+function buildCard(t) {
+  const b = t.build;
+  if (!b) return "";
+  return `<div class="card build-card"><h4>Build</h4><p>${buildBadge(t)} ${esc(b.about)}</p>
+    <p class="muted">Why: ${b.reasons.map(esc).join("; ")}.</p>
+    <h4>Playbook</h4><ul class="plan">${b.plan.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+function renderBuildLegend() {
+  const el = $("#build-legend");
+  if (!el) return;
+  const seen = new Map();
+  for (const t of state.data.teams) if (t.build) (seen.get(t.build.key) || seen.set(t.build.key, { b: t.build, teams: [] }).get(t.build.key)).teams.push(t);
+  if (!seen.size) { el.innerHTML = ""; return; }
+  const order = ["juggernaut", "young_contender", "all_in", "bubble", "stuck", "youth", "pick_hoarder", "teardown"];
+  el.innerHTML = `<h3>Builds in this league</h3><div class="cols">${[...seen.values()]
+    .sort((x, y) => order.indexOf(x.b.key) - order.indexOf(y.b.key))
+    .map(({ b, teams }) => `<div class="card"><h4>${buildBadge(teams[0])}</h4><p class="muted">${esc(b.about)}</p><p>${teams.map((t) => teamHtml(t.roster_id)).join(", ")}</p></div>`)
+    .join("")}</div>`;
+}
+
 function renderTeams() {
   const recs = projectRecords();
   const rows = state.data.teams
@@ -752,14 +778,15 @@ function renderTeams() {
       <td class="num" data-sort="${recs[t.roster_id] ? recs[t.roster_id].maxPF : ""}" title="Max PF so far: ${fmt(t.record.max_pf || 0)}">${recs[t.roster_id] ? `${fmt(recs[t.roster_id].maxPF)} <span class="muted">(${ordinal(recs[t.roster_id].maxPFRank)})</span>` : ""}</td>
       <td class="num strong">${fmt(t.total_value)}</td><td class="num" data-sort="${t.starter_value}">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
       <td class="num">${fmt(t.pick_value)}</td><td class="num">${t.proj_week_points || ""}</td>
-      <td class="num">${t.starter_age ?? ""}</td><td><span class="outlook ${t.outlook}">${t.outlook}</span></td></tr>`)
+      <td class="num">${t.starter_age ?? ""}</td><td data-sort="${esc(t.build ? t.build.name : t.outlook)}">${buildBadge(t)}</td></tr>`)
     .join("");
   $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th>Projected</th><th class="num" title="Projected end-of-season max PF: max PF so far plus the best lineup's projected points for each regular-season week left">Proj. max PF</th><th class="num">Total value</th>
-    <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Outlook</th></tr></thead><tbody>${rows}</tbody>`;
+    <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Build</th></tr></thead><tbody>${rows}</tbody>`;
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
   );
   $("#record-note").textContent = recordNote();
+  renderBuildLegend();
   renderRooms();
   renderTeamDetail();
 }
@@ -776,6 +803,7 @@ function renderTeamDetail() {
   const sit = situationText(t.roster_id);
   el.innerHTML = `<h2>${esc(t.name)} <span class="muted">${esc(t.owner || "")}</span></h2>
     ${sit ? `<p class="muted">Trade situation: ${esc(sit)}.</p>` : ""}
+    ${buildCard(t)}
     <div class="cols">${Object.entries(groups)
       .sort((a, b) => POSITIONS.indexOf(a[0]) - POSITIONS.indexOf(b[0]))
       .map(([pos, ps]) => `<div class="card"><h4>${pos}</h4><ul>${ps

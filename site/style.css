@@ -69,6 +69,9 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--tier); }
 .outlook { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--tier); }
 .outlook.contender { color: var(--good); } .outlook.rebuilding { color: var(--bad); }
+.build-card { margin: 10px 0 14px; max-width: 760px; }
+.build-card p { margin: 4px 0 8px; } .build-card ul.plan { list-style: disc; padding-left: 18px; }
+.card ul.plan li { display: list-item; border: none; padding: 2px 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .card ul { list-style: none; margin: 0; padding: 0; }

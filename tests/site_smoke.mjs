@@ -35,6 +35,11 @@ for (const id of leagues) {
   await page.click('button[data-tab="teams"]');
   const teams = await page.$$eval("#teams tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim())));
   // Sorting: click "Proj. max PF" and check the column comes out high to low.
+  const builds = await page.$$eval("#build-legend .card", (cs) => cs.map((c) => c.querySelector("h4").textContent.trim() + " (" + c.querySelectorAll("p")[1].textContent.split(",").length + ")"));
+  console.log(`  builds: ${builds.join(", ")}`);
+  if (!builds.length) errors.push(`${id}: team builds did not render`);
+  await page.click("#teams tbody tr.clickable");
+  if (!(await page.$("#team-detail .build-card"))) errors.push(`${id}: build card missing in team detail`);
   const maxCol = await page.$$eval("#teams thead th", (ths) => ths.findIndex((th) => th.textContent.includes("max PF")));
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   const maxPF = await page.$$eval("#teams tbody tr", (rs, c) => rs.map((r) => Number(r.cells[c].dataset.sort)), maxCol);
