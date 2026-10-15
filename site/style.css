@@ -149,3 +149,10 @@ tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 @media (max-width: 720px) { .finder-grid { grid-template-columns: 1fr; } }
 .finder-grid input { width: 100%; box-sizing: border-box; }
 .finder-deal .why { margin: 6px 0 0; }
+/* money bank */
+.bank-table td { vertical-align: middle; }
+.bank-table input, .bank-table select, .bank-leagues input { padding: 4px 6px; }
+.bank-setup { display: flex; gap: 10px; margin-bottom: 6px; }
+.bank-setup label { font-size: 12px; color: var(--muted); }
+.bank-leagues textarea { margin-top: 6px; background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font: inherit; font-size: 13px; box-sizing: border-box; }
+b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }

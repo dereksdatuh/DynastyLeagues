@@ -118,6 +118,22 @@ for (const id of leagues) {
   if (lens.length !== 2) errors.push(`${id}: team-situation trade view did not render`);
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);
 }
+// Money Bank: add a season for every league, fill one in, and check it survives a reload.
+await page.click('button[data-tab="bank"]');
+await page.click("#bank-add-all");
+const bankRows = await page.$$eval("#bank-ledger tbody tr[data-id]", (r) => r.length);
+if (bankRows !== leagues.length) errors.push(`money bank: expected ${leagues.length} rows, got ${bankRows}`);
+await page.fill('#bank-ledger tr[data-id] [data-f="dues"]', "100");
+await page.dispatchEvent('#bank-ledger tr[data-id] [data-f="dues"]', "change");
+await page.check('#bank-ledger tr[data-id] [data-f="paid"]');
+await page.fill('#bank-ledger tr[data-id] [data-f="winnings"]', "250");
+await page.dispatchEvent('#bank-ledger tr[data-id] [data-f="winnings"]', "change");
+await page.reload();
+await page.waitForSelector("#bank .stats", { state: "attached" });
+const bank = await page.$$eval("#bank .stats div", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim()));
+console.log(`money bank after reload: ${bank.join(" | ")}`);
+if (!bank.some((t) => t.includes("Net") && t.includes("$150"))) errors.push(`money bank totals wrong after reload: ${bank}`);
+await page.evaluate(() => localStorage.removeItem("moneybank.v1"));
 await browser.close();
 console.log("Live calls from the browser (ok, failed):", JSON.stringify(live));
 if (errors.length) {
