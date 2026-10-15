@@ -92,6 +92,24 @@ def test_pick_ownership_applies_trades():
     assert moved[0]["owner_roster_id"] == 1
 
 
+def test_value_adjustment_beats_simple_addition():
+    # Twelve thirds for one good player is not close, though the raw sums are.
+    hop = trade.evaluate([{"value": 4000}], [{"value": 300, "kind": "pick"}] * 12)
+    assert hop["verdict"] == "side A receives more" and hop["difference_pct"] > 15
+    assert hop["value_adjustment"]["side"] == "a" and hop["value_adjustment"]["value"] > 0
+    # A real stud is worth more over two halves than a mid player over two halves.
+    star = trade.evaluate([{"value": 9000}], [{"value": 4500}, {"value": 4500}])["difference_pct"]
+    mid = trade.evaluate([{"value": 3000}], [{"value": 1500}, {"value": 1500}])["difference_pct"]
+    assert star > mid > 5
+    # Picks take no roster spot; players do.
+    picks = trade.adjust([{"value": 2000}], [{"value": 1000, "kind": "pick"}, {"value": 1000, "kind": "pick"}])
+    players = trade.adjust([{"value": 2000}], [{"value": 1000}, {"value": 1000}])
+    assert picks["v"]["roster"] == 0 and players["v"]["roster"] < 0
+    # Even pieces are untouched.
+    flat = trade.adjust([{"value": 3000}], [{"value": 3000}])
+    assert flat["pct"] == 0 and flat["g"]["stud"] == flat["v"]["stud"] == 0
+
+
 def test_trade_consolidation_premium():
     two_for_one = trade.evaluate([{"value": 6000}], [{"value": 3000}, {"value": 3000}])
     assert two_for_one["raw"]["a"] == two_for_one["raw"]["b"]
@@ -186,7 +204,7 @@ def test_three_team_trade_nets_and_balance():
     ]
     res = trade.evaluate_multi(teams)
     nets = {t["name"]: t["net_pct"] for t in res["teams"]}
-    assert nets["A"] == -50 and nets["B"] == 50 and nets["C"] == 0
+    assert nets["A"] < -45 and nets["B"] > 45 and nets["C"] == 0
     assert res["verdict"] == "uneven"
     assert res["to_balance"]["receiver"] == "A" and res["to_balance"]["sender"] == "B"
     assert res["to_balance"]["add_value"] > 3000

@@ -69,6 +69,10 @@ for (const id of leagues) {
     await inp.dispatchEvent("change");
   }
   const impact = await page.$$eval(".impact tbody tr", (r) => r.length);
+  const adjustCard = await page.$eval("#trade-result .adjust", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 240)).catch(() => "");
+  const direction = await page.$$eval(".impact tbody tr", (rs) => rs.map((r) => r.cells[1].textContent.replace(/\s+/g, " ").trim()));
+  console.log(`  value adjustment: ${adjustCard}\n  direction: ${direction.join(" / ")}`);
+  if (!adjustCard || direction.some((d) => !d)) errors.push(`${id}: value adjustment or direction missing`);
   // The same trade judged by each team's own situation.
   const lens = await page.$$eval("#trade-result table.net tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim()).join(" | ")));
   const toThem = await page.$$eval(".trade-side .tv", (r) => r.length);
@@ -97,15 +101,24 @@ for (const id of leagues) {
   if (lockOpt && lockedLabel !== lockOpt) errors.push(`${id}: untouchable did not save (${lockedLabel})`);
   const finderRuns = [];
   for (const kind of ["send", "get"]) {
-    const opt = await page.$eval(`#finder-${kind}-list option`, (o) => o.value).catch(() => null);
+    // Send your best piece; ask for a mid-priced one (the very top rarely has a fair price from a bench).
+    const opt = await page.$$eval(`#finder-${kind}-list option`, (os, k) => (os.length ? os[k === "get" ? Math.min(25, os.length - 1) : 0].value : null), kind).catch(() => null);
     if (!opt) continue;
     await page.fill(`#finder-${kind}`, opt);
     await page.dispatchEvent(`#finder-${kind}`, "change");
+    if (kind === "get") { await page.click("#offer-picks"); await page.click("#offer-bench"); }
+    // Only what's in "You send" or "OK to add" may ever be offered.
+    const allowed = await page.$$eval("#finder .finder-grid .trade-side:first-child .assets li span:first-child", (ss) => ss.map((x) => x.textContent.trim()));
     const t0 = Date.now();
     await page.click("#finder-run");
     await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 30000 });
     const sentLocked = await page.$$eval("#finder-out .finder-deal", (ds, l) => ds.filter((d) => d.querySelectorAll(".card")[1]?.textContent.includes(l)).length, lockedLabel);
     if (lockedLabel && kind === "get" && sentLocked) errors.push(`${id}: finder offered untouchable ${lockedLabel}`);
+    const sent = await page.$$eval("#finder-out .finder-deal", (ds) => ds.flatMap((d) => [...(d.querySelectorAll(".card")[1]?.querySelectorAll("li span:first-child") || [])].map((x) => x.textContent.trim())));
+    const stray = sent.filter((x) => !allowed.includes(x));
+    if (stray.length) errors.push(`${id}: finder offered pieces not picked: ${[...new Set(stray)].slice(0, 3).join(", ")}`);
+    const dir = await page.$eval("#finder-out .finder-deal", (d) => d.textContent.includes("Your direction")).catch(() => true);
+    if (!dir) errors.push(`${id}: finder deal has no direction line`);
     const deals = await page.$$eval("#finder-out .finder-deal", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 420)));
     const note = await page.$eval("#finder-out", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 160));
     finderRuns.push(`${kind} ${opt}: ${deals.length} deals in ${Date.now() - t0} ms${deals[0] ? "\n      " + deals[0] : " (" + note + ")"}`);
