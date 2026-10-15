@@ -51,6 +51,26 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 .pos-DL { background: var(--DL); } .pos-LB { background: var(--LB); } .pos-DB { background: var(--DB); } .pos-DEF { background: var(--DEF); }
 .fit { font-size: 12px; font-weight: 600; } .fit.up { color: var(--good); } .fit.down { color: var(--bad); }
 .inj { font-size: 11px; color: var(--bad); font-weight: 600; }
+.player-link { cursor: pointer; } .player-link:hover { color: var(--accent); text-decoration: underline; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 24px 12px; overflow-y: auto; }
+.modal-box { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; width: 100%; max-width: 760px; }
+.modal-box h2 { margin: 0 32px 4px 0; }
+.modal-close { position: absolute; top: 10px; right: 12px; border: none; background: none; font-size: 24px; cursor: pointer; color: var(--muted); }
+.spark { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.spark-axis { display: flex; justify-content: space-between; font-size: 12px; }
+.parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; font-size: 13px; }
+.parts label { display: inline-block; min-width: 76px; color: var(--muted); text-transform: capitalize; }
+.parts .pbar { display: inline-block; width: 40px; height: 6px; background: var(--border); border-radius: 3px; vertical-align: middle; overflow: hidden; }
+.parts .pbar span { display: block; height: 100%; background: var(--accent); }
+.call { display: inline-block; min-width: 44px; text-align: center; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: var(--tier); }
+.call-buy { background: rgba(34, 197, 94, 0.18); color: var(--good); } .call-sell { background: rgba(239, 68, 68, 0.16); color: var(--bad); }
+.call-keep { background: rgba(37, 99, 235, 0.15); color: var(--accent); } .call-hold { color: var(--muted); }
+#formula-table td.why, #buy-targets td.why { white-space: normal; min-width: 260px; font-size: 12px; color: var(--muted); }
+#formula-table td.part { font-size: 12px; min-width: 64px; }
+.pbar { display: inline-block; width: 28px; height: 6px; background: var(--border); border-radius: 3px; margin-right: 4px; vertical-align: middle; overflow: hidden; }
+.pbar span { display: block; height: 100%; background: var(--accent); }
+#formula .card li { align-items: flex-start; }
+.calls-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .trade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 720px) { .trade-grid { grid-template-columns: 1fr; } }
 .trade-side { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -69,6 +89,9 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; t
 tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--tier); }
 .outlook { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--tier); }
 .outlook.contender { color: var(--good); } .outlook.rebuilding { color: var(--bad); }
+.build-card { margin: 10px 0 14px; max-width: 760px; }
+.build-card p { margin: 4px 0 8px; } .build-card ul.plan { list-style: disc; padding-left: 18px; }
+.card ul.plan li { display: list-item; border: none; padding: 2px 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
 .card ul { list-style: none; margin: 0; padding: 0; }
@@ -148,4 +171,12 @@ tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 .finder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
 @media (max-width: 720px) { .finder-grid { grid-template-columns: 1fr; } }
 .finder-grid input { width: 100%; box-sizing: border-box; }
+.untouchables { margin-bottom: 12px; } .untouchables input { width: 100%; max-width: 420px; box-sizing: border-box; }
 .finder-deal .why { margin: 6px 0 0; }
+/* money bank */
+.bank-table td { vertical-align: middle; }
+.bank-table input, .bank-table select, .bank-leagues input { padding: 4px 6px; }
+.bank-setup { display: flex; gap: 10px; margin-bottom: 6px; }
+.bank-setup label { font-size: 12px; color: var(--muted); }
+.bank-leagues textarea { margin-top: 6px; background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font: inherit; font-size: 13px; box-sizing: border-box; }
+b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }

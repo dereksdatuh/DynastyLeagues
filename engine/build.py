@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import draft, fetch, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, future, ids, outlook, record, sleeper, team_value, valuation, weekly
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -114,6 +114,9 @@ class Shared:
             "week": week if in_season else None,
             "proj": safe(sleeper.season_projections, season, idp),
             "week_proj": safe(sleeper.week_projections, season, week, idp) if in_season and week else {},
+            "upcoming": [safe(sleeper.week_projections, season, w, idp)
+                         for w in range(week, min(week + record.UPCOMING_WEEKS, record.LAST_REGULAR_WEEK + 1))]
+            if in_season and week else [],
             "cur": safe(sleeper.season_stats, season, idp) if in_season else {},
             "last": safe(sleeper.season_stats, season - 1, idp),
         }
@@ -209,7 +212,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     )
     for p in players:
         p["roster_id"] = owner_of.get(p["id"])
-        p["ros_ppg"] = record.ros_ppg(p.get("ppg"), p.get("injury"))
+        p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
+        p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
     by_id = {p["id"]: p for p in players}
     history = weekly.update_history(load_history(config["id"]), players)
 
@@ -390,10 +394,16 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["starter_rank"] = starter_rank[t["roster_id"]]
         sr = t["starter_rank"]
         t["outlook"] = "contender" if sr <= n / 3 else "rebuilding" if sr > 2 * n / 3 else "middle"
+    for rid, b in builds.assign(teams, by_id, playoff_teams).items():
+        next(t for t in teams if t["roster_id"] == rid)["build"] = b
+    for rid, f in future.project(teams, players, fmt.slots, int(league.get("season") or datetime.now().year), picks).items():
+        next(t for t in teams if t["roster_id"] == rid)["future"] = f
 
     # What each team would pay for every player and pick, from its own situation.
     tv_ctx = team_value.contexts(teams, by_id, fmt.slots, fmt.superflex)
     tv = {"context": tv_ctx, "factors": team_value.factors(teams, players, picks, fmt.slots, tv_ctx, first_year)}
+
+    formula.score(players, model_info.get("replacement_ppg") or {}, model_info.get("starters_per_position") or {})
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -415,6 +425,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "history": history,
         "sources": source_status,
         "model": model_info,
+        "formula": {"weights": formula.WEIGHTS, "cliff": formula.CLIFF, "gap": formula.GAP, "swing": formula.SWING},
         "players": players,
         "picks": picks,
         "rookie_draft": rookie,
@@ -459,7 +470,7 @@ def main(argv=None):
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
-                      "buy_in": lg["buy_in"], "teams": len(data["teams"]),
+                      "buy_in": lg["buy_in"], "payouts": lg.get("payouts"), "teams": len(data["teams"]),
                       "sources": [s for s in data["sources"]], "generated_at": data["generated_at"]})
         ok = [s["source"] for s in data["sources"] if s["ok"]]
         print(f"built {config['id']} ({lg['name']}): {len(data['players'])} players, "

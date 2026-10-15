@@ -483,6 +483,20 @@ def test_draft_order_today_uses_current_record_and_max_pf():
     assert draft.project_order(teams, "max_pf", 2, [3, 4], key="record") == [4, 3, 2, 1]
 
 
+def test_fixed_round_orders_place_each_pick_at_its_listed_slot():
+    teams = [{"roster_id": r, "owner": o} for r, o in [(1, "DS107"), (2, "Amy"), (3, "Bo")]]
+    orders = draft.fixed_round_orders([["ds107", "Amy", "Bo"], ["Bo", "@DS107", "Amy"]], teams)
+    assert orders == {1: [1, 2, 3], 2: [3, 1, 2]}
+    # A listed round beats the snake; rounds not listed fall back to round one's order.
+    assert draft.slot_in_round([1, 2, 3], 2, 1, True, orders) == 2
+    assert draft.slot_in_round([1, 2, 3], 3, 3, False, orders) == 3
+    board = draft.draft_board([1, 2, 3], [], 2027, 2, False, round_orders=orders)
+    assert [b["original_roster_id"] for b in board] == [1, 2, 3, 3, 1, 2]
+    # A name that matches no team, or a team listed twice, drops the whole order.
+    assert draft.fixed_round_orders([["DS107", "Amy", "Cy"]], teams) is None
+    assert draft.fixed_round_orders([["DS107", "Amy", "Amy"]], teams) is None
+
+
 def test_build_shows_standings_and_pick_slots_as_of_today(offline):
     league = copy.deepcopy(STANDARD_LEAGUE)
     league["settings"]["divisions"] = 4
@@ -533,3 +547,79 @@ def test_build_ships_strength_of_schedule(offline):
     for t in data["teams"]:
         s = sos[t["roster_id"]]
         assert len(s["weeks"]) == 10 and s["exp_wins"] == pytest.approx(t["projection"]["remaining_wins"], abs=0.01)
+
+
+def test_formula_scores_and_calls():
+    from engine import formula
+
+    def pl(pid, pos, age, value, model, trend=0, ppg=15):
+        return {"id": pid, "pos": pos, "age": age, "value": value, "market": value, "market_adj": value,
+                "model": model, "trend": trend, "ros_ppg": ppg, "premium": 1.0, "spread": 0.1, "pos_rank": 5}
+
+    players = [pl("old", "RB", 29, 4000, 4000), pl("cheap", "WR", 24, 4000, 6000),
+               pl("pricey", "WR", 25, 4000, 2500), pl("dip", "QB", 25, 4000, 4000, trend=-800),
+               pl("fair", "TE", 26, 4000, 4100), pl("tiny", "WR", 22, 50, 50)]
+    formula.score(players, {"RB": 8, "WR": 9, "QB": 16, "TE": 8}, {"RB": 24, "WR": 36, "QB": 12, "TE": 12})
+    sig = {p["id"]: p.get("call", {}).get("signal") for p in players}
+    assert sig == {"old": "SELL", "cheap": "BUY", "pricey": "SELL", "dip": "BUY", "fair": "HOLD", "tiny": None}
+    scores = [p["formula"]["score"] for p in players if "formula" in p]
+    assert all(0 <= s <= 100 for s in scores)
+    assert sorted(p["formula"]["rank"] for p in players if "formula" in p) == [1, 2, 3, 4, 5]
+
+
+def test_builds_place_every_team_in_one_of_eight():
+    from engine import builds
+
+    def team(rid, ppg, value, picks, ages, proj):
+        players = [f"{rid}-{i}" for i in range(len(ages))]
+        return {"roster_id": rid, "ros_ppg": ppg, "players": players, "player_value": value - picks,
+                "pick_value": picks, "total_value": value, "projection": {"rank": proj}}, \
+            {pid: {"id": pid, "age": a, "value": (value - picks) / len(ages)} for pid, a in zip(players, ages)}
+
+    specs = [(1, 200, 90000, 5000, [25] * 12, 1), (2, 195, 60000, 4000, [30] * 12, 2),
+             (3, 150, 50000, 40000, [23] * 12, 9), (4, 120, 30000, 3000, [29] * 12, 10),
+             (5, 160, 40000, 6000, [27] * 12, 4), (6, 130, 45000, 6000, [22] * 12, 8)]
+    teams, by_id = [], {}
+    for s in specs:
+        t, ps = team(*s)
+        teams.append(t)
+        by_id.update(ps)
+    out = builds.assign(teams, by_id, playoff_teams=4)
+    assert set(out) == {1, 2, 3, 4, 5, 6}
+    assert out[1]["key"] == "juggernaut"
+    assert out[2]["key"] == "all_in"
+    assert out[3]["key"] == "pick_hoarder"
+    assert out[4]["key"] == "teardown"
+    assert out[6]["key"] == "youth"
+    assert all(b["key"] in builds.BUILDS and b["reasons"] and b["plan"] for b in out.values())
+
+
+def test_future_ages_rosters_and_counts_picks():
+    from engine import future
+
+    slots = ["QB", "RB", "WR", "FLEX"]
+    players = [{"id": "oldrb", "pos": "RB", "age": 29, "value": 3000, "ros_ppg": 18},
+               {"id": "youngwr", "pos": "WR", "age": 22, "value": 6000, "ros_ppg": 10},
+               {"id": "qb", "pos": "QB", "age": 27, "value": 5000, "ros_ppg": 20},
+               {"id": "vetwr", "pos": "WR", "age": 26, "value": 5500, "ros_ppg": 17}]
+    teams = [{"roster_id": 1, "players": ["oldrb", "qb"], "ros_ppg": 38},
+             {"roster_id": 2, "players": ["youngwr"], "ros_ppg": 10}]
+    picks = [{"id": "pick:2027:1:2", "roster_id": 2, "year": 2027, "value": 5600}]
+    out = future.project(teams, players, slots, 2026, picks)
+    old = [y["ppg"] for y in out[1]["years"]]
+    young = [y["ppg"] for y in out[2]["years"]]
+    assert old[0] > old[1] > old[2]           # the 29-year-old RB fades
+    assert young[0] > 10                       # value-implied points plus the 2027 rookie
+    assert out[1]["now"]["rank"] == 1 and [y["year"] for y in out[1]["years"]] == [2027, 2028, 2029]
+
+
+def test_upcoming_weekly_projections_lead_rest_of_season():
+    scoring = {"rush_yd": 0.1, "rush_td": 6, "rec": 1, "rec_yd": 0.1}
+    weeks = [{}, {"b": {"stats": {"rush_yd": 80, "rush_td": 1, "rec": 3, "rec_yd": 20}}},
+             {"b": {"stats": {"rush_yd": 70, "rec": 2, "rec_yd": 10}}}]  # week one is his bye
+    up = record.upcoming_ppg("b", "RB", weeks, scoring)
+    assert up == pytest.approx((19 + 10) / 2)
+    # A backup who just inherited the job: his old 4.6 points a game barely drags the number.
+    assert record.blend_ppg(4.65, up) == pytest.approx(0.7 * 14.5 + 0.3 * 4.65)
+    assert record.blend_ppg(4.65, None) == 4.65
+    assert record.upcoming_ppg("nobody", "RB", weeks, scoring) is None

@@ -17,6 +17,7 @@
 
   <nav class="tabs" role="tablist">
     <button data-tab="rankings" class="active">Rankings</button>
+    <button data-tab="formula">Formula &amp; Calls</button>
     <button data-tab="trade">Trade Calculator</button>
     <button data-tab="finder">Trade Finder</button>
     <button data-tab="teams">Teams</button>
@@ -27,6 +28,7 @@
     <button data-tab="news">News</button>
     <button data-tab="trades">Recent Trades</button>
     <button data-tab="rookie">Rookie Mock</button>
+    <button data-tab="bank">Money Bank</button>
     <button data-tab="league">League &amp; Sources</button>
   </nav>
 
@@ -44,6 +46,8 @@
       <div class="table-wrap"><table id="rankings"></table></div>
     </section>
 
+    <section id="tab-formula" class="tab hidden"><div id="formula"></div></section>
+
     <section id="tab-trade" class="tab hidden">
       <div class="toolbar"><span class="muted">Teams in trade</span><div id="team-count" class="chips"></div></div>
       <div id="trade-sides" class="trade-grid"></div>
@@ -55,6 +59,8 @@
     <section id="tab-teams" class="tab hidden">
       <div class="table-wrap"><table id="teams"></table></div>
       <p id="record-note" class="muted"></p>
+      <div id="build-legend"></div>
+      <div id="future"></div>
       <h3>Best rooms <span class="muted">(league rank by starters and by position; green = top third, red = bottom third)</span></h3>
       <div class="table-wrap"><table id="rooms"></table></div>
       <div id="team-detail"></div>
@@ -68,6 +74,7 @@
     <section id="tab-trades" class="tab hidden"><div id="trades"></div></section>
 
     <section id="tab-rookie" class="tab hidden"><div id="rookie"></div></section>
+    <section id="tab-bank" class="tab hidden"><div id="bank"></div></section>
     <section id="tab-league" class="tab hidden">
       <div id="league-info"></div>
     </section>

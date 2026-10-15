@@ -32,9 +32,25 @@ for (const id of leagues) {
   await page.waitForFunction((id) => document.querySelector("#rankings tbody tr") && document.querySelector("#league-select").value === id, id);
   await page.waitForTimeout(500);
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
+  // Player page: open the top player, check the pieces, close it.
+  await page.click("#rankings .player-link");
+  await page.waitForSelector("#player-modal:not(.hidden) .buyers tbody tr");
+  await page.waitForFunction(() => !/Loading/.test(document.querySelector("#player-history").textContent));
+  const playerPage = await page.$eval("#player-body", (b) => `${b.querySelector("h2").textContent.trim()}: ${b.querySelectorAll(".buyers tbody tr").length} team prices, top buyer ${b.querySelector(".buyers tbody tr td").textContent.trim()}, trend ${b.querySelector("#player-history svg") ? "chart" : b.querySelector("#player-history").textContent.trim()}`);
+  console.log(`  player page: ${playerPage}`);
+  await page.click("#player-modal .modal-close");
+  if (!(await page.$("#player-modal.hidden"))) errors.push(`${id}: player page did not close`);
   await page.click('button[data-tab="teams"]');
   const teams = await page.$$eval("#teams tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim())));
   // Sorting: click "Proj. max PF" and check the column comes out high to low.
+  const builds = await page.$$eval("#build-legend .card", (cs) => cs.map((c) => c.querySelector("h4").textContent.trim() + " (" + c.querySelectorAll("p")[1].textContent.split(",").length + ")"));
+  console.log(`  builds: ${builds.join(", ")}`);
+  const fut = await page.$$eval("#future-table tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].slice(1, 8).map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
+  console.log(`  future: ${fut.join("  //  ")}`);
+  if (!fut.length) errors.push(`${id}: future power rankings did not render`);
+  if (!builds.length) errors.push(`${id}: team builds did not render`);
+  await page.click("#teams tbody tr.clickable");
+  if (!(await page.$("#team-detail .build-card"))) errors.push(`${id}: build card missing in team detail`);
   const maxCol = await page.$$eval("#teams thead th", (ths) => ths.findIndex((th) => th.textContent.includes("max PF")));
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   const maxPF = await page.$$eval("#teams tbody tr", (rs, c) => rs.map((r) => Number(r.cells[c].dataset.sort)), maxCol);
@@ -74,6 +90,11 @@ for (const id of leagues) {
   const sos = await page.$$eval("#sos tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   const sosWeeks = await page.$$eval("#sos-weeks thead th", (r) => r.length - 1);
   await page.click('button[data-tab="finder"]');
+  // Lock your most valuable asset, then check no finder deal offers it.
+  const lockOpt = await page.$eval("#finder-send-list option", (o) => o.value).catch(() => null);
+  if (lockOpt) { await page.fill("#finder-lock", lockOpt); await page.dispatchEvent("#finder-lock", "change"); }
+  const lockedLabel = await page.$eval(".untouchables li span", (s) => s.textContent.replace("🔒", "").trim()).catch(() => "");
+  if (lockOpt && lockedLabel !== lockOpt) errors.push(`${id}: untouchable did not save (${lockedLabel})`);
   const finderRuns = [];
   for (const kind of ["send", "get"]) {
     const opt = await page.$eval(`#finder-${kind}-list option`, (o) => o.value).catch(() => null);
@@ -83,12 +104,14 @@ for (const id of leagues) {
     const t0 = Date.now();
     await page.click("#finder-run");
     await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 30000 });
+    const sentLocked = await page.$$eval("#finder-out .finder-deal", (ds, l) => ds.filter((d) => d.querySelectorAll(".card")[1]?.textContent.includes(l)).length, lockedLabel);
+    if (lockedLabel && kind === "get" && sentLocked) errors.push(`${id}: finder offered untouchable ${lockedLabel}`);
     const deals = await page.$$eval("#finder-out .finder-deal", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 420)));
     const note = await page.$eval("#finder-out", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 160));
     finderRuns.push(`${kind} ${opt}: ${deals.length} deals in ${Date.now() - t0} ms${deals[0] ? "\n      " + deals[0] : " (" + note + ")"}`);
     await page.click("#finder-out .finder-open").catch(() => {});
     await page.click('button[data-tab="finder"]');
-    for (let i = 0; i < 6 && (await page.$("#finder .assets button")); i++) await page.click("#finder .assets button");
+    for (let i = 0; i < 6 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
   }
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
@@ -98,6 +121,21 @@ for (const id of leagues) {
   const prospects = await page.$$eval("#prospects tbody tr", (r) => r.length);
   const standings = await page.$$eval("#standings-now tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   const weekNote = await page.$eval("#matchups", (e) => (e.querySelector("p") || e).textContent.trim().slice(0, 120));
+  await page.click('button[data-tab="formula"]');
+  const formulaRows = await page.$$eval("#formula-table tbody tr", (r) => r.length);
+  const myCalls = await page.$$eval("#formula .calls-grid .card", (cs) => cs.map((c) => c.querySelector("h4").textContent.trim().split(" ")[0] + " " + c.querySelectorAll("li b").length));
+  const topFormula = await page.$$eval("#formula-table tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].slice(1, 4).map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" ")));
+  await page.selectOption("#formula-signal", "BUY");
+  const buys = await page.$$eval("#formula-table tbody tr", (r) => r.length);
+  await page.selectOption("#formula-signal", "ALL");
+  const ideaT0 = Date.now();
+  await page.click("#ideas-run");
+  await page.waitForFunction(() => !/Working/.test(document.querySelector("#ideas-out").textContent), null, { timeout: 120000 });
+  const ideaList = await page.$$eval("#ideas-out .idea", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 200)));
+  console.log(`  trade ideas: ${ideaList.length} in ${Date.now() - ideaT0} ms\n${ideaList.slice(0, 3).map((x) => "      " + x).join("\n")}`);
+  if (!ideaList.length) errors.push(`${id}: trade ideas did not render`);
+  console.log(`  formula: ${formulaRows} players, ${buys} buys; top ${topFormula.join("; ")}; my calls ${myCalls.join(", ")}`);
+  if (!formulaRows) errors.push(`${id}: formula rankings did not render`);
   await page.click('button[data-tab="rankings"]');
   console.log(`${id}: ${weekNote}`);
   console.log(`  trade finder:\n${finderRuns.map((r) => "    " + r).join("\n")}`);
@@ -118,6 +156,23 @@ for (const id of leagues) {
   if (lens.length !== 2) errors.push(`${id}: team-situation trade view did not render`);
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);
 }
+// Money Bank: add a season for every league, fill one in, and check it survives a reload.
+await page.click('button[data-tab="bank"]');
+await page.click("#bank-add-all");
+const bankRows = await page.$$eval("#bank-ledger tbody tr[data-id]", (r) => r.length);
+if (bankRows !== leagues.length) errors.push(`money bank: expected ${leagues.length} rows, got ${bankRows}`);
+await page.fill('#bank-ledger tr[data-id] [data-f="dues"]', "100");
+await page.dispatchEvent('#bank-ledger tr[data-id] [data-f="dues"]', "change");
+await page.check('#bank-ledger tr[data-id] [data-f="paid"]');
+await page.fill('#bank-ledger tr[data-id] [data-f="winnings"]', "250");
+await page.dispatchEvent('#bank-ledger tr[data-id] [data-f="winnings"]', "change");
+await page.reload();
+await page.waitForSelector("#bank .stats", { state: "attached" });
+const bank = await page.$$eval("#bank .stats div", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim()));
+console.log(`money bank after reload: ${bank.join(" | ")}`);
+if (!bank.some((t) => t.includes("Net") && t.includes("$150"))) errors.push(`money bank totals wrong after reload: ${bank}`);
+await page.evaluate(() => localStorage.removeItem("moneybank.v1"));
+await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("untouchable.")).forEach((k) => localStorage.removeItem(k)));
 await browser.close();
 console.log("Live calls from the browser (ok, failed):", JSON.stringify(live));
 if (errors.length) {

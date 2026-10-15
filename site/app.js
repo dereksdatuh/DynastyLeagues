@@ -72,6 +72,7 @@ async function init() {
   if (saved && state.index.leagues.some((l) => l.id === saved)) sel.value = saved;
   sel.addEventListener("change", () => loadLeague(sel.value));
   if (state.index.leagues.length) loadLeague(sel.value);
+  renderBank();
 }
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -97,6 +98,7 @@ async function loadLeague(id) {
   finder.me = null; finder.goal = null; finder.last = null;
   renderFinder();
   renderRookieMock();
+  renderFormula();
 }
 
 // ---------- tabs ----------
@@ -157,7 +159,7 @@ function renderRankings() {
       const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}`).join("\n");
       return `${sep}<tr>
         <td>${byPos ? p.pos_rank : p.rank}</td>
-        <td><span class="name">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
+        <td><span class="name player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
         <td><span class="pos pos-${p.pos}">${p.pos}${p.pos_rank}</span></td>
         <td>${esc(p.team || "FA")}</td>
         <td class="num">${p.age ?? ""}</td>
@@ -175,6 +177,105 @@ function renderRankings() {
     <th class="num" title="League scoring production model">Model</th><th title="Scoring fit">Fit</th>
     <th class="num" title="Points per game in this league's scoring / projected this week">PPG / Wk</th><th>Owner</th></tr></thead><tbody>${body}</tbody>`;
 }
+
+// ---------- player page ----------
+// Click any player name with data-pid to open everything known about him: how his
+// value is built, every site's price, his value over the last weeks, what each team
+// in the league would pay given its own situation, and his formula score and call.
+const historyCache = {};
+async function loadHistory(id) {
+  if (historyCache[id] !== undefined) return historyCache[id];
+  try { historyCache[id] = await getJSON(`data/history/${id}.json`); } catch { historyCache[id] = null; }
+  return historyCache[id];
+}
+
+function sparkline(points) {
+  if (points.length < 2) return "";
+  const w = 320, h = 70, pad = 4;
+  const vs = points.map((p) => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const xy = points.map(([, v], i) => [pad + (i * (w - 2 * pad)) / (points.length - 1), h - pad - ((v - lo) * (h - 2 * pad)) / span]);
+  const up = vs[vs.length - 1] >= vs[0];
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="Value over time">
+    <polyline fill="none" stroke="var(--${up ? "good" : "bad"})" stroke-width="2" points="${xy.map((p) => p.map((n) => n.toFixed(1)).join(",")).join(" ")}" />
+    ${xy.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--${up ? "good" : "bad"})"><title>${esc(points[i][0])}: ${fmt(points[i][1])}</title></circle>`).join("")}
+  </svg><div class="spark-axis muted"><span>${esc(points[0][0])} · ${fmt(vs[0])}</span><span>${esc(points[points.length - 1][0])} · ${fmt(vs[vs.length - 1])}</span></div>`;
+}
+
+async function openPlayer(id) {
+  const p = state.data.players.find((x) => x.id === id);
+  if (!p) return;
+  let modal = $("#player-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "player-modal";
+    modal.className = "modal hidden";
+    modal.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true"><button class="modal-close" aria-label="Close">×</button><div id="player-body"></div></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".modal-close")) modal.classList.add("hidden"); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.add("hidden"); });
+  }
+  const mine = myTeam();
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`;
+  const srcRows = Object.entries(p.sources || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join("");
+  // What each team would pay: league value times that team's own multiplier.
+  const buyers = state.data.teams.map((t) => ({ t, v: p.value * teamFactor(t.roster_id, p.id), c: teamCtx(t.roster_id) }))
+    .sort((a, b) => b.v - a.v);
+  const buyRows = buyers.map(({ t, v, c }) => `<tr class="${p.roster_id === t.roster_id ? "mine-row" : ""}"><td>${teamHtml(t.roster_id)}${p.roster_id === t.roster_id ? ' <span class="muted">(owner)</span>' : ""}</td>
+    <td class="muted">${esc(t.build ? t.build.name : c ? c.label : "")}</td><td class="num">${fmt(v)}</td><td class="num ${v > p.value * 1.02 ? "up" : v < p.value * 0.98 ? "down" : ""}">${pct(v / p.value - 1)}</td></tr>`).join("");
+  const f = p.formula, c = p.call;
+  const formulaHtml = f ? `<h3>Formula <span class="muted">#${f.rank} · score ${f.score}</span></h3>
+    <div class="parts">${Object.entries(f.parts).map(([k, v]) => `<div><label>${esc(k)}</label><span class="pbar"><span style="width:${Math.max(2, v)}%"></span></span> ${Math.round(v)}</div>`).join("")}</div>
+    ${c ? `<p>${typeof callBadge === "function" ? callBadge(c.signal) : `<b>${c.signal}</b>`} ${esc(c.why)}.</p>` : ""}` : "";
+  const ownerTxt = p.roster_id ? teamHtml(p.roster_id) : "Free agent";
+  $("#player-body").innerHTML = `
+    <h2>${esc(p.name)} <span class="pos pos-${p.pos}">${p.pos}${p.pos_rank ?? ""}</span></h2>
+    <p class="muted">${esc(p.team || "FA")}${p.age ? ` · age ${p.age}` : ""}${p.exp != null ? ` · year ${p.exp + 1}` : ""}${p.injury ? ` · <span class="inj">${esc(p.injury)}</span>` : ""} · ${ownerTxt}</p>
+    <div class="stats">
+      <div><label>Value</label><b>${fmt(p.value)}</b></div>
+      <div><label>Overall</label><b>#${p.rank ?? "–"}</b></div>
+      <div><label>Tier</label><b>${p.tier ?? "–"} / ${p.pos} ${p.pos_tier ?? "–"}</b></div>
+      <div><label>PPG</label><b>${p.ppg ?? "–"}</b></div>
+      <div><label>Rest of season</label><b>${p.ros_ppg ?? "–"}</b></div>
+      <div><label>This week</label><b>${p.proj_week ?? "–"}</b></div>
+    </div>
+    <h3>How his value is built</h3>
+    <table class="net"><tbody>
+      <tr><td>Market consensus</td><td class="num">${p.market ? fmt(p.market) : "–"}</td><td class="muted">average of the sites below${p.spread != null ? `, ${Math.round(p.spread * 100)}% spread between them` : ""}</td></tr>
+      <tr><td>× scoring fit</td><td class="num">${p.premium ? p.premium.toFixed(2) : "–"}</td><td class="muted">this league's scoring vs generic</td></tr>
+      <tr><td>= adjusted market</td><td class="num">${p.market_adj ? fmt(p.market_adj) : "–"}</td><td></td></tr>
+      <tr><td>Points model</td><td class="num">${p.model ? fmt(p.model) : "–"}</td><td class="muted">points over replacement here, aged forward</td></tr>
+      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model</td></tr>
+    </tbody></table>
+    ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Value on our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
+    <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
+    ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
+    ${formulaHtml}
+    <h3>What each team would pay <span class="muted">(his value through each team's own situation; best buyers first)</span></h3>
+    <div class="table-wrap"><table class="buyers"><thead><tr><th>Team</th><th>Build</th><th class="num">Their price</th><th class="num">vs value</th></tr></thead><tbody>${buyRows}</tbody></table></div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="chip active" id="player-shop">${mine && p.roster_id === mine.roster_id ? "Shop him in the Trade Finder" : p.roster_id ? "Find a deal for him" : "Free agent"}</button>
+    </div>`;
+  modal.classList.remove("hidden");
+  const shop = $("#player-shop");
+  if (!p.roster_id) shop.disabled = true;
+  shop.onclick = () => {
+    if (!mine) return;
+    finder.me = mine.roster_id; finder.goal = null;
+    if (p.roster_id === mine.roster_id) { finder.send = [p.id]; finder.get = []; finder.partner = null; }
+    else { finder.get = [p.id]; finder.send = []; finder.partner = p.roster_id; }
+    modal.classList.add("hidden");
+    document.querySelector('.tabs button[data-tab="finder"]').click();
+    renderFinder();
+  };
+  const hist = await loadHistory(state.data.league.id);
+  const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
+  const el = $("#player-history");
+  if (el) el.innerHTML = pts.length >= 2 ? sparkline(pts) : `<p class="muted">Not enough daily snapshots yet${pts.length ? ` (one on ${esc(pts[0][0])})` : ""}.</p>`;
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-pid]");
+  if (a && !e.target.closest("#player-modal")) openPlayer(a.dataset.pid);
+});
 
 // ---------- trade calculator ----------
 // Each side lists what that team receives. An asset is sent by the team that
@@ -741,6 +842,56 @@ function renderPitches(ctx) {
 }
 
 // ---------- teams ----------
+// Eight roster builds from engine/builds.py; older data only has the three outlooks.
+function buildBadge(t) {
+  const b = t.build;
+  if (!b) return `<span class="outlook ${t.outlook}">${t.outlook}</span>`;
+  return `<span class="outlook ${b.tone === "middle" ? "middle" : b.tone === "contender" ? "contender" : "rebuilding"}" title="${esc(b.about)}">${esc(b.name)}</span>`;
+}
+function buildCard(t) {
+  const b = t.build;
+  if (!b) return "";
+  return `<div class="card build-card"><h4>Build</h4><p>${buildBadge(t)} ${esc(b.about)}</p>
+    <p class="muted">Why: ${b.reasons.map(esc).join("; ")}.</p>
+    <h4>Playbook</h4><ul class="plan">${b.plan.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+// Future power rankings (engine/future.py): each roster aged one to three seasons,
+// with picks turned into rookies from their draft year.
+function renderFuture() {
+  const el = $("#future");
+  if (!el) return;
+  const teams = state.data.teams.filter((t) => t.future);
+  if (!teams.length) { el.innerHTML = ""; return; }
+  const avg = (t) => t.future.years.reduce((s, y) => s + y.rank, 0) / t.future.years.length;
+  const mine = myTeam();
+  const cell = (y) => `<td class="num" data-sort="${-y.rank}"><b>${ordinal(y.rank)}</b> <span class="muted">${y.ppg.toFixed(1)}</span></td>`;
+  const years = teams[0].future.years.map((y) => y.year);
+  const rows = [...teams].sort((a, b) => avg(a) - avg(b)).map((t, i) => {
+    const f = t.future, tr = f.trend;
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}"><td>${i + 1}</td><td class="name">${teamHtml(t.roster_id)}</td>
+      <td>${t.build ? buildBadge(t) : ""}</td>${cell(f.now)}${f.years.map(cell).join("")}
+      <td class="num ${tr < 0 ? "up" : tr > 0 ? "down" : ""}" data-sort="${-tr}">${tr < 0 ? "▲" + -tr : tr > 0 ? "▼" + tr : "–"}</td>
+      <td>${f.best_year === f.now.year ? "Now" : f.best_year}</td><td class="num">${fmt(t.pick_value)}</td></tr>`;
+  }).join("");
+  el.innerHTML = `<h3>Future power rankings <span class="muted">(best lineup points a week, rosters aged with the age curves; picks become rookies from their draft year)</span></h3>
+    <div class="table-wrap"><table id="future-table"><thead><tr><th>#</th><th>Team</th><th>Build</th><th class="num">Now</th>${years.map((y) => `<th class="num">${y}</th>`).join("")}
+      <th class="num" title="Rank change from now to ${years[years.length - 1]}">Trend</th><th title="Season this roster ranks highest">Window</th><th class="num">Pick value</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted">Sorted by average rank over the next ${years.length} seasons. Young players who haven't produced yet are credited with the points their value implies, so treat later years as a direction, not a forecast.</p>`;
+}
+
+function renderBuildLegend() {
+  const el = $("#build-legend");
+  if (!el) return;
+  const seen = new Map();
+  for (const t of state.data.teams) if (t.build) (seen.get(t.build.key) || seen.set(t.build.key, { b: t.build, teams: [] }).get(t.build.key)).teams.push(t);
+  if (!seen.size) { el.innerHTML = ""; return; }
+  const order = ["juggernaut", "young_contender", "all_in", "bubble", "stuck", "youth", "pick_hoarder", "teardown"];
+  el.innerHTML = `<h3>Builds in this league</h3><div class="cols">${[...seen.values()]
+    .sort((x, y) => order.indexOf(x.b.key) - order.indexOf(y.b.key))
+    .map(({ b, teams }) => `<div class="card"><h4>${buildBadge(teams[0])}</h4><p class="muted">${esc(b.about)}</p><p>${teams.map((t) => teamHtml(t.roster_id)).join(", ")}</p></div>`)
+    .join("")}</div>`;
+}
+
 function renderTeams() {
   const recs = projectRecords();
   const rows = state.data.teams
@@ -751,14 +902,16 @@ function renderTeams() {
       <td class="num" data-sort="${recs[t.roster_id] ? recs[t.roster_id].maxPF : ""}" title="Max PF so far: ${fmt(t.record.max_pf || 0)}">${recs[t.roster_id] ? `${fmt(recs[t.roster_id].maxPF)} <span class="muted">(${ordinal(recs[t.roster_id].maxPFRank)})</span>` : ""}</td>
       <td class="num strong">${fmt(t.total_value)}</td><td class="num" data-sort="${t.starter_value}">${fmt(t.starter_value)} <span class="muted">(#${t.starter_rank})</span></td>
       <td class="num">${fmt(t.pick_value)}</td><td class="num">${t.proj_week_points || ""}</td>
-      <td class="num">${t.starter_age ?? ""}</td><td><span class="outlook ${t.outlook}">${t.outlook}</span></td></tr>`)
+      <td class="num">${t.starter_age ?? ""}</td><td data-sort="${esc(t.build ? t.build.name : t.outlook)}">${buildBadge(t)}</td></tr>`)
     .join("");
   $("#teams").innerHTML = `<thead><tr><th>#</th><th>Team</th><th>Record</th><th>Projected</th><th class="num" title="Projected end-of-season max PF: max PF so far plus the best lineup's projected points for each regular-season week left">Proj. max PF</th><th class="num">Total value</th>
-    <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Outlook</th></tr></thead><tbody>${rows}</tbody>`;
+    <th class="num">Starters</th><th class="num">Picks</th><th class="num">Proj pts (wk)</th><th class="num">Starter age</th><th>Build</th></tr></thead><tbody>${rows}</tbody>`;
   $("#teams").querySelectorAll("tr.clickable").forEach((tr) =>
     tr.addEventListener("click", () => { state.teamOpen = Number(tr.dataset.rid); renderTeamDetail(); })
   );
   $("#record-note").textContent = recordNote();
+  renderBuildLegend();
+  renderFuture();
   renderRooms();
   renderTeamDetail();
 }
@@ -775,15 +928,195 @@ function renderTeamDetail() {
   const sit = situationText(t.roster_id);
   el.innerHTML = `<h2>${esc(t.name)} <span class="muted">${esc(t.owner || "")}</span></h2>
     ${sit ? `<p class="muted">Trade situation: ${esc(sit)}.</p>` : ""}
+    ${buildCard(t)}
     <div class="cols">${Object.entries(groups)
       .sort((a, b) => POSITIONS.indexOf(a[0]) - POSITIONS.indexOf(b[0]))
       .map(([pos, ps]) => `<div class="card"><h4>${pos}</h4><ul>${ps
-        .map((p) => `<li class="${starters.has(p.id) ? "starter" : ""}"><span>${esc(p.name)}${t.taxi.includes(p.id) ? ' <span class="muted">taxi</span>' : ""}</span><span class="num">${fmt(p.value)}</span></li>`)
+        .map((p) => `<li class="${starters.has(p.id) ? "starter" : ""}"><span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}${t.taxi.includes(p.id) ? ' <span class="muted">taxi</span>' : ""}</span><span class="num">${fmt(p.value)}</span></li>`)
         .join("")}</ul></div>`)
       .join("")}
       <div class="card"><h4>Picks</h4><ul>${picks.map((p) => `<li><span>${esc(p.label)}</span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li>None</li>"}</ul></div>
     </div><p class="muted">Bold = in the optimal starting lineup by value.</p>`;
 }
+
+// ---------- formula & calls ----------
+// engine/formula.py scores every priced player 0-100 from seven parts and makes a
+// buy / sell / hold call. For your own players the call is read through your team's
+// situation: a contender keeps aging starters for the run, a rebuilder sells them.
+const PARTS = [
+  ["value", "Value", "League value: market blended with the points model"],
+  ["production", "Prod", "Rest-of-season points a game over replacement in this scoring"],
+  ["longevity", "Long", "Years left before the position's age cliff"],
+  ["fit", "Fit", "How much this league's scoring lifts him over generic scoring"],
+  ["momentum", "Mom", "Market move over the last 30 days"],
+  ["consensus", "Cons", "How closely the market sources agree"],
+  ["scarcity", "Scar", "Rank at his position against the league's starters there"],
+];
+const formulaView = { pos: "ALL", signal: "ALL", who: "all", q: "" };
+
+// Your team's read on one of your own players.
+function myCall(p, team) {
+  const c = p.call;
+  if (!c) return null;
+  const mode = state.data.team_values?.context?.teams?.[team.roster_id]?.mode ?? 0;
+  const starts = (team.ros_lineup || team.lineup || []).some((x) => x.id === p.id);
+  const cliff = state.data.formula?.cliff?.[p.pos];
+  const yearsLeft = cliff && p.age ? Math.max(0, cliff - p.age) : null;
+  if (c.signal === "SELL" && mode >= 0.3 && starts)
+    return { signal: "HOLD", why: `you're contending and he starts for you, so ride him this season and sell in the offseason (${c.why})` };
+  if (mode <= -0.3 && c.signal !== "SELL" && yearsLeft != null && yearsLeft <= 3 && p.age >= 26)
+    return { signal: "SELL", why: `you're rebuilding and he has about ${yearsLeft} prime years left; turn him into picks or younger players` };
+  if (c.signal === "BUY") return { signal: "KEEP", why: `${c.why}, so don't sell him at market price` };
+  return c;
+}
+
+function callBadge(sig) {
+  return `<span class="call call-${sig.toLowerCase()}">${sig}</span>`;
+}
+
+function renderFormula() {
+  const el = $("#formula");
+  if (!el) return;
+  const ps = state.data.players.filter((p) => p.formula);
+  if (!ps.length) { el.innerHTML = `<p class="muted">The formula scores appear after the next data build.</p>`; return; }
+  const w = state.data.formula?.weights || {};
+  const mine = myTeam();
+  const owner = (p) => (p.roster_id ? teamHtml(p.roster_id) : `<span class="muted">Free agent</span>`);
+
+  let myBlock = "";
+  if (mine) {
+    const calls = mine.players.map(assetById).filter((p) => p && p.formula).map((p) => ({ p, c: myCall(p, mine) }));
+    const group = (sig) => calls.filter((x) => x.c.signal === sig).sort((a, b) => b.p.value - a.p.value);
+    const list = (xs) => xs.map(({ p, c }) => `<li><span><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span><br><span class="muted">${esc(c.why)}</span></span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li><span class='muted'>None</span></li>";
+    const sit = state.data.teams.length && mine.build ? mine.build.name : situationText(mine.roster_id);
+    myBlock = `<h3>Your calls <span class="muted">(${esc(mine.name)}${sit ? " · " + esc(sit) : ""})</span></h3>
+      <div class="cols calls-grid">
+        <div class="card"><h4>${callBadge("SELL")} Sell</h4><ul>${list(group("SELL"))}</ul></div>
+        <div class="card"><h4>${callBadge("KEEP")} Keep: worth more than the market says</h4><ul>${list(group("KEEP"))}</ul></div>
+        <div class="card"><h4>${callBadge("HOLD")} Hold</h4><ul>${list(group("HOLD"))}</ul></div>
+      </div>`;
+  }
+  const targets = ps.filter((p) => p.call.signal === "BUY" && (!mine || p.roster_id !== mine.roster_id)).sort((a, b) => b.formula.score - a.formula.score).slice(0, 15);
+  const buyBlock = `<h3>Best buy targets <span class="muted">(top formula scores the market underprices; take them to the Trade Calculator)</span></h3>
+    <div class="table-wrap"><table id="buy-targets"><thead><tr><th>Player</th><th>Owner</th><th class="num">Score</th><th class="num">Value</th><th>Why</th></tr></thead><tbody>${targets
+      .map((p) => `<tr><td class="name">${esc(p.name)} <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span></td><td>${owner(p)}</td><td class="num">${p.formula.score}</td><td class="num">${fmt(p.value)}</td><td class="why">${esc(p.call.why)}</td></tr>`)
+      .join("")}</tbody></table></div>`;
+
+  const positions = ["ALL", ...POSITIONS.filter((x) => ps.some((p) => p.pos === x))];
+  el.innerHTML = `
+    <p class="muted">Your formula ranks every player 0-100 from seven parts, each a percentile in this league: ${PARTS.map(([k, , d]) => `<b>${Math.round((w[k] || 0) * 100)}%</b> ${esc(d.toLowerCase())}`).join("; ")}. The call compares what his points are worth in this league with what the market pays, then checks age and the last month's market move.</p>
+    ${myBlock}
+    ${mine ? `<h3>Trade ideas for you <span class="muted">(your sells shopped to every team and the top buy targets priced from your roster, using the Trade Finder's fair line)</span></h3>
+      <div class="toolbar"><button id="ideas-run" class="chip active">Find my trade ideas</button></div>
+      <div id="ideas-out">${ideas.list && ideas.league === state.data.league.id ? ideasHtml(ideas.list) : ""}</div>` : ""}
+    ${buyBlock}
+    <h3>Full formula rankings</h3>
+    <div class="toolbar">
+      <div id="formula-pos" class="chips">${positions.map((x) => `<button class="chip ${x === formulaView.pos ? "active" : ""}" data-pos="${x}">${x === "ALL" ? "Overall" : x}</button>`).join("")}</div>
+      <select id="formula-signal" aria-label="Call">${["ALL", "BUY", "HOLD", "SELL"].map((x) => `<option value="${x}" ${x === formulaView.signal ? "selected" : ""}>${x === "ALL" ? "All calls" : x}</option>`).join("")}</select>
+      <select id="formula-who" aria-label="Owner">${[["all", "All players"], ["mine", "My team"], ["others", "Other teams"], ["fa", "Free agents"]].map(([v, l]) => `<option value="${v}" ${v === formulaView.who ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input id="formula-search" type="search" placeholder="Search players" value="${esc(formulaView.q)}" />
+    </div>
+    <div class="table-wrap"><table id="formula-table"></table></div>`;
+  drawFormulaTable();
+  el.querySelectorAll("#formula-pos button").forEach((b) => b.addEventListener("click", () => { formulaView.pos = b.dataset.pos; el.querySelectorAll("#formula-pos button").forEach((x) => x.classList.toggle("active", x === b)); drawFormulaTable(); }));
+  $("#formula-signal").addEventListener("change", (e) => { formulaView.signal = e.target.value; drawFormulaTable(); });
+  $("#formula-who").addEventListener("change", (e) => { formulaView.who = e.target.value; drawFormulaTable(); });
+  $("#formula-search").addEventListener("input", (e) => { formulaView.q = e.target.value; drawFormulaTable(); });
+}
+
+function drawFormulaTable() {
+  const mine = myTeam();
+  const q = formulaView.q.trim().toLowerCase();
+  const rows = state.data.players
+    .filter((p) => p.formula)
+    .filter((p) => formulaView.pos === "ALL" || p.pos === formulaView.pos)
+    .filter((p) => formulaView.signal === "ALL" || p.call.signal === formulaView.signal)
+    .filter((p) => formulaView.who === "all" || (formulaView.who === "fa" ? !p.roster_id : formulaView.who === "mine" ? mine && p.roster_id === mine.roster_id : p.roster_id && (!mine || p.roster_id !== mine.roster_id)))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .sort((a, b) => a.formula.rank - b.formula.rank);
+  const bar = (v) => `<td class="num part" data-sort="${v}"><span class="pbar"><span style="width:${Math.max(2, v)}%"></span></span>${Math.round(v)}</td>`;
+  $("#formula-table").innerHTML = `<thead><tr><th class="num">#</th><th>Player</th><th>Owner</th><th class="num" title="Formula score, 0-100">Score</th>${PARTS.map(([, s, d]) => `<th class="num" title="${esc(d)}">${s}</th>`).join("")}<th class="num">Value</th><th class="num" title="Overall value rank">Val #</th><th>Call</th><th>Why</th></tr></thead><tbody>${rows
+    .map((p) => {
+      const c = mine && p.roster_id === mine.roster_id ? myCall(p, mine) : p.call;
+      return `<tr class="${mine && p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="num">${p.formula.rank}</td>
+        <td class="name"><span class="pos pos-${p.pos}">${p.pos}</span> <span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span> <span class="muted">${p.age ?? ""}</span></td>
+        <td>${p.roster_id ? teamHtml(p.roster_id) : '<span class="muted">FA</span>'}</td>
+        <td class="num strong">${p.formula.score}</td>${PARTS.map(([k]) => bar(p.formula.parts[k])).join("")}
+        <td class="num">${fmt(p.value)}</td><td class="num">${p.rank ?? ""}</td><td data-sort="${c.signal}">${callBadge(c.signal)}</td><td class="why">${esc(c.why)}</td></tr>`;
+    })
+    .join("")}</tbody>`;
+}
+
+// Trade ideas: the Trade Finder run for you from your own calls. Each SELL on your
+// roster is shopped to every team, and each top BUY target is priced from your roster;
+// the best fair deal for each (same rules as the finder) is listed with the reason.
+const IDEAS_SELL = 4, IDEAS_BUY = 4;
+const ideas = { list: null, league: null };
+
+function ideaSeeds(mine) {
+  const roster = mine.players.map(assetById).filter((p) => p && p.formula);
+  // Respect the Trade Finder's untouchable list when that feature is present.
+  const locked = (id) => typeof untouchable === "function" && untouchable(id, mine.roster_id);
+  const sells = roster.map((p) => ({ p, c: myCall(p, mine) })).filter((x) => x.c.signal === "SELL" && !locked(x.p.id))
+    .sort((a, b) => b.p.value - a.p.value).slice(0, IDEAS_SELL).map(({ p, c }) => ({ kind: "sell", a: p, why: c.why }));
+  const buys = state.data.players.filter((p) => p.formula && p.call.signal === "BUY" && p.roster_id && p.roster_id !== mine.roster_id && p.value >= 800)
+    .sort((a, b) => b.formula.score - a.formula.score).slice(0, IDEAS_BUY).map((p) => ({ kind: "buy", a: p, why: p.call.why }));
+  return [...sells, ...buys];
+}
+
+function runIdeas(done) {
+  const mine = myTeam();
+  if (!mine) { done([]); return; }
+  const seeds = ideaSeeds(mine);
+  const saved = { me: finder.me, partner: finder.partner, goal: finder.goal, send: finder.send, get: finder.get, last: finder.last };
+  const c = teamCtx(mine.roster_id);
+  const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
+  const out = [];
+  const step = (i) => {
+    if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
+    const s = seeds[i];
+    Object.assign(finder, { me: mine.roster_id, partner: null, goal, send: s.kind === "sell" ? [s.a.id] : [], get: s.kind === "buy" ? [s.a.id] : [] });
+    const r = findTrades();
+    const d = r.picked && r.picked[0];
+    out.push({ ...s, deal: d || null, goal });
+    const el = $("#ideas-out");
+    if (el) el.innerHTML = `<p class="muted">Working… ${i + 1} of ${seeds.length}</p>`;
+    setTimeout(() => step(i + 1), 0);
+  };
+  setTimeout(() => step(0), 20);
+}
+
+function ideasHtml(list) {
+  if (!list.length) return `<p class="muted">No sells on your roster and no buy targets to price right now.</p>`;
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const names = (xs) => xs.map((a) => esc(a.label || a.name)).join(", ");
+  return list.map((x, i) => {
+    const head = x.kind === "sell" ? `${callBadge("SELL")} Sell ${esc(x.a.name)}` : `${callBadge("BUY")} Buy ${esc(x.a.name)} <span class="muted">from ${teamHtml(x.a.roster_id)}</span>`;
+    if (!x.deal) return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}. No deal passes the fair line for both teams right now.</p></div>`;
+    const d = x.deal;
+    return `<div class="trade-log idea"><h4>${head}</h4><p class="muted">${esc(x.why)}.</p>
+      <p><b>Deal with ${teamHtml(d.B)}:</b> you get ${names(d.gets)}; you send ${names(d.gives)}.</p>
+      <p class="muted">Market ${pct(d.mkt)} for you · your goal ${pct(d.mine)} · their needs ${pct(d.them)} · your lineup ${d.dMe >= 0 ? "+" : ""}${d.dMe.toFixed(1)} pts/wk · record ${recordText(d.rec.me[0])} → ${recordText(d.rec.me[1])}</p>
+      <button class="chip idea-open" data-i="${i}">Open in Trade Calculator</button></div>`;
+  }).join("");
+}
+
+document.addEventListener("click", (e) => {
+  const run = e.target.closest("#ideas-run");
+  if (run) {
+    run.disabled = true;
+    $("#ideas-out").innerHTML = `<p class="muted">Working…</p>`;
+    runIdeas((list) => { ideas.list = list; ideas.league = state.data.league.id; $("#ideas-out").innerHTML = ideasHtml(list); run.disabled = false; });
+    return;
+  }
+  const b = e.target.closest(".idea-open");
+  if (!b || !ideas.list) return;
+  const x = ideas.list[Number(b.dataset.i)];
+  if (!x || !x.deal) return;
+  finder.me = myTeam().roster_id;
+  openInCalculator(x.deal);
+});
 
 // ---------- league & sources ----------
 function renderLeague() {
@@ -1072,6 +1405,15 @@ function goalFactor(a, goal, rid, startsForMe) {
   return old <= 23 ? 1.2 : old <= 25 ? 1.1 : old <= 27 ? 1.0 : old <= 29 ? 0.85 : 0.7;
 }
 
+// Untouchables: players and picks the finder (and the trade ideas) never offer from
+// your side unless you add them to "You send" yourself. Kept in this browser per team.
+const lockKey = (rid) => `untouchable.${state.data.league.id}.${rid}`;
+function lockedIds(rid = finder.me ?? myTeam()?.roster_id) {
+  try { return new Set(JSON.parse(localStorageGet(lockKey(rid)) || "[]")); } catch { return new Set(); }
+}
+function untouchable(id, rid) { return lockedIds(rid).has(id); }
+function setLocked(rid, ids) { localStorageSet(lockKey(rid), JSON.stringify([...ids])); }
+
 function renderFinder() {
   const el = $("#finder");
   if (!el) return;
@@ -1099,6 +1441,9 @@ function renderFinder() {
         <h4>You get</h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul></div>
     </div>
+    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(never offered unless you add them to "You send" yourself)</span></h3>
+      <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
+      <ul class="assets">${[...lockedIds(finder.me)].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
       .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div>
       <button id="finder-run" class="chip active">Find trades</button></div>
@@ -1117,9 +1462,17 @@ function renderFinder() {
       renderFinder();
     };
   };
+  $("#finder-lock").onchange = (e) => {
+    const a = mine.find((x) => x.label === e.target.value || x.name === e.target.value);
+    if (a) { const ids = lockedIds(finder.me); ids.add(a.id); setLocked(finder.me, ids); }
+    renderFinder();
+  };
+  el.querySelectorAll("[data-unlock]").forEach((b) => b.addEventListener("click", () => {
+    const ids = lockedIds(finder.me); ids.delete(b.dataset.unlock); setLocked(finder.me, ids); renderFinder();
+  }));
   pick($("#finder-send"), mine, "send");
   pick($("#finder-get"), theirs, "get");
-  el.querySelectorAll(".assets button").forEach((b) => b.addEventListener("click", () => {
+  el.querySelectorAll(".assets button[data-kind]").forEach((b) => b.addEventListener("click", () => {
     finder[b.dataset.kind] = finder[b.dataset.kind].filter((id) => id !== b.dataset.id); renderFinder();
   }));
   el.querySelectorAll("#finder-goal button").forEach((b) => b.addEventListener("click", () => { finder.goal = b.dataset.goal; renderFinder(); }));
@@ -1143,7 +1496,8 @@ function findTrades() {
   // Your extra pieces the finder may add: picks and players outside your core for the goal.
   // Naming a piece to get with nothing to send opens your whole roster and picks to pay for it.
   const open = get.length && !send.length;
-  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id)
+  const locked = lockedIds(me);
+  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id) && !locked.has(a.id)
     && (open || (goal === "rebuild" ? a.kind === "player" && goalFactor(a, goal, me, startsForMe) < 1
       : a.kind === "pick" || !startsForMe.has(a.id))))
     .sort((a, b) => b.value - a.value).slice(0, open ? 14 : 10);
@@ -1654,3 +2008,228 @@ new MutationObserver(() => {
 }).observe(document.body, { childList: true, subtree: true });
 
 init();
+
+// ---------- money bank ----------
+// Dues, payouts and winnings across every league, kept only in this browser
+// (localStorage). The site is public, so nothing here is ever sent anywhere or built
+// into the data; Export/Import moves it between devices.
+const BANK_KEY = "moneybank.v1";
+const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round((n || 0) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const num = (v) => { const n = parseFloat(String(v ?? "").replace(/[$,\s]/g, "")); return Number.isFinite(n) ? n : 0; };
+
+function bankLoad() {
+  try {
+    const b = JSON.parse(localStorageGet(BANK_KEY) || "null");
+    if (b && Array.isArray(b.entries)) return { leagues: {}, ...b };
+  } catch {}
+  return { leagues: {}, entries: [] };
+}
+function bankSave(b) { localStorageSet(BANK_KEY, JSON.stringify(b)); }
+
+// Every league the site knows, plus any the bank added by hand (an old or non-Sleeper league).
+function bankLeagues(b) {
+  const out = (state.index?.leagues || []).map((l) => ({ id: l.id, name: l.name, teams: l.teams, buy_in: l.buy_in, season: l.season, payouts: l.payouts }));
+  for (const [id, l] of Object.entries(b.leagues)) if (l.custom && !out.some((o) => o.id === id)) out.push({ id, name: l.name, teams: l.teams, custom: true });
+  return out;
+}
+function leagueSetup(b, l) {
+  const s = b.leagues[l.id] || {};
+  return {
+    dues: s.dues ?? (l.buy_in || 0),
+    teams: s.teams ?? l.teams ?? 0,
+    // Until edited here, payouts come from the league's config (data/leagues.json).
+    payouts: s.payouts || Object.entries(l.payouts || {}).filter(([k, v]) => k !== "notes" && num(v)).map(([k, v]) => ({ place: k.replace(/_/g, " "), amount: v })),
+    notes: s.notes ?? (l.payouts?.notes && l.payouts.notes !== "TBD" ? l.payouts.notes : ""),
+  };
+}
+
+function bankTotals(entries) {
+  const t = { invested: 0, owed: 0, won: 0, n: 0 };
+  for (const e of entries) {
+    const cost = num(e.dues) + num(e.extra);
+    if (e.paid) t.invested += cost; else t.owed += cost;
+    t.won += num(e.winnings); t.n++;
+  }
+  t.net = t.won - t.invested;
+  t.roi = t.invested ? t.net / t.invested : null;
+  return t;
+}
+const pct = (r) => (r == null ? "—" : `${r >= 0 ? "+" : ""}${Math.round(r * 100)}%`);
+const signCls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
+
+function groupTotals(entries, key, label) {
+  const groups = new Map();
+  for (const e of entries) {
+    const k = key(e);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  return [...groups.entries()].map(([k, es]) => ({ k, label: label(k), ...bankTotals(es), titles: es.filter((e) => /^(1|1st|champ)/i.test(String(e.finish || "").trim())).length }));
+}
+
+function renderBank() {
+  const el = $("#bank");
+  if (!el) return;
+  const b = bankLoad();
+  const leagues = bankLeagues(b);
+  const lname = (id) => leagues.find((l) => l.id === id)?.name || b.leagues[id]?.name || id || "Other";
+  const year = new Date().getFullYear();
+  const entries = [...b.entries].sort((x, y) => (y.year - x.year) || lname(x.league).localeCompare(lname(y.league)));
+  const all = bankTotals(entries);
+  const byLeague = groupTotals(entries, (e) => e.league, lname).sort((x, y) => y.net - x.net);
+  const byYear = groupTotals(entries, (e) => e.year, (k) => k).sort((x, y) => y.k - x.k);
+  // Paid-ahead seasons: dues already paid for a year after this one.
+  const ahead = entries.filter((e) => e.paid && e.year > year);
+  const leagueOpts = (sel) => leagues.map((l) => `<option value="${esc(l.id)}" ${l.id === sel ? "selected" : ""}>${esc(l.name)}</option>`).join("");
+  const totalsRow = (g) => `<tr><td>${esc(g.label)}</td><td class="num">${g.n}</td><td class="num">${money(g.invested)}</td><td class="num">${g.owed ? money(g.owed) : ""}</td><td class="num">${money(g.won)}</td><td class="num ${signCls(g.net)}">${money(g.net)}</td><td class="num">${pct(g.roi)}</td><td class="num">${g.titles || ""}</td></tr>`;
+  const totalsHead = (first) => `<thead><tr><th>${first}</th><th class="num">Seasons</th><th class="num">Invested</th><th class="num">Still owed</th><th class="num">Won</th><th class="num">Net</th><th class="num">ROI</th><th class="num">Titles</th></tr></thead>`;
+
+  el.innerHTML = `
+    <p class="muted">Your money stays in this browser only. Nothing here is uploaded or shared, and the public site never sees it. Use Export to back it up or move it to another device.</p>
+    <div class="stats">
+      <div><label>Invested</label><b>${money(all.invested)}</b></div>
+      <div><label>Won</label><b>${money(all.won)}</b></div>
+      <div><label>Net</label><b class="${signCls(all.net)}">${money(all.net)}</b></div>
+      <div><label>ROI</label><b>${pct(all.roi)}</b></div>
+      <div><label>Still owed</label><b>${money(all.owed)}</b></div>
+      <div><label>Paid ahead</label><b>${ahead.length ? money(bankTotals(ahead).invested) : "$0"}</b></div>
+    </div>
+    ${ahead.length ? `<p class="muted">Paid ahead: ${ahead.map((e) => `${esc(lname(e.league))} ${e.year}`).join(", ")}.</p>` : ""}
+
+    <h3>Ledger <span class="muted">(one row per league per season)</span></h3>
+    <div class="toolbar">
+      <select id="bank-new-league" aria-label="League">${leagueOpts(state.data?.league?.id || leagues[0]?.id)}</select>
+      <input id="bank-new-year" type="number" value="${year}" min="2000" max="2100" style="width:90px" aria-label="Season" />
+      <button id="bank-add" class="chip">Add season</button>
+      <button id="bank-add-all" class="chip">Add ${year} for every league</button>
+    </div>
+    <div class="table-wrap"><table id="bank-ledger" class="bank-table"><thead><tr><th>League</th><th>Season</th><th class="num">Dues</th><th>Paid</th><th class="num">Other costs</th><th>Finish</th><th class="num">Winnings</th><th class="num">Net</th><th>Notes</th><th></th></tr></thead><tbody>${entries
+      .map((e) => {
+        const net = num(e.winnings) - (e.paid ? num(e.dues) + num(e.extra) : 0);
+        return `<tr data-id="${esc(e.id)}">
+          <td><select data-f="league">${leagueOpts(e.league)}</select></td>
+          <td><input data-f="year" type="number" value="${esc(e.year)}" style="width:76px" /></td>
+          <td class="num"><input data-f="dues" inputmode="decimal" value="${esc(e.dues ?? "")}" style="width:80px" /></td>
+          <td><input data-f="paid" type="checkbox" ${e.paid ? "checked" : ""} aria-label="Paid" /></td>
+          <td class="num"><input data-f="extra" inputmode="decimal" value="${esc(e.extra ?? "")}" placeholder="0" style="width:72px" title="Trade fees, side bets, anything else you put in" /></td>
+          <td><input data-f="finish" value="${esc(e.finish ?? "")}" placeholder="e.g. 1st" style="width:72px" /></td>
+          <td class="num"><input data-f="winnings" inputmode="decimal" value="${esc(e.winnings ?? "")}" placeholder="0" style="width:80px" /></td>
+          <td class="num ${signCls(net)}">${money(net)}</td>
+          <td><input data-f="note" value="${esc(e.note ?? "")}" style="width:180px" /></td>
+          <td><button class="bank-del" title="Remove row" aria-label="Remove row">×</button></td>
+        </tr>`;
+      })
+      .join("") || `<tr><td colspan="10" class="muted">No seasons yet. Add one above.</td></tr>`}</tbody></table></div>
+
+    <h3>By league</h3>
+    <div class="table-wrap"><table>${totalsHead("League")}<tbody>${byLeague.map(totalsRow).join("") || `<tr><td colspan="8" class="muted">—</td></tr>`}</tbody></table></div>
+    <h3>By season</h3>
+    <div class="table-wrap"><table>${totalsHead("Season")}<tbody>${byYear.map(totalsRow).join("") || `<tr><td colspan="8" class="muted">—</td></tr>`}</tbody></table></div>
+
+    <h3>Payout structure <span class="muted">(per league; the pot is dues × teams)</span></h3>
+    <div class="cols bank-leagues">${leagues
+      .map((l) => {
+        const s = leagueSetup(b, l);
+        const pot = num(s.dues) * num(s.teams);
+        const paidOut = s.payouts.reduce((a, p) => a + num(p.amount), 0);
+        const mine = bankTotals(b.entries.filter((e) => e.league === l.id));
+        return `<div class="card" data-league="${esc(l.id)}">
+          <h4>${esc(l.name)}${l.custom ? ' <button class="bank-del-league chip" title="Remove this league">remove</button>' : ""}</h4>
+          <div class="bank-setup">
+            <label>Dues <input data-s="dues" inputmode="decimal" value="${esc(s.dues)}" style="width:80px" /></label>
+            <label>Teams <input data-s="teams" type="number" value="${esc(s.teams)}" style="width:60px" /></label>
+          </div>
+          <ul>${s.payouts
+            .map((p, i) => `<li><span><input data-p="${i}" data-k="place" value="${esc(p.place)}" style="width:120px" aria-label="Place" /></span><span><input data-p="${i}" data-k="amount" inputmode="decimal" value="${esc(p.amount)}" style="width:80px" aria-label="Amount" /> <button class="bank-del-payout" data-p="${i}" aria-label="Remove payout">×</button></span></li>`)
+            .join("")}</ul>
+          <button class="bank-add-payout chip">Add payout</button>
+          <p class="muted">Pot ${money(pot)} · paid out ${money(paidOut)}${pot && Math.abs(pot - paidOut) > 0.5 ? ` · <span class="${paidOut > pot ? "down" : ""}">${money(pot - paidOut)} unassigned</span>` : ""}</p>
+          <p class="muted">Your record here: in ${money(mine.invested)}, won ${money(mine.won)}, net <span class="${signCls(mine.net)}">${money(mine.net)}</span></p>
+          <textarea data-s="notes" rows="2" placeholder="Payout rules, who holds the money, deadlines" style="width:100%">${esc(s.notes)}</textarea>
+        </div>`;
+      })
+      .join("")}</div>
+    <div class="toolbar" style="margin-top:12px">
+      <input id="bank-custom-name" placeholder="Another league (name)" />
+      <button id="bank-custom-add" class="chip">Add league</button>
+    </div>
+
+    <h3>Back up</h3>
+    <div class="toolbar">
+      <button id="bank-export" class="chip">Export</button>
+      <label class="chip">Import <input id="bank-import" type="file" accept="application/json,.json" hidden /></label>
+      <button id="bank-clear" class="chip">Clear everything</button>
+      <span id="bank-msg" class="muted"></span>
+    </div>`;
+
+  const save = () => { bankSave(b); renderBank(); };
+  const entryOf = (node) => b.entries.find((e) => e.id === node.closest("tr")?.dataset.id);
+  const newEntry = (league, yr) => {
+    const l = leagues.find((x) => x.id === league) || { id: league };
+    return { id: `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, league, year: yr, dues: leagueSetup(b, l).dues || "", paid: false, extra: "", finish: "", winnings: "", note: "" };
+  };
+  el.querySelector("#bank-add").onclick = () => {
+    b.entries.push(newEntry($("#bank-new-league").value, Number($("#bank-new-year").value) || year));
+    save();
+  };
+  el.querySelector("#bank-add-all").onclick = () => {
+    for (const l of leagues) if (!b.entries.some((e) => e.league === l.id && e.year === year)) b.entries.push(newEntry(l.id, year));
+    save();
+  };
+  el.querySelectorAll("#bank-ledger [data-f]").forEach((inp) =>
+    inp.addEventListener("change", () => {
+      const e = entryOf(inp);
+      if (!e) return;
+      const f = inp.dataset.f;
+      e[f] = f === "paid" ? inp.checked : f === "year" ? Number(inp.value) || year : inp.value;
+      save();
+    })
+  );
+  el.querySelectorAll(".bank-del").forEach((btn) =>
+    btn.addEventListener("click", () => { const e = entryOf(btn); b.entries = b.entries.filter((x) => x !== e); save(); })
+  );
+  el.querySelectorAll(".bank-leagues .card").forEach((card) => {
+    const id = card.dataset.league;
+    const l = leagues.find((x) => x.id === id);
+    const setup = () => (b.leagues[id] = { ...(b.leagues[id] || {}), ...(b.leagues[id]?.payouts ? {} : { payouts: leagueSetup(b, l).payouts }) });
+    card.querySelectorAll("[data-s]").forEach((inp) => inp.addEventListener("change", () => { setup()[inp.dataset.s] = inp.value; save(); }));
+    card.querySelectorAll("[data-p][data-k]").forEach((inp) => inp.addEventListener("change", () => { setup().payouts[inp.dataset.p][inp.dataset.k] = inp.value; save(); }));
+    card.querySelector(".bank-add-payout").onclick = () => { const s = setup(); s.payouts = [...(s.payouts || []), { place: s.payouts?.length ? "" : "1st", amount: "" }]; save(); };
+    card.querySelectorAll(".bank-del-payout").forEach((btn) => (btn.onclick = () => { setup().payouts.splice(Number(btn.dataset.p), 1); save(); }));
+    const del = card.querySelector(".bank-del-league");
+    if (del) del.onclick = () => { delete b.leagues[id]; b.entries = b.entries.filter((e) => e.league !== id); save(); };
+  });
+  el.querySelector("#bank-custom-add").onclick = () => {
+    const name = $("#bank-custom-name").value.trim();
+    if (!name) return;
+    b.leagues[`custom-${Date.now().toString(36)}`] = { custom: true, name, dues: "", teams: "", payouts: [] };
+    save();
+  };
+  el.querySelector("#bank-export").onclick = () => {
+    const blob = new Blob([JSON.stringify(b, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `money-bank-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  el.querySelector("#bank-import").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || !Array.isArray(data.entries)) throw new Error("not a Money Bank export");
+      bankSave({ leagues: data.leagues || {}, entries: data.entries });
+      renderBank();
+      $("#bank-msg").textContent = `Imported ${data.entries.length} seasons.`;
+    } catch (e) {
+      $("#bank-msg").textContent = `Couldn't import that file (${e.message}).`;
+    }
+  });
+  el.querySelector("#bank-clear").onclick = () => {
+    const btn = el.querySelector("#bank-clear");
+    if (btn.dataset.armed) { bankSave({ leagues: {}, entries: [] }); renderBank(); return; }
+    btn.dataset.armed = "1";
+    btn.textContent = "Click again to erase";
+  };
+}
