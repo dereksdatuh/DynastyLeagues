@@ -45,6 +45,9 @@ for (const id of leagues) {
   // Sorting: click "Proj. max PF" and check the column comes out high to low.
   const builds = await page.$$eval("#build-legend .card", (cs) => cs.map((c) => c.querySelector("h4").textContent.trim() + " (" + c.querySelectorAll("p")[1].textContent.split(",").length + ")"));
   console.log(`  builds: ${builds.join(", ")}`);
+  const fut = await page.$$eval("#future-table tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].slice(1, 8).map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
+  console.log(`  future: ${fut.join("  //  ")}`);
+  if (!fut.length) errors.push(`${id}: future power rankings did not render`);
   if (!builds.length) errors.push(`${id}: team builds did not render`);
   await page.click("#teams tbody tr.clickable");
   if (!(await page.$("#team-detail .build-card"))) errors.push(`${id}: build card missing in team detail`);

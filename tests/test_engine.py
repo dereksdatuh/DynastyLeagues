@@ -592,3 +592,22 @@ def test_builds_place_every_team_in_one_of_eight():
     assert out[4]["key"] == "teardown"
     assert out[6]["key"] == "youth"
     assert all(b["key"] in builds.BUILDS and b["reasons"] and b["plan"] for b in out.values())
+
+
+def test_future_ages_rosters_and_counts_picks():
+    from engine import future
+
+    slots = ["QB", "RB", "WR", "FLEX"]
+    players = [{"id": "oldrb", "pos": "RB", "age": 29, "value": 3000, "ros_ppg": 18},
+               {"id": "youngwr", "pos": "WR", "age": 22, "value": 6000, "ros_ppg": 10},
+               {"id": "qb", "pos": "QB", "age": 27, "value": 5000, "ros_ppg": 20},
+               {"id": "vetwr", "pos": "WR", "age": 26, "value": 5500, "ros_ppg": 17}]
+    teams = [{"roster_id": 1, "players": ["oldrb", "qb"], "ros_ppg": 38},
+             {"roster_id": 2, "players": ["youngwr"], "ros_ppg": 10}]
+    picks = [{"id": "pick:2027:1:2", "roster_id": 2, "year": 2027, "value": 5600}]
+    out = future.project(teams, players, slots, 2026, picks)
+    old = [y["ppg"] for y in out[1]["years"]]
+    young = [y["ppg"] for y in out[2]["years"]]
+    assert old[0] > old[1] > old[2]           # the 29-year-old RB fades
+    assert young[0] > 10                       # value-implied points plus the 2027 rookie
+    assert out[1]["now"]["rank"] == 1 and [y["year"] for y in out[1]["years"]] == [2027, 2028, 2029]
