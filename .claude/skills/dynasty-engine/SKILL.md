@@ -17,8 +17,9 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
    successful `Build dynasty values` run instead. Never quote values from memory.
 2. Load `site/data/<id>.json`. Players and picks share one value scale; `id` is the
    Sleeper player id or `pick:<year>:<round>:<original roster id>`.
-3. Trades: `engine.trade.evaluate(side_a, side_b)` where each side is the list of
-   assets that team *receives* (`[{"value": ...}]`). Report the verdict, the
+3. Trades: `engine.trade.evaluate(side_a, side_b, scale)` where each side is the list of
+   assets that team *receives* (`[{"value": ..., "kind": "player"|"pick"}]`) and `scale`
+   is the league's top asset value. Report the verdict, the
    adjusted totals, and `to_balance` if uneven; name concrete balancing pieces from
    the shorter side's partner roster (`teams[].players` / `teams[].picks`).
 4. Always say which league and when the data was built (`generated_at`).
@@ -31,7 +32,10 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
   `HORIZON_YEARS`, `DISCOUNT`.
 - `engine/valuation.py`: scoring-fit premiums, model calibration, `MODEL_WEIGHT`,
   `UNPRICED_DISCOUNT` (IDP/K/DEF), tiers.
-- `engine/trade.py` and `site/app.js`: `CONSOLIDATION_POWER` (keep both in sync).
+- `engine/trade.py` and `site/app.js` (`adjustTrade`, `evenOut`): the value adjustment
+  (`DEPTH_EXP`, `STUD_SHARE`, roster-spot cost). Keep both in sync.
+- `site/app.js` (`assignBuilds`): the eight builds re-run on post-trade rosters for the
+  direction label; mirrors `engine/builds.py`, keep both in sync.
 - `engine/record.py` and `site/app.js` (`projectRecords`): projected records from
   rest-of-season lineup ppg and the remaining schedule; `SIGMA_SHARE` (weekly score
   spread) and `AVAILABILITY` (injury discounts). Keep both in sync.

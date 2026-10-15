@@ -180,3 +180,7 @@ tr.mine-row td { background: rgba(234, 179, 8, 0.08); }
 .bank-setup label { font-size: 12px; color: var(--muted); }
 .bank-leagues textarea { margin-top: 6px; background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font: inherit; font-size: 13px; box-sizing: border-box; }
 b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }
+.chips.small { margin: 4px 0; }
+.chips.small .chip { font-size: 12px; padding: 2px 8px; }
+.card.adjust { margin: 10px 0; }
+.card.adjust p { margin: 4px 0; }
