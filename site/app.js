@@ -1072,6 +1072,15 @@ function goalFactor(a, goal, rid, startsForMe) {
   return old <= 23 ? 1.2 : old <= 25 ? 1.1 : old <= 27 ? 1.0 : old <= 29 ? 0.85 : 0.7;
 }
 
+// Untouchables: players and picks the finder (and the trade ideas) never offer from
+// your side unless you add them to "You send" yourself. Kept in this browser per team.
+const lockKey = (rid) => `untouchable.${state.data.league.id}.${rid}`;
+function lockedIds(rid = finder.me ?? myTeam()?.roster_id) {
+  try { return new Set(JSON.parse(localStorageGet(lockKey(rid)) || "[]")); } catch { return new Set(); }
+}
+function untouchable(id, rid) { return lockedIds(rid).has(id); }
+function setLocked(rid, ids) { localStorageSet(lockKey(rid), JSON.stringify([...ids])); }
+
 function renderFinder() {
   const el = $("#finder");
   if (!el) return;
@@ -1099,6 +1108,9 @@ function renderFinder() {
         <h4>You get</h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul></div>
     </div>
+    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(never offered unless you add them to "You send" yourself)</span></h3>
+      <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
+      <ul class="assets">${[...lockedIds(finder.me)].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
       .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div>
       <button id="finder-run" class="chip active">Find trades</button></div>
@@ -1117,9 +1129,17 @@ function renderFinder() {
       renderFinder();
     };
   };
+  $("#finder-lock").onchange = (e) => {
+    const a = mine.find((x) => x.label === e.target.value || x.name === e.target.value);
+    if (a) { const ids = lockedIds(finder.me); ids.add(a.id); setLocked(finder.me, ids); }
+    renderFinder();
+  };
+  el.querySelectorAll("[data-unlock]").forEach((b) => b.addEventListener("click", () => {
+    const ids = lockedIds(finder.me); ids.delete(b.dataset.unlock); setLocked(finder.me, ids); renderFinder();
+  }));
   pick($("#finder-send"), mine, "send");
   pick($("#finder-get"), theirs, "get");
-  el.querySelectorAll(".assets button").forEach((b) => b.addEventListener("click", () => {
+  el.querySelectorAll(".assets button[data-kind]").forEach((b) => b.addEventListener("click", () => {
     finder[b.dataset.kind] = finder[b.dataset.kind].filter((id) => id !== b.dataset.id); renderFinder();
   }));
   el.querySelectorAll("#finder-goal button").forEach((b) => b.addEventListener("click", () => { finder.goal = b.dataset.goal; renderFinder(); }));
@@ -1143,7 +1163,8 @@ function findTrades() {
   // Your extra pieces the finder may add: picks and players outside your core for the goal.
   // Naming a piece to get with nothing to send opens your whole roster and picks to pay for it.
   const open = get.length && !send.length;
-  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id)
+  const locked = lockedIds(me);
+  const myExtra = [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150 && !sendIds.has(a.id) && !locked.has(a.id)
     && (open || (goal === "rebuild" ? a.kind === "player" && goalFactor(a, goal, me, startsForMe) < 1
       : a.kind === "pick" || !startsForMe.has(a.id))))
     .sort((a, b) => b.value - a.value).slice(0, open ? 14 : 10);
