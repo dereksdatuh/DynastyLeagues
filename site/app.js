@@ -903,7 +903,9 @@ const ideas = { list: null, league: null };
 
 function ideaSeeds(mine) {
   const roster = mine.players.map(assetById).filter((p) => p && p.formula);
-  const sells = roster.map((p) => ({ p, c: myCall(p, mine) })).filter((x) => x.c.signal === "SELL")
+  // Respect the Trade Finder's untouchable list when that feature is present.
+  const locked = (id) => typeof untouchable === "function" && untouchable(id, mine.roster_id);
+  const sells = roster.map((p) => ({ p, c: myCall(p, mine) })).filter((x) => x.c.signal === "SELL" && !locked(x.p.id))
     .sort((a, b) => b.p.value - a.p.value).slice(0, IDEAS_SELL).map(({ p, c }) => ({ kind: "sell", a: p, why: c.why }));
   const buys = state.data.players.filter((p) => p.formula && p.call.signal === "BUY" && p.roster_id && p.roster_id !== mine.roster_id && p.value >= 800)
     .sort((a, b) => b.formula.score - a.formula.score).slice(0, IDEAS_BUY).map((p) => ({ kind: "buy", a: p, why: p.call.why }));
