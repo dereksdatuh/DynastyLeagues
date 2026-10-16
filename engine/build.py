@@ -227,6 +227,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "roster_id": r["roster_id"],
             "name": (owner.get("metadata") or {}).get("team_name") or owner.get("display_name") or f"Team {r['roster_id']}",
             "owner": owner.get("display_name"),
+            "owner_id": r.get("owner_id"),
             "avatar": owner.get("avatar"),
             "division": st.get("division") or None,
             "record": {"wins": st.get("wins", 0), "losses": st.get("losses", 0), "ties": st.get("ties", 0),
@@ -470,6 +471,7 @@ def main(argv=None):
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
+                      "sleeper_league_id": lg["sleeper_league_id"],
                       "buy_in": lg["buy_in"], "payouts": lg.get("payouts"), "teams": len(data["teams"]),
                       "sources": [s for s in data["sources"]], "generated_at": data["generated_at"]})
         ok = [s["source"] for s in data["sources"] if s["ok"]]

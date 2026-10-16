@@ -61,48 +61,407 @@ function reloadIfStale(latest) {
   return true;
 }
 
+// ---------- account: a Sleeper username loads that user's leagues ----------
+// Anyone can use the site: enter a Sleeper username and pick one of that user's
+// leagues. A league the hourly build covers opens with its full data; any other league
+// is valued right here in the browser (buildLite below), so nothing about other users
+// is ever stored or built into this public site.
+const SLEEPER_API = "https://api.sleeper.app/v1/";
+async function sleeperGet(path) {
+  const r = await fetch(SLEEPER_API + path);
+  if (!r.ok) throw new Error(`Sleeper ${path.split("/")[0]} lookup failed (${r.status})`);
+  return r.json();
+}
+const LEAGUE_KIND = { 2: 0, 1: 1 }; // Sleeper settings.type: 2 dynasty, 1 keeper, 0 redraft
+const kindOf = (lg) => LEAGUE_KIND[(lg.settings || {}).type] ?? 2;
+
 async function init() {
   try {
     state.index = await getJSON("data/index.json");
     if (reloadIfStale(state.index.build)) return;
   } catch (e) {
-    $("main").innerHTML = `<p class="error">No data built yet. Run <code>python -m engine.build</code> (the scheduled GitHub Action does this daily).</p>`;
+    $("#login-status").textContent = "No values built yet. Run python -m engine.build (the scheduled GitHub Action does this hourly).";
     return;
   }
-  const sel = $("#league-select");
-  sel.innerHTML = state.index.leagues.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
-  const saved = localStorageGet("league");
-  if (saved && state.index.leagues.some((l) => l.id === saved)) sel.value = saved;
-  sel.addEventListener("change", () => loadLeague(sel.value));
-  if (state.index.leagues.length) loadLeague(sel.value);
-  renderBank();
+  const last = localStorageGet("username");
+  if (last) $("#username").value = last;
+  $("#login").addEventListener("submit", (e) => { e.preventDefault(); login($("#username").value.trim()); });
+  $("#logout").addEventListener("click", logout);
+  $("#league-select").addEventListener("change", () => loadLeague($("#league-select").value));
+  // ?user=name opens straight to that user's leagues (a link someone can share).
+  const u = new URLSearchParams(location.search).get("user");
+  if (u) { $("#username").value = u; login(u); }
+}
+
+async function login(name) {
+  if (!name) return;
+  const status = $("#login-status");
+  status.classList.remove("error");
+  status.textContent = `Looking up ${name} on Sleeper...`;
+  try {
+    const user = await sleeperGet(`user/${encodeURIComponent(name)}`);
+    if (!user || !user.user_id) throw new Error(`Sleeper has no user named "${name}".`);
+    const nfl = await sleeperGet("state/nfl");
+    const season = nfl.league_season || nfl.season;
+    const leagues = (await sleeperGet(`user/${user.user_id}/leagues/nfl/${season}`)) || [];
+    if (!leagues.length) throw new Error(`${user.display_name || name} isn't in any ${season} leagues on Sleeper.`);
+    const built = new Map((state.index.leagues || []).filter((l) => l.sleeper_league_id).map((l) => [String(l.sleeper_league_id), l]));
+    state.user = user;
+    state.nfl = nfl;
+    state.leagues = leagues.sort((a, b) => kindOf(a) - kindOf(b) || String(a.name).localeCompare(String(b.name))).map((lg) => {
+      const b = built.get(String(lg.league_id));
+      return { key: b ? b.id : `sl-${lg.league_id}`, built: b ? b.id : null, sleeper: lg, name: lg.name || "League",
+        season: lg.season, teams: lg.total_rosters, buy_in: b?.buy_in, payouts: b?.payouts, redraft: kindOf(lg) === 2 };
+    });
+    localStorageSet("username", name);
+    const sel = $("#league-select");
+    sel.innerHTML = state.leagues.map((l) => `<option value="${esc(l.key)}">${esc(l.name)}${l.redraft ? " (redraft)" : ""}</option>`).join("");
+    const saved = localStorageGet(`league.${user.user_id}`);
+    if (saved && state.leagues.some((l) => l.key === saved)) sel.value = saved;
+    $("#who").textContent = user.display_name || name;
+    $("#login").classList.add("hidden");
+    $("#account").classList.remove("hidden");
+    $("#welcome").classList.add("hidden");
+    $("nav.tabs").classList.remove("hidden");
+    $("main").classList.remove("hidden");
+    status.textContent = "";
+    renderBank();
+    await loadLeague(sel.value);
+  } catch (e) {
+    status.textContent = e.message || String(e);
+    status.classList.add("error");
+  }
+}
+
+function logout() {
+  if (state.live) clearTimeout(state.live.timer);
+  state.user = null; state.leagues = []; state.data = null;
+  $("#account").classList.add("hidden");
+  $("#login").classList.remove("hidden");
+  $("#welcome").classList.remove("hidden");
+  $("nav.tabs").classList.add("hidden");
+  $("main").classList.add("hidden");
+  $("#updated").textContent = "";
+  $("#username").focus();
 }
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
-async function loadLeague(id) {
-  localStorageSet("league", id);
-  state.data = await getJSON(`data/${id}.json`);
+// The logged-in user's team, whoever that is (the build marks its own owner).
+function markMe(data) {
+  const u = state.user || {};
+  const names = new Set([u.display_name, u.username].filter(Boolean).map((s) => s.toLowerCase()));
+  for (const t of data.teams) t.is_me = t.owner_id ? t.owner_id === u.user_id : names.has(String(t.owner || "").toLowerCase());
+}
+
+// One tab failing to draw must not blank the others.
+function safely(name, fn) {
+  try { fn(); } catch (e) { console.error(`${name} failed: ${e.stack || e}`); }
+}
+
+async function loadLeague(key) {
+  const entry = state.leagues.find((l) => l.key === key) || state.leagues[0];
+  if (!entry) return;
+  localStorageSet(`league.${state.user.user_id}`, entry.key);
+  const forceLite = new URLSearchParams(location.search).has("lite");
+  const note = $("#lite-note");
+  $("#updated").textContent = "Loading...";
+  let data;
+  try {
+    data = entry.built && !forceLite ? await getJSON(`data/${entry.built}.json`) : await buildLite(entry);
+  } catch (e) {
+    if ($("#league-select").value !== entry.key) return;
+    $("#updated").textContent = "";
+    note.textContent = `Couldn't load ${entry.name}: ${e.message || e}`;
+    note.classList.remove("hidden");
+    return;
+  }
+  if ($("#league-select").value !== entry.key) return; // switched while loading
+  markMe(data);
+  state.data = data;
+  if (data.lite) finishLite(data);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
   state.adjScale = null;
   state.trade = { sides: [newSide(), newSide()] };
   state.teamOpen = null;
   const when = new Date(state.data.generated_at);
-  $("#updated").textContent = `Updated ${when.toLocaleString()}${state.data.league.week ? ` · Week ${state.data.league.week}` : ""}`;
-  renderPosFilter();
-  renderRankings();
-  setupTrade();
-  renderTeams();
-  renderLeague();
-  setupWeek();
+  $("#updated").textContent = `Values updated ${when.toLocaleString()}${state.data.league.week ? ` · Week ${state.data.league.week}` : ""}`;
+  note.innerHTML = data.lite ? liteNote(data) : "";
+  note.classList.toggle("hidden", !data.lite);
+  safely("rankings", () => { renderPosFilter(); renderRankings(); });
+  safely("trade", setupTrade);
+  safely("teams", renderTeams);
+  safely("league", renderLeague);
+  safely("week", setupWeek);
   state.liveTrades = [];
-  renderTrades();
-  renderSchedule();
+  safely("trades", renderTrades);
+  safely("schedule", renderSchedule);
   finder.me = null; finder.goal = null; finder.last = null;
-  renderFinder();
-  renderRookieMock();
-  renderFormula();
+  safely("finder", renderFinder);
+  safely("rookie", renderRookieMock);
+  safely("formula", renderFormula);
+}
+
+// ---------- any Sleeper league, valued in the browser ----------
+// A league the hourly build doesn't cover borrows player values from the built league
+// whose format is closest (superflex, IDP, PPR, TE premium, pass TD points, size), then
+// everything that depends on this league (rosters, picks, records, schedule, builds) is
+// worked out here from Sleeper's public API. Players the template doesn't price come
+// from the other built leagues; the rest stay unvalued and the note above the tabs says so.
+function formatOf(lg) {
+  const rp = lg.roster_positions || [], sc = lg.scoring_settings || {}, st = lg.settings || {};
+  const slots = rp.filter((s) => SLOT_ELIGIBILITY[s] && !["BN", "IR", "TAXI"].includes(s));
+  const groups = new Set(slots.flatMap((s) => SLOT_ELIGIBILITY[s]));
+  const superflex = slots.includes("SUPER_FLEX") || slots.filter((s) => s === "QB").length >= 2;
+  return {
+    num_teams: Number(lg.total_rosters) || 12, superflex, num_qbs: superflex ? 2 : 1,
+    ppr: Math.round(Number(sc.rec || 0) * 2) / 2, te_premium: Number(sc.bonus_rec_te || 0),
+    pass_td: sc.pass_td ?? 4, idp: ["DL", "LB", "DB"].some((g) => groups.has(g)),
+    starting_slots: slots, roster_size: rp.length, taxi_slots: Number(st.taxi_slots) || 0,
+    draft_rounds: Number(st.draft_rounds) || 4,
+  };
+}
+
+function closestBuilt(f) {
+  const dist = (g) => (g.superflex !== f.superflex) * 100 + (g.idp !== f.idp) * 60 + Math.abs(g.ppr - f.ppr) * 10
+    + Math.abs((g.te_premium || 0) - f.te_premium) * 6 + Math.abs((g.pass_td || 4) - f.pass_td) * 2 + Math.abs(g.num_teams - f.num_teams) * 0.5;
+  return [...(state.index.leagues || [])].filter((l) => l.format).sort((a, b) => dist(a.format) - dist(b.format))[0];
+}
+
+function remainingWeeks(lg, nfl) {
+  const st = lg.settings || {};
+  const last = Number(st.playoff_week_start || 15) - 1, start = Number(st.start_week || 1);
+  if (lg.status === "complete") return [];
+  const same = String(lg.season) === String(nfl.league_season || nfl.season);
+  const from = lg.status === "in_season" && same && ["regular", "post"].includes(nfl.season_type) ? Math.max(Number(nfl.week) || 1, start) : start;
+  const out = [];
+  for (let w = from; w <= last; w++) out.push(w);
+  return out;
+}
+
+function schedulePairs(rows) {
+  const by = {};
+  for (const m of rows || []) if (m.matchup_id != null) (by[m.matchup_id] = by[m.matchup_id] || []).push(m.roster_id);
+  return Object.values(by).filter((v) => v.length === 2).map((v) => v.sort((a, b) => a - b));
+}
+
+async function buildLite(entry) {
+  const lg = entry.sleeper, lid = lg.league_id, nfl = state.nfl || {};
+  const fmtL = formatOf(lg);
+  const tmpl = closestBuilt(fmtL);
+  if (!tmpl) throw new Error("no built league to borrow values from");
+  const weeks = remainingWeeks(lg, nfl);
+  const nowWeek = lg.status === "in_season" ? Number(nfl.week) || null : null;
+  const [base, rosters, users, traded, ...weekRows] = await Promise.all([
+    getJSON(`data/${tmpl.id}.json`), sleeperGet(`league/${lid}/rosters`), sleeperGet(`league/${lid}/users`),
+    sleeperGet(`league/${lid}/traded_picks`).catch(() => []),
+    ...weeks.map((w) => sleeperGet(`league/${lid}/matchups/${w}`).catch(() => [])),
+  ]);
+  const owner = new Map();
+  for (const r of rosters) for (const pid of r.players || []) owner.set(pid, r.roster_id);
+  const fits = new Set(fmtL.starting_slots.flatMap((s) => SLOT_ELIGIBILITY[s]));
+  const byId = new Map(base.players.map((p) => [p.id, { ...p, roster_id: owner.get(p.id) ?? null }]));
+  // Rostered players the template doesn't price: take them from another built league.
+  let missing = [...owner.keys()].filter((id) => !byId.has(id));
+  const borrowed = [];
+  for (const other of state.index.leagues || []) {
+    if (!missing.length) break;
+    if (other.id === tmpl.id) continue;
+    let od;
+    try { od = await getJSON(`data/${other.id}.json`); } catch { continue; }
+    const got = new Map(od.players.map((p) => [p.id, p]));
+    missing = missing.filter((id) => {
+      const p = got.get(id);
+      if (!p || !fits.has(p.pos)) return true;
+      byId.set(id, { ...p, roster_id: owner.get(id), formula: null, call: null });
+      borrowed.push(id);
+      return false;
+    });
+  }
+  const players = [...byId.values()].sort((a, b) => b.value - a.value);
+  const usersById = new Map(users.map((u) => [u.user_id, u]));
+  const teams = rosters.map((r) => {
+    const u = usersById.get(r.owner_id) || {}, st = r.settings || {};
+    const mine = (r.players || []).filter((id) => byId.has(id)).map((id) => byId.get(id));
+    return {
+      roster_id: r.roster_id, name: (u.metadata || {}).team_name || u.display_name || `Team ${r.roster_id}`,
+      owner: u.display_name || null, owner_id: r.owner_id || null, avatar: u.avatar || null, division: st.division || null,
+      record: { wins: st.wins || 0, losses: st.losses || 0, ties: st.ties || 0, fpts: (st.fpts || 0) + (st.fpts_decimal || 0) / 100,
+        max_pf: Math.round(((st.ppts || 0) + (st.ppts_decimal || 0) / 100) * 100) / 100 },
+      players: mine.sort((a, b) => b.value - a.value).map((p) => p.id),
+      taxi: r.taxi || [], reserve: r.reserve || [], player_value: mine.reduce((t, p) => t + p.value, 0), is_me: false,
+    };
+  });
+  // Every future pick: three drafts, this league's rounds, after Sleeper's traded picks.
+  let first = Number(lg.season) || Number(nfl.season);
+  if (!["pre_draft", "drafting"].includes(lg.status)) first += 1;
+  const years = [first, first + 1, first + 2];
+  const own = new Map();
+  for (const y of years) for (let rd = 1; rd <= fmtL.draft_rounds; rd++) for (const r of rosters) own.set(`${y}:${rd}:${r.roster_id}`, r.roster_id);
+  for (const t of traded || []) { const k = `${t.season}:${t.round}:${t.roster_id}`; if (own.has(k)) own.set(k, t.owner_id); }
+  const picks = [...own.entries()].map(([k, cur]) => {
+    const [y, rd, orig] = k.split(":").map(Number);
+    return { id: `pick:${y}:${rd}:${orig}`, year: y, round: rd, original_roster_id: orig, roster_id: cur, tier: null, slot: null, value: 0 };
+  });
+  const schedule = {};
+  weeks.forEach((w, i) => (schedule[w] = schedulePairs(weekRows[i])));
+  const current = nowWeek != null ? weekRows[weeks.indexOf(nowWeek)] || [] : [];
+  const relabel = (list) => (Array.isArray(list) ? list : []).map((x) => ({ ...x, roster_id: owner.get(x.id) ?? null }));
+  const potw = (w) => w && Object.fromEntries(Object.entries(w).map(([k, v]) => [k, relabel(v)]));
+  const divs = [...new Set(teams.map((t) => t.division).filter(Boolean))].sort((a, b) => a - b);
+  const st = lg.settings || {};
+  return {
+    generated_at: base.generated_at, lite: { template: tmpl.name, template_id: tmpl.id, borrowed: borrowed.length,
+      unvalued: missing.length, base_picks: base.picks,
+      builds: base.teams.map((t) => t.build).filter(Boolean) }, history_id: tmpl.id,
+    league: { id: entry.key, name: lg.name, sleeper_league_id: lid, season: lg.season, status: lg.status,
+      buy_in: null, currency: "USD", payouts: null, notes: "", format: fmtL, scoring: lg.scoring_settings || {},
+      week: nowWeek, playoff_teams: Number(st.playoff_teams) || Math.max(Math.floor(teams.length / 2), 1),
+      divisions: Object.fromEntries(divs.map((d) => [String(d), (lg.metadata || {})[`division_${d}`] || `Division ${d}`])) },
+    week: { ...base.week, week: nowWeek, matchups: current.map((r) => ({ roster_id: r.roster_id, matchup_id: r.matchup_id, points: r.points,
+      starters: r.starters, players_points: r.players_points })), potw: potw(base.week?.potw), potw_last: potw(base.week?.potw_last) },
+    schedule: { weeks: schedule, median_game: !!st.league_average_match, sigma: 0, sigma_share: 0.21, strength: {} },
+    sources: base.sources, model: base.model, formula: base.formula, players, picks,
+    rookie_draft: null, next_draft: null, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
+  };
+}
+
+// The parts that need the lineup helpers (state.data is this league by now).
+function finishLite(data) {
+  const teams = data.teams, n = teams.length, byId = new Map(data.players.map((p) => [p.id, p]));
+  for (const t of teams) {
+    const ps = t.players.map((id) => byId.get(id));
+    const lineup = bestLineup(ps, "value");
+    t.lineup = lineup.map(({ slot, p }) => ({ slot, id: p.id, value: p.value }));
+    t.week_lineup = bestLineup(ps, "proj_week").map(({ slot, p }) => ({ slot, id: p.id, proj_week: p.proj_week }));
+    t.ros_lineup = bestLineup(ps, "ros_ppg").map(({ slot, p }) => ({ slot, id: p.id, ros_ppg: p.ros_ppg }));
+    t.starter_value = Math.round(lineup.reduce((s, x) => s + x.p.value, 0));
+    t.proj_week_points = Math.round(t.week_lineup.reduce((s, x) => s + (x.proj_week || 0), 0) * 100) / 100;
+    t.ros_ppg = Math.round(t.ros_lineup.reduce((s, x) => s + (x.ros_ppg || 0), 0) * 100) / 100;
+    const aged = lineup.filter((x) => x.p.age);
+    const w = aged.reduce((s, x) => s + x.p.value, 0);
+    t.starter_age = w ? Math.round((aged.reduce((s, x) => s + x.p.age * x.p.value, 0) / w) * 10) / 10 : null;
+  }
+  const sch = data.schedule;
+  const ppg = Object.fromEntries(teams.map((t) => [t.roster_id, t.ros_ppg]));
+  const vals = Object.values(ppg).filter((v) => v > 0);
+  sch.sigma = Math.round(sch.sigma_share * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) * 100) / 100 || 1;
+  const rec = projectRecords();
+  for (const t of teams) {
+    const r = rec[t.roster_id], left = Object.keys(sch.weeks).length;
+    t.projection = { ppg: r.ppg, wins: r.wins, losses: r.losses, ties: r.ties, pf: r.pf, remaining_wins: r.wins - t.record.wins,
+      remaining_games: r.games, max_pf: r.maxPF, rank: r.rank, max_pf_rank: r.maxPFRank, weeks_left: left };
+  }
+  const now = seedOrder(Object.fromEntries(teams.map((t) => [t.roster_id, { ...t.record, pf: t.record.fpts }])));
+  const byMax = [...teams].sort((a, b) => b.record.max_pf - a.record.max_pf);
+  for (const t of teams) { t.record.seed = now.indexOf(String(t.roster_id)) + 1; t.record.max_pf_rank = byMax.indexOf(t) + 1; }
+  pricePicks(data, rec);
+  const pv = {};
+  for (const p of data.picks) pv[p.roster_id] = (pv[p.roster_id] || 0) + p.value;
+  for (const t of teams) {
+    t.picks = data.picks.filter((p) => p.roster_id === t.roster_id).map((p) => p.id);
+    t.pick_value = Math.round(pv[t.roster_id] || 0);
+    t.total_value = t.player_value + t.pick_value;
+  }
+  const starterRank = new Map([...teams].sort((a, b) => b.starter_value - a.starter_value).map((t, i) => [t.roster_id, i + 1]));
+  [...teams].sort((a, b) => b.total_value - a.total_value).forEach((t, i) => {
+    t.power_rank = i + 1;
+    t.starter_rank = starterRank.get(t.roster_id);
+    t.outlook = t.starter_rank <= n / 3 ? "contender" : t.starter_rank > (2 * n) / 3 ? "rebuilding" : "middle";
+  });
+  teams.sort((a, b) => a.power_rank - b.power_rank);
+  liteBuilds(data);
+  scheduleStrength(data);
+}
+
+// Builds: the JS mirror of engine/builds.py, with each build's write-up from the template.
+function liteBuilds(data) {
+  const n = data.teams.length, builds = assignBuilds();
+  const known = Object.fromEntries((data.lite.builds || []).map((b) => [b.key, b]));
+  for (const t of data.teams) {
+    const b = builds[t.roster_id], k = known[b.key] || {};
+    const pr = t.projection || {};
+    t.build = { ...b, about: k.about || "", plan: k.plan || [],
+      reasons: [`${ordinal(b.nowRank)} of ${n} in points a week the rest of the way (${(t.ros_ppg || 0).toFixed(1)})`,
+        `${ordinal(b.valueRank)} in total dynasty value`, `projected ${ordinal(pr.rank || n)}, playoff line is ${data.league.playoff_teams}`] };
+  }
+}
+
+// Strength of schedule (mirrors engine/record.py strength_of_schedule).
+function scheduleStrength(data) {
+  const sch = data.schedule, sigma = sch.sigma;
+  const ppg = Object.fromEntries(data.teams.map((t) => [t.roster_id, t.ros_ppg]));
+  const out = {};
+  for (const t of data.teams) {
+    const rid = t.roster_id;
+    const weeks = [], opp = [];
+    let exp = 0, avg = 0, med = 0;
+    for (const wk of Object.keys(sch.weeks).sort((a, b) => a - b)) {
+      const m = sch.weeks[wk].find((p) => p.includes(rid));
+      const o = m ? (m[0] === rid ? m[1] : m[0]) : null;
+      const field = vsField(rid, ppg, sigma);
+      const has = o != null && ppg[o] != null;
+      const p = has ? winProb(ppg[rid], ppg[o], sigma) : field;
+      weeks.push({ week: Number(wk), opp: has ? o : null, opp_ppg: has ? Math.round(ppg[o] * 10) / 10 : null, win: Math.round(p * 1000) / 1000 });
+      if (has) opp.push(ppg[o]);
+      exp += p; avg += field;
+      if (sch.median_game) med += vsMedian(rid, ppg, sigma);
+    }
+    const r2 = (x) => Math.round(x * 100) / 100;
+    out[rid] = { weeks, opp_ppg: opp.length ? Math.round((opp.reduce((a, b) => a + b, 0) / opp.length) * 10) / 10 : null,
+      exp_wins: r2(exp), avg_wins: r2(avg), vs_average: r2(exp - avg), median_wins: sch.median_game ? r2(med) : null };
+  }
+  Object.keys(out).filter((r) => out[r].opp_ppg != null).sort((a, b) => out[b].opp_ppg - out[a].opp_ppg).forEach((r, i) => (out[r].rank = i + 1));
+  sch.strength = out;
+}
+
+// Picks priced off the template's pick table by draft year, round and tier. Next
+// year's tier and slot follow the projected record (worst first); the year after
+// splits early/mid/late only at the ends; later years are untiered.
+function pricePicks(data, rec) {
+  const base = data.lite.base_picks || [];
+  const baseYears = [...new Set(base.map((p) => p.year))].sort();
+  const years = [...new Set(data.picks.map((p) => p.year))].sort();
+  const table = {}, any = {};
+  for (const p of base) {
+    const k = `${p.year}:${p.round}:${p.tier}`, a = `${p.year}:${p.round}`;
+    (table[k] = table[k] || []).push(p.value); (any[a] = any[a] || []).push(p.value);
+  }
+  const avg = (xs) => (xs && xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null);
+  const TIER_MULT = { early: 1.15, mid: 1, late: 0.87 };
+  const priceOf = (yi, round, tier) => {
+    const y = baseYears[Math.min(yi, baseYears.length - 1)];
+    for (let r = round; r >= 1; r--) {
+      const v = avg(table[`${y}:${r}:${tier}`]) ?? (avg(any[`${y}:${r}`]) != null ? avg(any[`${y}:${r}`]) * (TIER_MULT[tier] || 1) : null);
+      if (v != null) return v * Math.pow(0.45, round - r);
+    }
+    return 0;
+  };
+  const order = Object.keys(rec).map(Number).sort((a, b) => rec[b].rank - rec[a].rank); // worst first
+  const n = order.length;
+  const name = new Map(data.teams.map((t) => [t.roster_id, t.name + (t.owner && t.owner !== t.name ? `, ${t.owner}` : "")]));
+  for (const p of data.picks) {
+    const yi = years.indexOf(p.year), i = order.indexOf(p.original_roster_id);
+    p.tier = yi === 0 ? (i < n / 3 ? "early" : i < (2 * n) / 3 ? "mid" : "late")
+      : yi === 1 ? (i < n / 6 ? "early" : i >= n - n / 6 ? "late" : "mid") : null;
+    p.slot = yi === 0 ? i + 1 : null;
+    p.overall = p.slot ? (p.round - 1) * n + p.slot : null;
+    p.value = Math.round(priceOf(yi, p.round, p.tier));
+    const via = p.roster_id !== p.original_roster_id ? ` (via ${name.get(p.original_roster_id) || "Team " + p.original_roster_id})` : "";
+    p.label = (yi === 0 ? `${p.year} ${p.round}.${String(p.slot).padStart(2, "0")}`
+      : p.tier ? `${p.year} ${p.tier[0].toUpperCase() + p.tier.slice(1)} ${ordinal(p.round)}` : `${p.year} ${ordinal(p.round)}`) + via;
+  }
+  data.picks.sort((a, b) => b.value - a.value);
+}
+
+function liteNote(data) {
+  const L = data.lite;
+  const gaps = [L.borrowed ? `${L.borrowed} rostered players priced from another league` : "",
+    L.unvalued ? `${L.unvalued} rostered players with no value anywhere (deep bench, kickers or defenses)` : ""].filter(Boolean).join("; ");
+  return `<b>Quick values.</b> This league isn't in the hourly build, so player values come from <b>${esc(L.template)}</b>, the built league with the closest settings,
+    and everything else (rosters, picks, records, schedule, builds) is worked out live from Sleeper.${gaps ? ` ${esc(gaps)}.` : ""}
+    Picks are priced by projected finish; the rookie mock and future rankings need the full build.`;
 }
 
 // ---------- tabs ----------
@@ -272,7 +631,7 @@ async function openPlayer(id) {
     document.querySelector('.tabs button[data-tab="finder"]').click();
     renderFinder();
   };
-  const hist = await loadHistory(state.data.league.id);
+  const hist = await loadHistory(state.data.history_id || state.data.league.id);
   const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
   const el = $("#player-history");
   if (el) el.innerHTML = pts.length >= 2 ? sparkline(pts) : `<p class="muted">Not enough daily snapshots yet${pts.length ? ` (one on ${esc(pts[0][0])})` : ""}.</p>`;
@@ -2014,6 +2373,7 @@ function slotWhy(rid, rd) {
 function renderRookieMock() {
   const el = $("#rookie");
   const rd = state.data.rookie_draft;
+  if (state.data.lite) { el.innerHTML = `<p class="muted">The rookie mock needs this league's past drafts and the devy class, so it runs only for leagues in the hourly build. Picks on the other tabs are still priced by projected finish.</p>`; return; }
   if (!rd || !rd.board.length) { el.innerHTML = `<p class="muted">No upcoming rookie draft picks found for this league.</p>`; return; }
   const rule = rd.rule;
   const ruleText = rule.rule === "max_pf" ? "lowest projected max PF first" : "worst projected record first";
@@ -2219,7 +2579,7 @@ function bankSave(b) { localStorageSet(BANK_KEY, JSON.stringify(b)); }
 
 // Every league the site knows, plus any the bank added by hand (an old or non-Sleeper league).
 function bankLeagues(b) {
-  const out = (state.index?.leagues || []).map((l) => ({ id: l.id, name: l.name, teams: l.teams, buy_in: l.buy_in, season: l.season, payouts: l.payouts }));
+  const out = (state.leagues || []).map((l) => ({ id: l.key, name: l.name, teams: l.teams, buy_in: l.buy_in, season: l.season, payouts: l.payouts }));
   for (const [id, l] of Object.entries(b.leagues)) if (l.custom && !out.some((o) => o.id === id)) out.push({ id, name: l.name, teams: l.teams, custom: true });
   return out;
 }
