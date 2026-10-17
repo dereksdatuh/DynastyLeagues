@@ -1,10 +1,16 @@
-// Loads the built site in headless Chrome and clicks through every league:
-// rankings, teams (with projected records), a sample trade with owner messages and
-// this week's tabs (matchups, players of the week, movers, news).
-// Fails on any script error. Usage: node tests/site_smoke.mjs http://localhost:8000/
+// Loads the built site in headless Chrome, logs in with a Sleeper username and clicks
+// through every league: rankings, teams (with projected records), a sample trade with
+// owner messages and this week's tabs (matchups, players of the week, movers, news).
+// Then it opens the first league again in quick-values mode (?lite), the path any
+// league outside the hourly build takes. Fails on any script error.
+// Usage: node tests/site_smoke.mjs http://localhost:8000/ [sleeper username]
+// SLEEPER_FIXTURES=file.json answers api.sleeper.app from a {path: response} map
+// instead of the network (for running it offline).
 import { chromium } from "playwright-core";
+import { readFileSync } from "node:fs";
 
-const url = process.argv[2] || "http://localhost:8000/";
+const site = process.argv[2] || "http://localhost:8000/";
+const username = process.argv[3] || process.env.SMOKE_USER || "DS107";
 const browser = await chromium.launch({ channel: process.env.CHROME_CHANNEL || "chrome", executablePath: process.env.CHROME_PATH });
 const page = await browser.newPage();
 const errors = [];
@@ -17,20 +23,42 @@ page.on("pageerror", (e) => errors.push(e.stack || e.message));
 page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Failed to load resource") && !/CORS|sleeper|espn/i.test(m.text()) && errors.push(m.text()));
 page.on("response", (r) => (external(r.url()) ? tally(r.url(), r.ok()) : r.status() >= 400 && !r.url().endsWith("favicon.ico") && errors.push(`${r.status()} ${r.url()}`)));
 page.on("requestfailed", (r) => (external(r.url()) ? tally(r.url(), false) : errors.push(`failed ${r.url()}`)));
+if (process.env.SLEEPER_FIXTURES) {
+  const fx = JSON.parse(readFileSync(process.env.SLEEPER_FIXTURES, "utf8"));
+  await page.route("https://api.sleeper.app/**", (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/v1\//, "");
+    route.fulfill(path in fx ? { json: fx[path], headers: { "access-control-allow-origin": "*" } } : { status: 404, body: "null", headers: { "access-control-allow-origin": "*" } });
+  });
+}
 
-await page.goto(url);
+// Nothing shows until someone logs in.
+await page.goto(site);
+await page.waitForSelector("#welcome:not(.hidden)");
+if (await page.$("main:not(.hidden)")) errors.push("league tabs showed before logging in");
+await page.fill("#username", "no-such-user-zz9");
+await page.click("#login button");
+await page.waitForFunction(() => /no user|failed/i.test(document.querySelector("#login-status").textContent));
+await page.fill("#username", username);
+await page.click("#login button");
 await page.waitForSelector("#league-select option", { state: "attached" });
 const leagues = await page.$$eval("#league-select option", (os) => os.map((o) => o.value));
-for (const id of leagues) {
+console.log(`logged in as ${await page.$eval("#who", (e) => e.textContent)}: ${leagues.length} leagues`);
+const runs = [...leagues.map((id) => [id, false]), [leagues[0], true]];
+for (const [id, liteRun] of runs) {
+  if (liteRun) {
+    // Quick-values mode on a built league: everything must still render.
+    await page.goto(`${site}?user=${encodeURIComponent(username)}&lite`);
+    await page.waitForSelector("#league-select option", { state: "attached" });
+  }
   // Wait for this league's data rather than an idle network: the page's live
   // Sleeper/ESPN calls can stay open.
-  if ((await page.$eval("#league-select", (s) => s.value)) !== id) {
-    const loaded = page.waitForResponse((r) => r.url().includes(`data/${id}.json`));
-    await page.selectOption("#league-select", id);
-    await loaded;
-  }
-  await page.waitForFunction((id) => document.querySelector("#rankings tbody tr") && document.querySelector("#league-select").value === id, id);
+  if ((await page.$eval("#league-select", (s) => s.value)) !== id) await page.selectOption("#league-select", id);
+  await page.waitForFunction((id) => document.querySelector("#rankings tbody tr") && document.querySelector("#league-select").value === id
+    && /Values updated/.test(document.querySelector("#updated").textContent), id, { timeout: 60000 });
   await page.waitForTimeout(500);
+  const lite = await page.$eval("#lite-note", (e) => !e.classList.contains("hidden"));
+  if (lite !== (liteRun || !id.startsWith("league-"))) errors.push(`${id}: quick-values note ${lite ? "shown" : "missing"}`);
+  if (lite) console.log(`${id} quick values: ${await page.$eval("#lite-note", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 200))}`);
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
   // Player page: open the top player, check the pieces, close it.
   await page.click("#rankings .player-link");
@@ -47,7 +75,7 @@ for (const id of leagues) {
   console.log(`  builds: ${builds.join(", ")}`);
   const fut = await page.$$eval("#future-table tbody tr", (rs) => rs.slice(0, 3).map((r) => [...r.cells].slice(1, 8).map((c) => c.textContent.trim().replace(/\s+/g, " ")).join(" | ")));
   console.log(`  future: ${fut.join("  //  ")}`);
-  if (!fut.length) errors.push(`${id}: future power rankings did not render`);
+  if (!fut.length && !lite) errors.push(`${id}: future power rankings did not render`);
   if (!builds.length) errors.push(`${id}: team builds did not render`);
   await page.click("#teams tbody tr.clickable");
   if (!(await page.$("#team-detail .build-card"))) errors.push(`${id}: build card missing in team detail`);
@@ -160,7 +188,7 @@ for (const id of leagues) {
   if (potw.length) console.log(`  top scorers: ${potw.join("; ")}`);
   if (matchups.length && !lineupRows) errors.push(`${id}: matchup lineups did not open`);
   console.log(`  rookie mock: ${mock.length} picks, ${prospects} prospects; ${mock.slice(0, 3).map((m) => `${m[0]} (today ${m[1]}) ${m[2]} → ${m[4]} ${m[5]}`).join("; ")}`);
-  if (!mock.length) errors.push(`${id}: rookie mock did not render`);
+  if (!mock.length && !lite) errors.push(`${id}: rookie mock did not render`);
   console.log(`  standings today:\n${standings.map((r) => "    " + r).join("\n")}`);
   if (mock.length && !standings.length) errors.push(`${id}: standings today did not render`);
   console.log(`${id}: ${players} players, ${teams.length} teams, top team ${teams[0]?.slice(1, 5).join(" | ")}, max PF high ${maxPF[0]?.toFixed(0)}, impact rows ${impact}, owner messages ${pitches.length}`);
@@ -169,7 +197,8 @@ for (const id of leagues) {
   if (lens.length !== 2) errors.push(`${id}: team-situation trade view did not render`);
   if (!players || !teams.length || impact !== 2 || !pitches.length) errors.push(`${id}: page did not render fully`);
 }
-// Money Bank: add a season for every league, fill one in, and check it survives a reload.
+// Money Bank: add a season for every league, fill one in, and check it survives a reload
+// (the ?user= link logs back in).
 await page.click('button[data-tab="bank"]');
 await page.click("#bank-add-all");
 const bankRows = await page.$$eval("#bank-ledger tbody tr[data-id]", (r) => r.length);

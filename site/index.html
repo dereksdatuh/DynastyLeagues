@@ -12,10 +12,25 @@
       <h1>Dynasty Leagues</h1>
       <span id="updated" class="muted"></span>
     </div>
-    <select id="league-select" aria-label="League"></select>
+    <form id="login" class="login">
+      <input id="username" type="text" placeholder="Sleeper username" autocomplete="username" autocapitalize="off" spellcheck="false" aria-label="Sleeper username" required />
+      <button type="submit" class="chip active">Load my leagues</button>
+    </form>
+    <div id="account" class="account hidden">
+      <span id="who" class="muted"></span>
+      <select id="league-select" aria-label="League"></select>
+      <button id="logout" type="button" class="chip">Switch user</button>
+    </div>
   </header>
 
-  <nav class="tabs" role="tablist">
+  <section id="welcome" class="welcome">
+    <h2>Dynasty values for your Sleeper leagues</h2>
+    <p>Enter your Sleeper username above to load your leagues. Every player and pick is valued for each league's own settings,
+      with rankings, a trade calculator, a trade finder, team builds, projected records and more.</p>
+    <p id="login-status" class="muted"></p>
+  </section>
+
+  <nav class="tabs hidden" role="tablist">
     <button data-tab="rankings" class="active">Rankings</button>
     <button data-tab="formula">Formula &amp; Calls</button>
     <button data-tab="trade">Trade Calculator</button>
@@ -32,7 +47,8 @@
     <button data-tab="league">League &amp; Sources</button>
   </nav>
 
-  <main>
+  <main class="hidden">
+  <p id="lite-note" class="note hidden"></p>
     <section id="tab-rankings" class="tab">
       <div class="toolbar">
         <div id="pos-filter" class="chips"></div>

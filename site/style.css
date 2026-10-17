@@ -184,3 +184,11 @@ b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }
 .chips.small .chip { font-size: 12px; padding: 2px 8px; }
 .card.adjust { margin: 10px 0; }
 .card.adjust p { margin: 4px 0; }
+
+/* Sleeper username login */
+.login, .account { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.login input { min-width: 200px; }
+.welcome { max-width: 720px; margin: 48px auto; padding: 0 16px; }
+.welcome h2 { margin-top: 0; }
+.note { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+@media (max-width: 600px) { .login input { min-width: 0; flex: 1; } .account select { max-width: 100%; } }
