@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-10-17T17:22:51+00:00",
- "build": "a3349ea",
+ "generated_at": "2026-10-17T17:29:29+00:00",
+ "build": "78b63ae",
  "leagues": [
   {
    "id": "league-1",
@@ -78,7 +78,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:32+00:00"
+   "generated_at": "2026-10-17T17:29:06+00:00"
   },
   {
    "id": "league-2",
@@ -144,7 +144,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:37+00:00"
+   "generated_at": "2026-10-17T17:29:12+00:00"
   },
   {
    "id": "league-3",
@@ -210,7 +210,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:40+00:00"
+   "generated_at": "2026-10-17T17:29:15+00:00"
   },
   {
    "id": "league-4",
@@ -276,7 +276,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:43+00:00"
+   "generated_at": "2026-10-17T17:29:19+00:00"
   },
   {
    "id": "league-5",
@@ -341,7 +341,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:47+00:00"
+   "generated_at": "2026-10-17T17:29:24+00:00"
   },
   {
    "id": "league-6",
@@ -407,7 +407,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-17T17:22:50+00:00"
+   "generated_at": "2026-10-17T17:29:29+00:00"
   }
  ]
 }
