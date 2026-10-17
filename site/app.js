@@ -517,7 +517,7 @@ function renderRankings() {
   let lastTier = null;
   const body = rows
     .map((p) => {
-      const sep = p[tierKey] !== lastTier ? `<tr class="tier-row"><td colspan="11">Tier ${p[tierKey]}</td></tr>` : "";
+      const sep = p[tierKey] !== lastTier ? `<tr class="tier-row"><td colspan="12">Tier ${p[tierKey]}</td></tr>` : "";
       lastTier = p[tierKey];
       const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}${(p.sources_raw || {})[k] != null ? ` (site's own ${fmt(p.sources_raw[k])})` : ""}`).join("\n");
       return `${sep}<tr>
@@ -527,6 +527,7 @@ function renderRankings() {
         <td>${esc(p.team || "FA")}</td>
         <td class="num">${p.age ?? ""}</td>
         <td class="num strong">${fmt(p.value)}</td>
+        <td class="num muted" title="Plain average of each site's own number">${p.sites_avg ? fmt(p.sites_avg) : "–"}</td>
         <td class="num muted" title="${esc(src)}">${p.market ? fmt(p.market) : "–"}</td>
         <td class="num muted">${p.model ? fmt(p.model) : "–"}</td>
         <td>${fitBadge(p.premium)}</td>
@@ -536,7 +537,7 @@ function renderRankings() {
     })
     .join("");
   table.innerHTML = `<thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Team</th><th class="num">Age</th>
-    <th class="num" title="Final league value">Value</th><th class="num" title="Consensus across sites">Market</th>
+    <th class="num" title="League value: what trades and verdicts use">League value</th><th class="num" title="Plain average of each site's own number (KTC, FantasyCalc, DynastyProcess)">Sites avg</th><th class="num" title="Consensus across sites on our shared scale">Market</th>
     <th class="num" title="League scoring production model">Model</th><th title="Scoring fit">Fit</th>
     <th class="num" title="Points per game in this league's scoring / projected this week">PPG / Wk</th><th>Owner</th></tr></thead><tbody>${body}</tbody>`;
 }
@@ -604,6 +605,7 @@ async function openPlayer(id) {
     </div>
     <h3>How his value is built</h3>
     <table class="net"><tbody>
+      <tr><td>Sites average</td><td class="num">${p.sites_avg ? fmt(p.sites_avg) : "–"}</td><td class="muted">plain average of each site's own number, for reference; not used in trades</td></tr>
       <tr><td>Market consensus</td><td class="num">${p.market ? fmt(p.market) : "–"}</td><td class="muted">average of the sites below${p.spread != null ? `, ${Math.round(p.spread * 100)}% spread between them` : ""}</td></tr>
       <tr><td>× scoring fit</td><td class="num">${p.premium ? p.premium.toFixed(2) : "–"}</td><td class="muted">this league's scoring vs generic</td></tr>
       <tr><td>= adjusted market</td><td class="num">${p.market_adj ? fmt(p.market_adj) : "–"}</td><td></td></tr>
@@ -858,7 +860,8 @@ function renderTrade() {
         const f = teamFactor(tm[i], x.id);
         const toThem = tm[i] != null && f !== 1
           ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(x.value * f)} to them</span>` : "";
-        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+        const sites = x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
+        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
       })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
@@ -872,7 +875,8 @@ function renderTrade() {
     }
     const sit = tm[i] != null ? `<div class="needs muted">${esc(situationText(tm[i]))}</div>` : "";
     const toThemTotal = items.length && tm[i] != null ? ` · To them <strong>${fmt(tAdj[i].g.total)}</strong>` : "";
-    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)} · Adjusted <strong>${fmt(adj[i].g.total)}</strong>${toThemTotal}` : "") + needLine + sit;
+    const sitesTotal = items.some((x) => x.sites_avg) ? ` · Sites avg ${fmt(items.reduce((t, x) => t + (x.sites_avg || 0), 0))}${items.some((x) => x.kind === "pick") ? " (players only)" : ""}` : "";
+    el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)}${sitesTotal} · Adjusted <strong>${fmt(adj[i].g.total)}</strong>${toThemTotal}` : "") + needLine + sit;
   });
 
   const out = $("#trade-result");

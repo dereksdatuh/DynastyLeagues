@@ -151,6 +151,9 @@ def test_full_build_idp_league(offline):
     # IDP has no market value anywhere, so its value comes from the calibrated model.
     idp = [p for p in players if p["pos"] in ("DL", "LB", "DB")]
     assert idp and all(p["market"] == 0 for p in idp) and max(p["value"] for p in idp) > 0
+    # Each site's own number is shipped next to the shared-scale value, with their plain average.
+    priced = [p for p in players if p["sources_raw"]]
+    assert priced and all(abs(p["sites_avg"] - sum(p["sources_raw"].values()) / len(p["sources_raw"])) <= 1 for p in priced)
     assert [p["rank"] for p in players] == list(range(1, len(players) + 1))
     assert all(players[i]["value"] >= players[i + 1]["value"] for i in range(len(players) - 1))
     # Every rostered player appears, with owner attached.
