@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-10-16T15:23:17+00:00",
- "build": "4bc24b4",
+ "generated_at": "2026-10-17T12:35:12+00:00",
+ "build": "eef2e75",
  "leagues": [
   {
    "id": "league-1",
@@ -40,6 +40,7 @@
     "taxi_slots": 4,
     "draft_rounds": 5
    },
+   "sleeper_league_id": "1367263576678473728",
    "buy_in": 50,
    "payouts": {
     "1st": 500,
@@ -52,10 +53,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -77,7 +78,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:22:41+00:00"
+   "generated_at": "2026-10-17T12:34:36+00:00"
   },
   {
    "id": "league-2",
@@ -108,6 +109,7 @@
     "taxi_slots": 3,
     "draft_rounds": 4
    },
+   "sleeper_league_id": "1358966325422092288",
    "buy_in": 0,
    "payouts": {
     "notes": "TBD"
@@ -117,10 +119,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -142,7 +144,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:22:50+00:00"
+   "generated_at": "2026-10-17T12:34:45+00:00"
   },
   {
    "id": "league-3",
@@ -173,6 +175,7 @@
     "taxi_slots": 4,
     "draft_rounds": 3
    },
+   "sleeper_league_id": "1354113258109280256",
    "buy_in": 0,
    "payouts": {
     "notes": "TBD"
@@ -182,10 +185,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -207,7 +210,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:22:56+00:00"
+   "generated_at": "2026-10-17T12:34:51+00:00"
   },
   {
    "id": "league-4",
@@ -238,6 +241,7 @@
     "taxi_slots": 3,
     "draft_rounds": 4
    },
+   "sleeper_league_id": "1313291882029158400",
    "buy_in": 0,
    "payouts": {
     "notes": "TBD"
@@ -247,10 +251,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -272,7 +276,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:23:03+00:00"
+   "generated_at": "2026-10-17T12:34:58+00:00"
   },
   {
    "id": "league-5",
@@ -302,6 +306,7 @@
     "taxi_slots": 4,
     "draft_rounds": 4
    },
+   "sleeper_league_id": "1304536310471467008",
    "buy_in": 0,
    "payouts": {
     "notes": "TBD"
@@ -311,10 +316,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -336,7 +341,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:23:09+00:00"
+   "generated_at": "2026-10-17T12:35:04+00:00"
   },
   {
    "id": "league-6",
@@ -367,6 +372,7 @@
     "taxi_slots": 4,
     "draft_rounds": 4
    },
+   "sleeper_league_id": "1372064212313985024",
    "buy_in": 0,
    "payouts": {
     "notes": "TBD"
@@ -376,10 +382,10 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 396,
-     "matched": 396,
+     "players": 398,
+     "matched": 398,
      "picks": 24,
-     "shared_with_reference": 396,
+     "shared_with_reference": 398,
      "reference": "fantasycalc"
     },
     {
@@ -401,7 +407,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-10-16T15:23:16+00:00"
+   "generated_at": "2026-10-17T12:35:11+00:00"
   }
  ]
 }
