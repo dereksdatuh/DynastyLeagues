@@ -145,6 +145,8 @@ def value_players(
             "proj_week": round(fantasy_points((wk or {}).get("stats"), fmt.scoring, g), 2) if wk else None,
             "proj_season": round(fantasy_points((sp or {}).get("stats"), fmt.scoring, g), 1) if sp else None,
             "sources": {k: mkt[k] for k in ("fantasycalc", "ktc", "dynastyprocess") if k in mkt},
+            # Each site's own number, before it is put on the shared scale.
+            "sources_raw": {k: round(mkt[f"{k}_raw"]) for k in ("fantasycalc", "ktc", "dynastyprocess") if f"{k}_raw" in mkt},
             "spread": mkt.get("spread", 0),
             "trend": mkt.get("trend"),
         })

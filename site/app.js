@@ -519,7 +519,7 @@ function renderRankings() {
     .map((p) => {
       const sep = p[tierKey] !== lastTier ? `<tr class="tier-row"><td colspan="11">Tier ${p[tierKey]}</td></tr>` : "";
       lastTier = p[tierKey];
-      const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}`).join("\n");
+      const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}${(p.sources_raw || {})[k] != null ? ` (site's own ${fmt(p.sources_raw[k])})` : ""}`).join("\n");
       return `${sep}<tr>
         <td>${byPos ? p.pos_rank : p.rank}</td>
         <td><span class="name player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
@@ -579,7 +579,8 @@ async function openPlayer(id) {
   }
   const mine = myTeam();
   const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`;
-  const srcRows = Object.entries(p.sources || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join("");
+  const raw = p.sources_raw || {};
+  const srcRows = Object.entries(p.sources || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${raw[k] != null ? fmt(raw[k]) : "–"}</td><td class="num">${fmt(v)}</td></tr>`).join("");
   // What each team would pay: league value times that team's own multiplier.
   const buyers = state.data.teams.map((t) => ({ t, v: p.value * teamFactor(t.roster_id, p.id), c: teamCtx(t.roster_id) }))
     .sort((a, b) => b.v - a.v);
@@ -609,7 +610,7 @@ async function openPlayer(id) {
       <tr><td>Points model</td><td class="num">${p.model ? fmt(p.model) : "–"}</td><td class="muted">points over replacement here, aged forward</td></tr>
       <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model</td></tr>
     </tbody></table>
-    ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Value on our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
+    ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Site's own number</th><th class="num">On our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
     <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
     ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
     ${formulaHtml}
