@@ -4,7 +4,7 @@ from statistics import median
 
 from . import model
 from .league import LeagueFormat, fantasy_points, position_group
-from .market import QuantileMap, RatioMap, _top_mean
+from .market import SOURCE_WEIGHTS, QuantileMap, RatioMap, _top_mean
 
 MODEL_WEIGHT = 0.4  # share of final value from the production model when both exist
 PLAYER_PREMIUM_EXPONENT = 0.75  # player's scoring fit vs. others at his position
@@ -14,6 +14,11 @@ OFFENSE = {"QB", "RB", "WR", "TE"}
 # Positions no market source prices are discounted from pure production value:
 # they trade at a discount in practice (deep waiver pools, volatile scoring).
 UNPRICED_DISCOUNT = {"DL": 0.7, "LB": 0.7, "DB": 0.6, "K": 0.3, "DEF": 0.3}
+
+
+def _sites_avg(mkt: dict) -> int | None:
+    raw = [mkt[f"{k}_raw"] for k in SOURCE_WEIGHTS if f"{k}_raw" in mkt]
+    return round(sum(raw) / len(raw)) if raw else None
 
 
 def assign_tiers(players: list[dict], key: str = "value") -> None:
@@ -147,6 +152,8 @@ def value_players(
             "sources": {k: mkt[k] for k in ("fantasycalc", "ktc", "dynastyprocess") if k in mkt},
             # Each site's own number, before it is put on the shared scale.
             "sources_raw": {k: round(mkt[f"{k}_raw"]) for k in ("fantasycalc", "ktc", "dynastyprocess") if f"{k}_raw" in mkt},
+            # Plain average of the sites' own numbers, for display next to the league value.
+            "sites_avg": _sites_avg(mkt),
             "spread": mkt.get("spread", 0),
             "trend": mkt.get("trend"),
         })
