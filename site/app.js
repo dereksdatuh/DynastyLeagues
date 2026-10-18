@@ -627,8 +627,8 @@ async function openPlayer(id) {
   shop.onclick = () => {
     if (!mine) return;
     finder.me = mine.roster_id; finder.goal = null;
-    if (p.roster_id === mine.roster_id) { finder.send = [p.id]; finder.get = []; finder.partner = null; }
-    else { finder.get = [p.id]; finder.send = []; finder.partner = p.roster_id; }
+    if (p.roster_id === mine.roster_id) { finder.send = [p.id]; finder.get = []; finder.partners = []; }
+    else { finder.get = [p.id]; finder.send = []; finder.partners = [p.roster_id]; }
     finder.offer = []; finder.last = null;
     modal.classList.add("hidden");
     document.querySelector('.tabs button[data-tab="finder"]').click();
@@ -1234,6 +1234,20 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
   if (!Object.keys(overrides).length) return "";
   const dirBefore = assignBuilds(), dirAfter = assignBuilds(overrides, tradePickDelta(s));
   const arrow = (b, a) => (a < b ? `<span class="up">#${b} → #${a}</span>` : a > b ? `<span class="down">#${b} → #${a}</span>` : `<span class="muted">#${b}</span>`);
+  // Overall value: every player on the roster plus every pick, before and after.
+  const pickDelta = tradePickDelta(s);
+  const sum = (ps) => ps.reduce((t, p) => t + p.value, 0);
+  const overall = (after) => {
+    const v = {};
+    for (const t of state.data.teams) {
+      const rid = t.roster_id;
+      v[rid] = sum(after && overrides[rid] ? overrides[rid] : rosterOf(rid)) + (t.pick_value || 0) + (after ? pickDelta[rid] || 0 : 0);
+    }
+    const rank = {};
+    Object.keys(v).sort((a, b) => v[b] - v[a]).forEach((rid, i) => (rank[rid] = i + 1));
+    return { v, rank };
+  };
+  const ovB = overall(false), ovA = overall(true);
   const rows = s.filter((x) => x.team != null).map((side) => {
     const rid = side.team;
     const sb = before.by[rid].starters, sa = after.by[rid].starters;
@@ -1253,11 +1267,12 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
       <td>${recCell}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
+      <td class="num">${fmt(ovB.v[rid])} → ${fmt(ovA.v[rid])} <span class="${ovA.v[rid] > ovB.v[rid] ? "up" : ovA.v[rid] < ovB.v[rid] ? "down" : "muted"}">(${ovA.v[rid] >= ovB.v[rid] ? "+" : ""}${fmt(ovA.v[rid] - ovB.v[rid])})</span><br>${arrow(ovB.rank[rid], ovA.rank[rid])}</td>
       <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
       <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
   });
-  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
-    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks. Overall value counts the whole roster, bench included, plus every pick, with its league rank underneath.
     Direction is the team's build (see the Teams tab) before and after, re-run on the new rosters and pick totals.
     ${recordNote()}</p>`;
 }
@@ -1573,7 +1588,7 @@ function runIdeas(done) {
   const mine = myTeam();
   if (!mine) { done([]); return; }
   const seeds = ideaSeeds(mine);
-  const saved = { me: finder.me, partner: finder.partner, goal: finder.goal, send: finder.send, offer: finder.offer, get: finder.get,
+  const saved = { me: finder.me, partners: finder.partners, goal: finder.goal, send: finder.send, offer: finder.offer, get: finder.get,
     getMax: finder.getMax, sendMax: finder.sendMax, positions: finder.positions, openAll: finder.openAll, last: finder.last };
   const c = teamCtx(mine.roster_id);
   const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
@@ -1582,7 +1597,7 @@ function runIdeas(done) {
     if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
     const s = seeds[i];
     // Ideas may pay from anywhere on your roster except your untouchables.
-    Object.assign(finder, { me: mine.roster_id, partner: null, goal, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
+    Object.assign(finder, { me: mine.roster_id, partners: [], goal, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
       getMax: null, sendMax: null, positions: [], openAll: s.kind === "buy" });
     const r = findTrades();
     const d = r.picked && r.picked[0];
@@ -1897,7 +1912,7 @@ function renderNews() {
 const FINDER_POOL = 18;   // partner assets it considers adding
 const FINDER_SHOW = 12;
 const FINDER_MAX_ADD = 3; // most partner pieces added beyond the ones you named
-const finder = { me: null, partner: null, goal: null, send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
+const finder = { me: null, partners: [], goal: null, send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
 const OLD_FOR_REBUILD = (a) => a.kind === "player" && (a.age || 0) >= (a.pos === "RB" ? 26 : 28);
 
 function goalFactor(a, goal, rid, startsForMe) {
@@ -1932,7 +1947,7 @@ function renderFinder() {
   const teams = state.data.teams;
   if (finder.me == null || !teamOf(finder.me)) {
     finder.me = (myTeam() || teams[0]).roster_id;
-    finder.partner = null; finder.send = []; finder.offer = []; finder.get = [];
+    finder.partners = []; finder.send = []; finder.offer = []; finder.get = [];
   }
   if (!finder.goal) {
     const c = teamCtx(finder.me);
@@ -1942,7 +1957,7 @@ function renderFinder() {
   const opt = (sel, any) => (any ? `<option value="">Any team</option>` : "") + teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("");
   const mine = [...state.assetMap.values()].filter((a) => a.roster_id === finder.me && a.value > 0).sort((a, b) => b.value - a.value);
   const theirs = [...state.assetMap.values()].filter((a) => a.roster_id != null && a.roster_id !== finder.me && a.value > 0
-    && (finder.partner == null || a.roster_id === finder.partner)).sort((a, b) => b.value - a.value).slice(0, 600);
+    && (!finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
   const chips = (ids, kind) => ids.map(assetById).filter(Boolean).map((a) => `<li><span>${esc(a.label)}${kind === "get" ? ` <span class="muted">${esc(teamName(a.roster_id))}</span>` : ""}</span><span class="num">${fmt(a.value)}</span><button data-kind="${kind}" data-id="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("");
   const posList = [...new Set(["QB", "RB", "WR", "TE", ...roomPositions()])].filter((p) => POSITIONS.includes(p)).concat("PICK");
   const countChips = (key, opts) => opts.map((k) => `<button class="chip ${finder[key] === k ? "active" : ""}" data-count="${key}" data-k="${k ?? ""}">${k == null ? "Any" : k}</button>`).join("");
@@ -1956,7 +1971,9 @@ function renderFinder() {
         <h4>OK to add <span class="muted">(the finder may use these)</span></h4><input id="finder-offer" type="search" placeholder="Add a piece you'd part with" list="finder-send-list" />
         <div class="chips small"><button class="chip" id="offer-picks">+ my picks</button><button class="chip" id="offer-bench">+ my bench</button><button class="chip" id="offer-clear">clear</button></div>
         <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">Nothing yet. Only "You send" will be offered.</span></li>`}</ul></div>
-      <div class="trade-side"><h3>Trade with</h3><select id="finder-partner" aria-label="Partner team">${opt(finder.partner, true)}</select>
+      <div class="trade-side"><h3>Trade with <span class="muted">(pick one or more; none = every team)</span></h3>
+        <div class="chips small" id="finder-partners"><button class="chip ${finder.partners.length ? "" : "active"}" data-partner="">All teams</button>${teams.filter((t) => t.roster_id !== finder.me)
+          .map((t) => `<button class="chip ${finder.partners.includes(t.roster_id) ? "active" : ""}" data-partner="${t.roster_id}">${esc(teamName(t.roster_id))}</button>`).join("")}</div>
         <h4>You get <span class="muted">(must be in the deal)</span></h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul>
         <h4>Positions you want back</h4><div class="chips" id="finder-pos">${posList.map((p) => `<button class="chip ${finder.positions.includes(p) ? "active" : ""}" data-pos="${p}">${p}</button>`).join("")}</div>
@@ -1972,8 +1989,14 @@ function renderFinder() {
       <button id="finder-run" class="chip active">Find trades</button></div>
     <div id="finder-out"></div>`;
   const reset = () => { finder.last = null; renderFinder(); };
-  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; reset(); };
-  $("#finder-partner").onchange = (e) => { finder.partner = e.target.value ? Number(e.target.value) : null; if (finder.partner != null) finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id === finder.partner); reset(); };
+  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.partners = finder.partners.filter((r) => r !== finder.me); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; reset(); };
+  el.querySelectorAll("#finder-partners [data-partner]").forEach((b) => (b.onclick = () => {
+    const rid = b.dataset.partner ? Number(b.dataset.partner) : null;
+    if (rid == null) finder.partners = [];
+    else finder.partners = finder.partners.includes(rid) ? finder.partners.filter((r) => r !== rid) : [...finder.partners, rid];
+    if (finder.partners.length) finder.get = finder.get.filter((id) => finder.partners.includes((assetById(id) || {}).roster_id));
+    reset();
+  }));
   const pick = (input, list, kind) => {
     input.onchange = () => {
       const a = list.find((x) => x.label === input.value || x.name === input.value);
@@ -1983,7 +2006,7 @@ function renderFinder() {
         // A piece is either always sent or optional, not both.
         if (kind === "send") finder.offer = finder.offer.filter((id) => id !== a.id);
         if (kind === "offer") finder.send = finder.send.filter((id) => id !== a.id);
-        if (kind === "get") finder.partner = a.roster_id; // gets must all come from one team
+        if (kind === "get") finder.partners = [a.roster_id]; // gets must all come from one team
         if (kind === "get") finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id === a.roster_id);
       }
       renderFinder();
@@ -2055,7 +2078,7 @@ function findTrades() {
   if (getRoom < 0) return { error: `You named ${get.length} pieces to get but set ${finder.getMax} back.` };
   const posOk = (a) => !finder.positions.length || finder.positions.includes(a.kind === "pick" ? "PICK" : a.pos);
   const crack = (p) => p.kind === "player" && p.ros_ppg > 0 && teamPPG([...myRoster, p]) - myPPG > 0.3;
-  const partners = get.length ? [get[0].roster_id] : finder.partner != null ? [finder.partner] : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me);
+  const partners = get.length ? [get[0].roster_id] : finder.partners.length ? finder.partners.filter((r) => r !== me) : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me);
   const dirs = assignBuilds();
   const extrasMine = combosUpTo(myExtra, Math.min(sendRoom, myExtra.length > 8 ? 2 : 3));
   const recBefore = projectRecords();
