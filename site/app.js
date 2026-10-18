@@ -1234,6 +1234,20 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
   if (!Object.keys(overrides).length) return "";
   const dirBefore = assignBuilds(), dirAfter = assignBuilds(overrides, tradePickDelta(s));
   const arrow = (b, a) => (a < b ? `<span class="up">#${b} → #${a}</span>` : a > b ? `<span class="down">#${b} → #${a}</span>` : `<span class="muted">#${b}</span>`);
+  // Overall value: every player on the roster plus every pick, before and after.
+  const pickDelta = tradePickDelta(s);
+  const sum = (ps) => ps.reduce((t, p) => t + p.value, 0);
+  const overall = (after) => {
+    const v = {};
+    for (const t of state.data.teams) {
+      const rid = t.roster_id;
+      v[rid] = sum(after && overrides[rid] ? overrides[rid] : rosterOf(rid)) + (t.pick_value || 0) + (after ? pickDelta[rid] || 0 : 0);
+    }
+    const rank = {};
+    Object.keys(v).sort((a, b) => v[b] - v[a]).forEach((rid, i) => (rank[rid] = i + 1));
+    return { v, rank };
+  };
+  const ovB = overall(false), ovA = overall(true);
   const rows = s.filter((x) => x.team != null).map((side) => {
     const rid = side.team;
     const sb = before.by[rid].starters, sa = after.by[rid].starters;
@@ -1253,11 +1267,12 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
       <td>${recCell}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
+      <td class="num">${fmt(ovB.v[rid])} → ${fmt(ovA.v[rid])} <span class="${ovA.v[rid] > ovB.v[rid] ? "up" : ovA.v[rid] < ovB.v[rid] ? "down" : "muted"}">(${ovA.v[rid] >= ovB.v[rid] ? "+" : ""}${fmt(ovA.v[rid] - ovB.v[rid])})</span><br>${arrow(ovB.rank[rid], ovA.rank[rid])}</td>
       <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
       <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
   });
-  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
-    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks.
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+    <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks. Overall value counts the whole roster, bench included, plus every pick, with its league rank underneath.
     Direction is the team's build (see the Teams tab) before and after, re-run on the new rosters and pick totals.
     ${recordNote()}</p>`;
 }
