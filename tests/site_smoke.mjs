@@ -169,12 +169,19 @@ for (const [id, liteRun] of runs) {
   await page.selectOption("#formula-signal", "BUY");
   const buys = await page.$$eval("#formula-table tbody tr", (r) => r.length);
   await page.selectOption("#formula-signal", "ALL");
-  const ideaT0 = Date.now();
-  await page.click("#ideas-run");
-  await page.waitForFunction(() => !/Working/.test(document.querySelector("#ideas-out").textContent), null, { timeout: 120000 });
-  const ideaList = await page.$$eval("#ideas-out .idea", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 200)));
-  console.log(`  trade ideas: ${ideaList.length} in ${Date.now() - ideaT0} ms\n${ideaList.slice(0, 3).map((x) => "      " + x).join("\n")}`);
-  if (!ideaList.length) errors.push(`${id}: trade ideas did not render`);
+  // Trade ideas need a team of your own; a league you joined without a roster has none.
+  const hasTeam = await page.evaluate(() => state.data.teams.some((t) => t.is_me));
+  if (hasTeam) {
+    const ideaT0 = Date.now();
+    await page.click("#ideas-run");
+    await page.waitForFunction(() => !/Working/.test(document.querySelector("#ideas-out").textContent), null, { timeout: 120000 });
+    const ideaList = await page.$$eval("#ideas-out .idea", (ds) => ds.map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 200)));
+    console.log(`  trade ideas: ${ideaList.length} in ${Date.now() - ideaT0} ms\n${ideaList.slice(0, 3).map((x) => "      " + x).join("\n")}`);
+    if (!ideaList.length) errors.push(`${id}: trade ideas did not render`);
+  } else {
+    console.log("  trade ideas: skipped, no team of yours in this league");
+    if (await page.$("#ideas-run")) errors.push(`${id}: trade ideas offered without a team`);
+  }
   console.log(`  formula: ${formulaRows} players, ${buys} buys; top ${topFormula.join("; ")}; my calls ${myCalls.join(", ")}`);
   if (!formulaRows) errors.push(`${id}: formula rankings did not render`);
   await page.click('button[data-tab="rankings"]');
