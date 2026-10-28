@@ -60,6 +60,9 @@ for (const [id, liteRun] of runs) {
   if (lite !== (liteRun || !id.startsWith("league-"))) errors.push(`${id}: quick-values note ${lite ? "shown" : "missing"}`);
   if (lite) console.log(`${id} quick values: ${await page.$eval("#lite-note", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 200))}`);
   const players = await page.$$eval("#rankings tbody tr", (r) => r.length);
+  // A new league that hasn't drafted yet has empty rosters: no max PF, no trades to judge.
+  const drafted = await page.evaluate(() => state.data.teams.some((t) => t.players.length));
+  if (!drafted) console.log(`${id}: rosters are empty (not drafted yet), skipping roster-based checks`);
   // Player page: open the top player, check the pieces, close it.
   await page.click("#rankings .player-link");
   await page.waitForSelector("#player-modal:not(.hidden) .buyers tbody tr");
@@ -82,7 +85,7 @@ for (const [id, liteRun] of runs) {
   const maxCol = await page.$$eval("#teams thead th", (ths) => ths.findIndex((th) => th.textContent.includes("max PF")));
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   const maxPF = await page.$$eval("#teams tbody tr", (rs, c) => rs.map((r) => Number(r.cells[c].dataset.sort)), maxCol);
-  if (maxCol < 0 || maxPF.some((v, i) => i && v > maxPF[i - 1]) || maxPF.some((v) => !(v > 0))) errors.push(`${id}: max PF column missing or not sorted: ${maxPF}`);
+  if (maxCol < 0 || maxPF.some((v, i) => i && v > maxPF[i - 1]) || (drafted && maxPF.some((v) => !(v > 0)))) errors.push(`${id}: max PF column missing or not sorted: ${maxPF}`);
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`); // back to original order
   await page.click('button[data-tab="trade"]');
@@ -100,7 +103,7 @@ for (const [id, liteRun] of runs) {
   const adjustCard = await page.$eval("#trade-result .adjust", (e) => e.textContent.replace(/\s+/g, " ").trim().slice(0, 240)).catch(() => "");
   const direction = await page.$$eval(".impact tbody tr", (rs) => rs.map((r) => r.cells[1].textContent.replace(/\s+/g, " ").trim()));
   console.log(`  value adjustment: ${adjustCard}\n  direction: ${direction.join(" / ")}`);
-  if (!adjustCard || direction.some((d) => !d)) errors.push(`${id}: value adjustment or direction missing`);
+  if (drafted && (!adjustCard || direction.some((d) => !d))) errors.push(`${id}: value adjustment or direction missing`);
   // The same trade judged by each team's own situation.
   const lens = await page.$$eval("#trade-result table.net tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim()).join(" | ")));
   const toThem = await page.$$eval(".trade-side .tv", (r) => r.length);
@@ -169,8 +172,8 @@ for (const [id, liteRun] of runs) {
   await page.selectOption("#formula-signal", "BUY");
   const buys = await page.$$eval("#formula-table tbody tr", (r) => r.length);
   await page.selectOption("#formula-signal", "ALL");
-  // Trade ideas need a team of your own; a league you joined without a roster has none.
-  const hasTeam = await page.evaluate(() => state.data.teams.some((t) => t.is_me));
+  // Trade ideas need a team of your own with players on it.
+  const hasTeam = await page.evaluate(() => state.data.teams.some((t) => t.is_me && t.players.length));
   if (hasTeam) {
     const ideaT0 = Date.now();
     await page.click("#ideas-run");
@@ -179,8 +182,8 @@ for (const [id, liteRun] of runs) {
     console.log(`  trade ideas: ${ideaList.length} in ${Date.now() - ideaT0} ms\n${ideaList.slice(0, 3).map((x) => "      " + x).join("\n")}`);
     if (!ideaList.length) errors.push(`${id}: trade ideas did not render`);
   } else {
-    console.log("  trade ideas: skipped, no team of yours in this league");
-    if (await page.$("#ideas-run")) errors.push(`${id}: trade ideas offered without a team`);
+    console.log("  trade ideas: skipped, no team of yours (or no players yet) in this league");
+    if (drafted && (await page.$("#ideas-run"))) errors.push(`${id}: trade ideas offered without a team`);
   }
   console.log(`  formula: ${formulaRows} players, ${buys} buys; top ${topFormula.join("; ")}; my calls ${myCalls.join(", ")}`);
   if (!formulaRows) errors.push(`${id}: formula rankings did not render`);
