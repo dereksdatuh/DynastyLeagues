@@ -16,6 +16,15 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m engine.build --out site/data
       - run: python check_trade.py || true
+      - name: Smoke test output (debug)
+        run: |
+          sed -i "s/__BUILD__/${GITHUB_SHA::7}/g" site/index.html site/app.js
+          npm install --no-save --silent playwright-core@1.56
+          python -m http.server 8000 -d site >/dev/null 2>&1 &
+          sleep 1
+          mkdir -p scratch
+          node tests/site_smoke.mjs http://localhost:8000/ > smoke.out 2>&1 || true
+          { grep -nE "Error|error|Timeout|waiting for|at .*site_smoke|logged in|^[a-z0-9-]+:|quick values" smoke.out | cut -c1-300; echo ---; tail -25 smoke.out | cut -c1-300; } > scratch/smoke.log
       - name: Save the league data on this scratch branch
         run: |
           mkdir -p scratch && cp site/data/*.json scratch/; ls scratch
