@@ -219,7 +219,7 @@ async function loadLeague(key) {
   state.liveTrades = [];
   safely("trades", renderTrades);
   safely("schedule", renderSchedule);
-  finder.me = null; finder.goal = null; finder.last = null;
+  finder.me = null; finder.goal = null; finder.target = null; finder.last = null; finder.three = { teams: [null, null], goals: ["auto", "auto"] };
   safely("finder", renderFinder);
   safely("rookie", renderRookieMock);
   safely("formula", renderFormula);
@@ -1546,10 +1546,42 @@ function assignBuilds(overrides = {}, pickDelta = {}) {
       : P < 2 / 3 && x.proj <= playoff ? "bubble"
       : young || Y <= 1 / 3 ? "youth"
       : P >= 2 / 3 ? "teardown" : "stuck";
-    out[x.rid] = { key, name: BUILD_INFO[key][0], tone: BUILD_INFO[key][1], nowRank: now[x.rid], valueRank: val[x.rid] };
+    out[x.rid] = { key, name: BUILD_INFO[key][0], tone: BUILD_INFO[key][1], nowRank: now[x.rid], valueRank: val[x.rid],
+      m: { P, V, Y, z, H: pct(psr[x.rid]) } };
   }
   return out;
 }
+// ---------- aiming for a build ----------
+// How far a team sits from each build, from the same parts assignBuilds uses (0 = best:
+// P points-a-week rank, V value rank, Y youth rank, H pick-share rank as 0..1 percentiles,
+// z core age against the league). A deal "moves you toward" a build when this drops.
+const BUILD_AIM = {
+  juggernaut: (m) => m.P + m.V,
+  young_contender: (m) => m.P + 0.5 * Math.max(0, m.z + 0.25),
+  all_in: (m) => m.P,
+  bubble: (m) => Math.abs(m.P - 0.45),
+  stuck: (m) => Math.abs(m.P - 0.5),
+  youth: (m) => m.Y + 0.5 * Math.max(0, m.z + 0.5),
+  pick_hoarder: (m) => m.H,
+  teardown: (m) => 1 - m.P + 0.5 * m.Y,
+};
+const aimTone = (key) => ({ contender: "contend", rebuilding: "rebuild" })[BUILD_INFO[key][1]] || "balanced";
+// Progress toward `key` from build b0 to b1: hit = lands on it, closer = distance saved.
+function aimProgress(b0, b1, key) {
+  if (!key || !b0 || !b1) return { hit: false, closer: 0 };
+  return { hit: b1.key === key, closer: BUILD_AIM[key](b0.m) - BUILD_AIM[key](b1.m) };
+}
+// Rosters and pick totals after a deal, from each team's gets and gives.
+function dealAfter(side) {
+  const overrides = {}, pd = {};
+  for (const [rid, x] of Object.entries(side)) {
+    const out = new Set(x.gives.map((a) => a.id));
+    overrides[rid] = rosterOf(Number(rid)).filter((p) => !out.has(p.id)).concat(x.gets.filter((a) => a.kind === "player"));
+    pd[rid] = x.gets.filter((a) => a.kind === "pick").reduce((t, a) => t + a.value, 0) - x.gives.filter((a) => a.kind === "pick").reduce((t, a) => t + a.value, 0);
+  }
+  return { overrides, pd };
+}
+
 const toneCls = (tone) => (tone === "contender" ? "contender" : tone === "middle" ? "middle" : "rebuilding");
 const buildChip = (b) => `<span class="outlook ${toneCls(b.tone)}">${esc(b.name)}</span>`;
 function directionHtml(b0, b1) {
@@ -1928,7 +1960,7 @@ function runIdeas(done) {
   const mine = myTeam();
   if (!mine) { done([]); return; }
   const seeds = ideaSeeds(mine);
-  const saved = { me: finder.me, partners: finder.partners, goal: finder.goal, send: finder.send, offer: finder.offer, get: finder.get,
+  const saved = { me: finder.me, partners: finder.partners, goal: finder.goal, target: finder.target, mode: finder.mode, send: finder.send, offer: finder.offer, get: finder.get,
     getMax: finder.getMax, sendMax: finder.sendMax, positions: finder.positions, openAll: finder.openAll, last: finder.last };
   const c = teamCtx(mine.roster_id);
   const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
@@ -1937,7 +1969,7 @@ function runIdeas(done) {
     if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
     const s = seeds[i];
     // Ideas may pay from anywhere on your roster except your untouchables.
-    Object.assign(finder, { me: mine.roster_id, partners: [], goal, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
+    Object.assign(finder, { me: mine.roster_id, partners: [], goal, target: null, mode: 2, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
       getMax: null, sendMax: null, positions: [], openAll: s.kind === "buy" });
     const r = findTrades();
     const d = r.picked && r.picked[0];
@@ -2252,7 +2284,9 @@ function renderNews() {
 const FINDER_POOL = 18;   // partner assets it considers adding
 const FINDER_SHOW = 12;
 const FINDER_MAX_ADD = 3; // most partner pieces added beyond the ones you named
-const finder = { me: null, partners: [], goal: null, send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
+const finder = { me: null, partners: [], goal: null, target: null, mode: 2, three: { teams: [null, null], goals: ["auto", "auto"] },
+  send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
+const FINDER_AIM_POOL = 150; // candidates checked for movement toward the build you aim for
 const OLD_FOR_REBUILD = (a) => a.kind === "player" && (a.age || 0) >= (a.pos === "RB" ? 26 : 28);
 
 function goalFactor(a, goal, rid, startsForMe) {
@@ -2297,12 +2331,17 @@ function renderFinder() {
   const opt = (sel, any) => (any ? `<option value="">Any team</option>` : "") + teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("");
   const mine = [...state.assetMap.values()].filter((a) => a.roster_id === finder.me && a.value > 0).sort((a, b) => b.value - a.value);
   const theirs = [...state.assetMap.values()].filter((a) => a.roster_id != null && a.roster_id !== finder.me && a.value > 0
-    && (!finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
+    && (finder.mode === 3 ? finder.three.teams.includes(a.roster_id) : !finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
   const chips = (ids, kind) => ids.map(assetById).filter(Boolean).map((a) => `<li><span>${face(a.id)}${esc(a.label)}${kind === "get" ? ` <span class="muted">${esc(teamName(a.roster_id))}</span>` : ""}</span><span class="num">${fmt(a.value)}</span><button data-kind="${kind}" data-id="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("");
   const posList = [...new Set(["QB", "RB", "WR", "TE", ...roomPositions()])].filter((p) => POSITIONS.includes(p)).concat("PICK");
   const countChips = (key, opts) => opts.map((k) => `<button class="chip ${finder[key] === k ? "active" : ""}" data-count="${key}" data-k="${k ?? ""}">${k == null ? "Any" : k}</button>`).join("");
   const myStarters = new Set(bestLineup(rosterOf(finder.me), "ros_ppg").map((x) => x.p.id));
-  el.innerHTML = `<p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
+  const buildsNow = assignBuilds();
+  const goalOptions = (sel) => [["auto", "Goal: their own situation"], ["contend", "Goal: contend now"], ["rebuild", "Goal: rebuild"], ["balanced", "Goal: balanced"]]
+    .concat(Object.keys(BUILD_INFO).map((k) => [`aim:${k}`, `Aim for: ${BUILD_INFO[k][0]}`]))
+    .map(([v, l]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+  el.innerHTML = `<div class="toolbar"><span class="muted">Deal size</span><div class="chips" id="finder-mode">${[2, 3].map((k) => `<button class="chip ${finder.mode === k ? "active" : ""}" data-mode="${k}">${k} teams</button>`).join("")}</div></div>
+    <p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
     <div class="finder-grid">
       <div class="trade-side"><h3>Your team</h3><select id="finder-me" aria-label="Your team">${opt(finder.me, false)}</select>
         <div class="needs muted">${esc(situationText(finder.me))}</div>
@@ -2311,9 +2350,14 @@ function renderFinder() {
         <h4>OK to add <span class="muted">(the finder may use these)</span></h4><input id="finder-offer" type="search" placeholder="Add a piece you'd part with" list="finder-send-list" />
         <div class="chips small"><button class="chip" id="offer-picks">+ my picks</button><button class="chip" id="offer-bench">+ my bench</button><button class="chip" id="offer-clear">clear</button></div>
         <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">Nothing yet. Only "You send" will be offered.</span></li>`}</ul></div>
-      <div class="trade-side"><h3>Trade with <span class="muted">(pick one or more; none = every team)</span></h3>
+      <div class="trade-side">${finder.mode === 3 ? `<h3>Trade with <span class="muted">(two teams, each with its own goal)</span></h3>
+        ${[0, 1].map((k) => `<div class="three-pick"><select class="three-team" data-k="${k}" aria-label="Team ${k + 2}"><option value="">Pick team ${k + 2}</option>${teams.filter((t) => t.roster_id !== finder.me)
+          .map((t) => `<option value="${t.roster_id}" ${finder.three.teams[k] === t.roster_id ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("")}</select>
+          <select class="three-goal" data-k="${k}" aria-label="Team ${k + 2} goal">${goalOptions(finder.three.goals[k])}</select>
+          ${finder.three.teams[k] != null ? `<span class="muted">now ${esc(buildsNow[finder.three.teams[k]]?.name || "")}</span>` : ""}</div>`).join("")}`
+      : `<h3>Trade with <span class="muted">(pick one or more; none = every team)</span></h3>
         <div class="chips small" id="finder-partners"><button class="chip ${finder.partners.length ? "" : "active"}" data-partner="">All teams</button>${teams.filter((t) => t.roster_id !== finder.me)
-          .map((t) => `<button class="chip ${finder.partners.includes(t.roster_id) ? "active" : ""}" data-partner="${t.roster_id}">${esc(teamName(t.roster_id))}</button>`).join("")}</div>
+          .map((t) => `<button class="chip ${finder.partners.includes(t.roster_id) ? "active" : ""}" data-partner="${t.roster_id}">${esc(teamName(t.roster_id))}</button>`).join("")}</div>`}
         <h4>You get <span class="muted">(must be in the deal)</span></h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul>
         <h4>Positions you want back</h4><div class="chips" id="finder-pos">${posList.map((p) => `<button class="chip ${finder.positions.includes(p) ? "active" : ""}" data-pos="${p}">${p}</button>`).join("")}</div>
@@ -2325,11 +2369,13 @@ function renderFinder() {
       <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
       <ul class="assets">${[...locked].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
-      .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div>
+      .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div></div>
+    <div class="toolbar"><span class="muted">Aim for <span class="aim-now">(you're ${esc(buildsNow[finder.me]?.name || "")} now)</span></span><div class="chips" id="finder-aim"><button class="chip ${finder.target ? "" : "active"}" data-aim="">Any build</button>${Object.keys(BUILD_INFO)
+      .map((k) => `<button class="chip ${finder.target === k ? "active" : ""}" data-aim="${k}">${esc(BUILD_INFO[k][0])}</button>`).join("")}</div>
       <button id="finder-run" class="chip active">Find trades</button></div>
     <div id="finder-out"></div>`;
   const reset = () => { finder.last = null; renderFinder(); };
-  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.partners = finder.partners.filter((r) => r !== finder.me); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; reset(); };
+  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.partners = finder.partners.filter((r) => r !== finder.me); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; finder.three.teams = finder.three.teams.map((r) => (r === finder.me ? null : r)); reset(); };
   el.querySelectorAll("#finder-partners [data-partner]").forEach((b) => (b.onclick = () => {
     const rid = b.dataset.partner ? Number(b.dataset.partner) : null;
     if (rid == null) finder.partners = [];
@@ -2346,7 +2392,7 @@ function renderFinder() {
         // A piece is either always sent or optional, not both.
         if (kind === "send") finder.offer = finder.offer.filter((id) => id !== a.id);
         if (kind === "offer") finder.send = finder.send.filter((id) => id !== a.id);
-        if (kind === "get") finder.partners = [a.roster_id]; // gets must all come from one team
+        if (kind === "get" && finder.mode === 2) finder.partners = [a.roster_id]; // gets must all come from one team
         if (kind === "get") finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id === a.roster_id);
       }
       renderFinder();
@@ -2377,9 +2423,25 @@ function renderFinder() {
   }));
   el.querySelectorAll("[data-count]").forEach((b) => b.addEventListener("click", () => { finder[b.dataset.count] = b.dataset.k ? Number(b.dataset.k) : null; renderFinder(); }));
   el.querySelectorAll("#finder-goal button").forEach((b) => b.addEventListener("click", () => { finder.goal = b.dataset.goal; renderFinder(); }));
+  el.querySelectorAll("#finder-mode [data-mode]").forEach((b) => (b.onclick = () => { finder.mode = Number(b.dataset.mode); reset(); }));
+  el.querySelectorAll("#finder-aim [data-aim]").forEach((b) => (b.onclick = () => {
+    finder.target = b.dataset.aim || null;
+    if (finder.target) finder.goal = aimTone(finder.target);
+    reset();
+  }));
+  el.querySelectorAll(".three-team").forEach((sel) => (sel.onchange = () => {
+    const k = Number(sel.dataset.k);
+    finder.three.teams[k] = sel.value ? Number(sel.value) : null;
+    finder.get = finder.get.filter((id) => finder.three.teams.includes((assetById(id) || {}).roster_id));
+    reset();
+  }));
+  el.querySelectorAll(".three-goal").forEach((sel) => (sel.onchange = () => { finder.three.goals[Number(sel.dataset.k)] = sel.value; finder.last = null; }));
   $("#finder-run").onclick = () => {
     $("#finder-out").innerHTML = `<p class="muted">Searching…</p>`;
-    setTimeout(() => { finder.last = findTrades(); $("#finder-out").innerHTML = finderResults(finder.last); }, 20);
+    setTimeout(() => {
+      finder.last = finder.mode === 3 ? findTrades3() : findTrades();
+      $("#finder-out").innerHTML = finder.mode === 3 ? finderResults3(finder.last) : finderResults(finder.last);
+    }, 20);
   };
 }
 
@@ -2475,6 +2537,17 @@ function findTrades() {
     top.push(d);
   }
   top.sort((a, b) => b.score - a.score);
+  // Aiming for a build: keep deals that land on it or move you toward it, closest first.
+  if (finder.target) {
+    const aimed = [];
+    for (const d of top.slice(0, FINDER_AIM_POOL)) {
+      const { overrides, pd } = dealAfter({ [me]: { gets: d.gets, gives: d.gives }, [d.B]: { gets: d.gives, gives: d.gets } });
+      d.aim = aimProgress(dirs[me], assignBuilds(overrides, pd)[me], finder.target);
+      if (d.aim.hit || d.aim.closer >= 0.005) aimed.push(d);
+    }
+    aimed.sort((a, b) => b.aim.hit - a.aim.hit || b.aim.closer - a.aim.closer || b.score - a.score);
+    top.splice(0, top.length, ...aimed);
+  }
   // One proposal per set of players you'd receive, so the list isn't ten variants of one deal.
   const seen = new Set(), picked = [];
   for (const d of top) {
@@ -2502,6 +2575,140 @@ function findTrades() {
   return { picked, total: out.length, partners: partners.length };
 }
 
+// ---------- three-team finder ----------
+// You plus two teams you pick, each with its own goal. Deals go around a circle (you
+// send to one team, it sends to the other, the other sends to you), both directions.
+// Same rules as two-team: only what you picked leaves your roster, every team within
+// the fair line at market and even or better by its own goal.
+const goalSpec = (g, rid) => {
+  if (g && g.startsWith("aim:")) { const key = g.slice(4); return { tone: aimTone(key), aim: key }; }
+  if (g === "contend" || g === "rebuild" || g === "balanced") return { tone: g, aim: null };
+  return { tone: "balanced", aim: null }; // "their situation": the team's own lens (teamFactor)
+};
+const goalLabel = (g) => (g && g.startsWith("aim:") ? `aiming for ${BUILD_INFO[g.slice(4)][0]}` : { contend: "contending", rebuild: "rebuilding", balanced: "balanced" }[g] || "their own situation");
+
+function findTrades3() {
+  const me = finder.me, [B, C] = finder.three.teams;
+  if (B == null || C == null || B === C) return { error: "Pick two different teams to trade with." };
+  const send = finder.send.map(assetById).filter(Boolean), get = finder.get.map(assetById).filter(Boolean);
+  const locked = lockedIds(me), sendIds = new Set(send.map((a) => a.id));
+  const myExtra = finder.offer.map(assetById).filter(Boolean)
+    .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id)).sort((a, b) => b.value - a.value).slice(0, 10);
+  if (!send.length && !myExtra.length) return { error: 'Add at least one player or pick to "You send" or "OK to add". The finder never offers anything you didn\'t pick.' };
+  const getOwners = new Set(get.map((a) => a.roster_id));
+  if ([...getOwners].some((r) => r !== B && r !== C)) return { error: "Everything in \"You get\" has to belong to one of the two teams you picked." };
+  if (getOwners.size > 1) return { error: "In a three-team deal one partner sends to you and the other gets paid by you, so \"You get\" can only come from one of them." };
+  const specs = { [me]: { tone: finder.goal, aim: finder.target }, [B]: goalSpec(finder.three.goals[0], B), [C]: goalSpec(finder.three.goals[1], C) };
+  const starts = {};
+  [me, B, C].forEach((r) => (starts[r] = new Set(bestLineup(rosterOf(r), "ros_ppg").map((x) => x.p.id))));
+  const factor = (rid) => (a) => (specs[rid].tone === "balanced" && !specs[rid].aim ? teamFactor(rid, a.id) : goalFactor(a, specs[rid].tone, rid, starts[rid]));
+  const sendRoom = finder.sendMax == null ? 3 : finder.sendMax - send.length;
+  const getRoom = finder.getMax == null ? 2 : finder.getMax - get.length;
+  if (sendRoom < 0 || getRoom < 0) return { error: "The piece limits are smaller than what you've already named." };
+  const posOk = (a) => !finder.positions.length || finder.positions.includes(a.kind === "pick" ? "PICK" : a.pos);
+  const getIds = new Set(get.map((a) => a.id));
+  // Pool of what team `from` could send to team `to`, best fits for `to` first.
+  const pool = (from, to, mineToo) => [...state.assetMap.values()]
+    .filter((a) => a.roster_id === from && a.value >= 150 && !getIds.has(a.id) && (!mineToo || posOk(a))
+      && !(specs[to].tone === "rebuild" && OLD_FOR_REBUILD(a)))
+    .sort((a, b) => b.value * factor(to)(b) - a.value * factor(to)(a)).slice(0, 9);
+  const mine = combosUpTo(myExtra, Math.min(sendRoom, 2)).map((mx) => [...send, ...mx]).filter((g) => g.length);
+  const ok = (gets, gives, rid, named) => {
+    if (Math.abs(netOf(gets, gives)) > FAIR_MARGIN) return null;
+    const g = netOf(gets, gives, factor(rid));
+    return !named && g < -FAIR_MARGIN ? null : g;
+  };
+  const out = [];
+  for (const [X, Y] of [[B, C], [C, B]]) {   // you → X → Y → you
+    if (get.length && !getOwners.has(Y)) continue;
+    const xy = combosUpTo(pool(X, Y), 2).filter((c) => c.length);
+    const ym = combosUpTo(pool(Y, me, true), Math.min(getRoom, 2)).map((c) => [...get.filter((a) => a.roster_id === Y), ...c]).filter((c) => c.length);
+    for (const toY of xy) for (const toMe of ym) {
+      if (finder.getMax != null && toMe.length !== finder.getMax) continue;
+      if (finder.positions.length && !toMe.some(posOk)) continue;
+      const gy = ok(toY, toMe, Y, false);
+      if (gy == null) continue;
+      for (const toX of mine) {
+        const gx = ok(toX, toY, X, false);
+        if (gx == null) continue;
+        const gm = ok(toMe, toX, me, get.length > 0);
+        if (gm == null) continue;
+        out.push({ X, Y, side: { [me]: { gets: toMe, gives: toX }, [X]: { gets: toX, gives: toY }, [Y]: { gets: toY, gives: toMe } },
+          g: { [me]: gm, [X]: gx, [Y]: gy } });
+      }
+    }
+  }
+  const dirs = assignBuilds(), ppg0 = {};
+  [me, B, C].forEach((r) => (ppg0[r] = teamPPG(rosterOf(r))));
+  out.sort((a, b) => b.g[me] - a.g[me]);
+  const scored = [];
+  for (const d of out.slice(0, 160)) {
+    const { overrides, pd } = dealAfter(d.side);
+    d.overrides = overrides;
+    d.dppg = {};
+    [me, B, C].forEach((r) => (d.dppg[r] = teamPPG(overrides[r]) - ppg0[r]));
+    // Contenders keep their lineups.
+    if ([me, B, C].some((r) => specs[r].tone === "contend" && d.dppg[r] < -1)) continue;
+    const after = assignBuilds(overrides, pd);
+    d.dir = {}; d.aim = {};
+    let miss = false;
+    for (const r of [me, B, C]) {
+      d.dir[r] = [dirs[r], after[r]];
+      d.aim[r] = aimProgress(dirs[r], after[r], specs[r].aim);
+      if (specs[r].aim && !d.aim[r].hit && d.aim[r].closer < 0.005) miss = true;
+    }
+    if (miss) continue;
+    const pieces = Object.values(d.side).reduce((t, x) => t + x.gets.length, 0);
+    const hits = [me, B, C].filter((r) => d.aim[r].hit).length;
+    d.score = 3 * hits + 10 * [me, B, C].reduce((t, r) => t + d.aim[r].closer, 0) + 40 * d.g[me] + 10 * (d.g[d.X] + d.g[d.Y])
+      + (specs[me].tone === "contend" ? 0.3 * d.dppg[me] : 0) - 0.3 * pieces;
+    scored.push(d);
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const seen = new Set(), picked = [];
+  for (const d of scored) {
+    const key = d.X + ":" + d.side[me].gets.map((a) => a.id).sort().join(",");
+    if (seen.has(key)) continue;
+    seen.add(key); picked.push(d);
+    if (picked.length >= 8) break;
+  }
+  const recBefore = projectRecords();
+  picked.forEach((d) => { const ra = projectRecords(d.overrides); d.rec = {}; [me, B, C].forEach((r) => (d.rec[r] = [recBefore[r], ra[r]])); });
+  return { three: true, picked, total: out.length, specs };
+}
+
+function finderResults3(r) {
+  if (r.error) return `<p class="error">${esc(r.error)}</p>`;
+  if (!r.picked.length) return `<p class="muted">No three-team deal fits: nothing that keeps all three teams within the fair line, even or better by each team's goal${Object.values(r.specs).some((s) => s.aim) ? ", and moving each aimed team toward its build" : ""}. Try more pieces in "OK to add", other goals, or other partners.</p>`;
+  const me = finder.me;
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const cls = (x) => (x > FAIR_MARGIN ? "up" : x < -FAIR_MARGIN ? "down" : "");
+  const list = (xs) => `<ul>${xs.map((a) => `<li><span>${face(a.id)}${esc(a.label)}</span><span>${fmt(a.value)}</span></li>`).join("")}</ul>`;
+  const col = (d, rid) => {
+    const x = d.side[rid], aim = d.aim[rid], sp = r.specs[rid];
+    return `<div class="trade-side"><h3>${rid === me ? "You" : esc(teamOf(rid).name)}</h3>
+      <h4>Gets</h4>${list(x.gets)}<h4>Gives</h4>${list(x.gives)}
+      <p>Market <b class="${cls(netOf(x.gets, x.gives))}">${pct(netOf(x.gets, x.gives))}</b> · by its goal <b class="${cls(d.g[rid])}">${pct(d.g[rid])}</b></p>
+      <p>${directionHtml(...d.dir[rid])}${sp.aim ? ` <span class="${aim.hit ? "up" : "muted"}">${aim.hit ? "reaches" : "closer to"} ${esc(BUILD_INFO[sp.aim][0])}</span>` : ""}</p>
+      <p class="muted">Lineup ${d.dppg[rid] >= 0 ? "+" : ""}${d.dppg[rid].toFixed(1)} pts/wk · ${recordText(d.rec[rid][0])} → ${recordText(d.rec[rid][1])}</p></div>`;
+  };
+  return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} fair three-team deals. You: ${esc(goalLabel(finder.target ? "aim:" + finder.target : finder.goal))}. ${esc(teamOf(finder.three.teams[0]).name)}: ${esc(goalLabel(finder.three.goals[0]))}. ${esc(teamOf(finder.three.teams[1]).name)}: ${esc(goalLabel(finder.three.goals[1]))}.</p>
+    ${r.picked.map((d, i) => `<div class="trade-log finder-deal">
+      <h3>${i + 1}. You → ${esc(teamOf(d.X).name)} → ${esc(teamOf(d.Y).name)} → you</h3>
+      <div class="trade-grid">${col(d, me)}${col(d, d.X)}${col(d, d.Y)}</div>
+      <button class="chip finder-open3" data-i="${i}">Open in Trade Calculator</button>
+    </div>`).join("")}`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".finder-open3");
+  if (!b || !finder.last || !finder.last.three) return;
+  const d = finder.last.picked[Number(b.dataset.i)];
+  state.trade = { sides: [finder.me, d.X, d.Y].map((rid) => ({ team: rid, assets: d.side[rid].gets.map((a) => a.id) })) };
+  renderTeamCount();
+  renderSides();
+  document.querySelector('.tabs button[data-tab="trade"]').click();
+});
+
 function finderResults(r) {
   if (r.error) return `<p class="error">${esc(r.error)}</p>`;
   if (!r.picked.length) return `<p class="muted">No deal fits: nothing within the fair line for both teams that also helps your goal and makes sense for both directions. Try adding pieces to "OK to add", more positions or pieces back, a different partner, or another goal.</p>`;
@@ -2510,6 +2717,7 @@ function finderResults(r) {
   const cls = (x) => (x > FAIR_MARGIN ? "up" : x < -FAIR_MARGIN ? "down" : "");
   const list = (xs) => `<ul>${xs.map((a) => `<li><span>${esc(a.label)}</span><span>${fmt(a.value)}</span></li>`).join("")}</ul>`;
   const goalName = { contend: "contending", rebuild: "rebuilding", balanced: "your situation" }[finder.goal];
+  const aimNote = finder.target ? ` Only deals that reach ${esc(BUILD_INFO[finder.target][0])} or move you toward it, closest first.` : "";
   const themWhy = (d) => {
     const c = teamCtx(d.B), bits = [];
     if (c) bits.push(`They're ${c.label}${c.label === "middle" ? " of the pack" : ""}.`);
@@ -2522,6 +2730,7 @@ function finderResults(r) {
     return bits.join(" ");
   };
   return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} fair deals found, ranked for ${goalName}.
+${aimNote}
       Market is league value with the value adjustment. Your goal is the deal valued for ${goalName}. Their needs is the other team's own lens.</p>
     ${r.picked.map((d, i) => `<div class="trade-log finder-deal">
       <h3>${i + 1}. With ${teamHtml(d.B)}</h3>
@@ -2531,7 +2740,7 @@ function finderResults(r) {
       </div>
       <table class="net"><tbody>
         <tr><td>Market (you)</td><td class="${cls(d.mkt)}">${pct(d.mkt)}</td><td>Your goal</td><td class="${cls(d.mine)}">${pct(d.mine)}</td><td>Their needs</td><td class="${cls(d.them)}">${pct(d.them)}</td></tr>
-        <tr><td>Your direction</td><td colspan="2">${directionHtml(...d.dir.me)}</td><td>Their direction</td><td colspan="2">${directionHtml(...d.dir.them)}</td></tr>
+        <tr><td>Your direction</td><td colspan="2">${directionHtml(...d.dir.me)}${d.aim ? ` <span class="${d.aim.hit ? "up" : "muted"}">${d.aim.hit ? "reaches" : "closer to"} ${esc(BUILD_INFO[finder.target][0])}</span>` : ""}</td><td>Their direction</td><td colspan="2">${directionHtml(...d.dir.them)}</td></tr>
         <tr><td>Your lineup</td><td class="${d.dMe > 0.3 ? "up" : d.dMe < -0.3 ? "down" : ""}">${d.dMe >= 0 ? "+" : ""}${d.dMe.toFixed(1)} pts/wk</td>
           <td>Your record</td><td>${recordText(d.rec.me[0])} → ${recordText(d.rec.me[1])}</td>
           <td>Your max PF</td><td>${fmt(d.rec.me[0].maxPF)} → ${fmt(d.rec.me[1].maxPF)}</td></tr>

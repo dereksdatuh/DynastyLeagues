@@ -384,3 +384,6 @@ button.link { background: none; border: none; color: var(--blue); cursor: pointe
 .devy-main a { color: var(--blue); }
 @media (max-width: 820px) { .devy-card { grid-template-columns: 44px 1fr; } .devy-nums { grid-column: 1 / -1; } .devy-rank { font-size: 32px; } }
 details.muted { margin: 0 0 12px; } details.muted summary { cursor: pointer; color: var(--blue); }
+.three-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.three-pick select { flex: 1; min-width: 160px; }
+.aim-now { color: var(--orange); }
