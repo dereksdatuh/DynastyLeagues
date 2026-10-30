@@ -1,36 +1,37 @@
 1:logged in as DS107: 7 leagues
-12:league-3: Week 8 · live from Sleeper, updated 11:08:43 PM. Projected final = points so far plus each starter's projection for the 
-37:league-3: 435 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
+12:league-3: Week 8 · live from Sleeper, updated 2:18:26 PM. Projected final = points so far plus each starter's projection for the p
+37:league-3: 432 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
 48:sl-1420817565600509952 quick values: Quick values. This league isn't in the hourly build, so player values come from Centurion, the built league with the closest settings, and everything else (rosters, picks, records, schedule, builds) i
+49:sl-1420817565600509952: rosters are empty (not drafted yet), skipping roster-based checks
 57:sl-1420817565600509952: No regular-season week in progress.
-69:sl-1420817565600509952: 435 players, 12 teams, top team Team 11 | 0-0 (11th) | 14-14 (11th) | 0 (11th), max PF high 0, impact rows 2, owner messages 2
-91:league-6: Week 8 · live from Sleeper, updated 11:08:56 PM. Projected final = points so far plus each starter's projection for the 
-117:league-6: 432 players, 14 teams, top team Thrasherville JCONNNN | 11-3 (2nd) | 23-5 (2nd) | 2,910 (2nd), max PF high 2946, impact rows 2, owner messages 2
-135:league-2: Week 8 · live from Sleeper, updated 11:09:33 PM. Projected final = points so far plus each starter's projection for the 
-162:league-2: 437 players, 14 teams, top team 14x11 DV QB .75 TEP BPB aSpicyTuna | 0-7 (14th) | 1-13 (14th) | 1,248 (14th), max PF high 2763, impact rows 2, owner messages 2
-185:league-1: Week 8 · live from Sleeper, updated 11:09:40 PM. Projected final = points so far plus each starter's projection for the 
-211:league-1: 423 players, 14 teams, top team Unabomber Tadas | 2-12 (14th) | 6-22 (13th) | 3,970 (9th), max PF high 4886, impact rows 2, owner messages 2
-235:league-5: Week 8 · live from Sleeper, updated 11:10:18 PM. Projected final = points so far plus each starter's projection for the 
-260:league-5: 435 players, 12 teams, top team Cairo (IL) Dodgers (1949) AsquaredRon56 | 2-5 (12th) | 4-10 (12th) | 1,628 (12th), max PF high 2973, impact rows 2, owner messages 2
-283:league-4: Week 8 · live from Sleeper, updated 11:10:25 PM. Projected final = points so far plus each starter's projection for the 
-308:league-4: 434 players, 12 teams, top team 2027 -> Soon JackMoose | 4-3 (6th) | 8-6 (5th) | 2,711 (6th), max PF high 3190, impact rows 2, owner messages 2
-321:league-3 quick values: Quick values. This league isn't in the hourly build, so player values come from Centurion, the built league with the closest settings, and everything else (rosters, picks, records, schedule, builds) i
-332:league-3: Week 8 · live from Sleeper, updated 11:10:31 PM. Projected final = points so far plus each starter's projection for the 
-345:league-3: 435 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
-358:Site errors:
-359:sl-1420817565600509952: max PF column missing or not sorted: 0,0,0,0,0,0,0,0,0,0,0,0
-360:sl-1420817565600509952: value adjustment or direction missing
-361:sl-1420817565600509952: trade ideas did not render
+69:sl-1420817565600509952: 432 players, 12 teams, top team Team 11 | 0-0 (11th) | 14-14 (11th) | 0 (11th), max PF high 0, impact rows 2, owner messages 2
+91:league-6: Week 8 · live from Sleeper, updated 2:18:50 PM. Projected final = points so far plus each starter's projection for the p
+117:league-6: 434 players, 14 teams, top team Thrasherville JCONNNN | 11-3 (2nd) | 23-5 (2nd) | 2,912 (2nd), max PF high 2949, impact rows 2, owner messages 2
+135:league-2: Week 8 · live from Sleeper, updated 2:19:32 PM. Projected final = points so far plus each starter's projection for the p
+162:league-2: 435 players, 14 teams, top team 14x11 DV QB .75 TEP BPB aSpicyTuna | 0-7 (14th) | 1-13 (14th) | 1,248 (14th), max PF high 2765, impact rows 2, owner messages 2
+185:league-1: Week 8 · live from Sleeper, updated 2:19:45 PM. Projected final = points so far plus each starter's projection for the p
+211:league-1: 423 players, 14 teams, top team Unabomber Tadas | 2-12 (14th) | 6-22 (13th) | 3,969 (9th), max PF high 4886, impact rows 2, owner messages 2
+235:league-5: Week 8 · live from Sleeper, updated 2:20:28 PM. Projected final = points so far plus each starter's projection for the p
+260:league-5: 433 players, 12 teams, top team Cairo (IL) Dodgers (1949) AsquaredRon56 | 2-5 (12th) | 4-10 (12th) | 1,628 (12th), max PF high 2974, impact rows 2, owner messages 2
+284:league-4: Week 8 · live from Sleeper, updated 2:20:41 PM. Projected final = points so far plus each starter's projection for the p
+309:league-4: 434 players, 12 teams, top team 2027 -> Soon JackMoose | 4-3 (6th) | 8-6 (5th) | 2,712 (6th), max PF high 3190, impact rows 2, owner messages 2
+322:league-3 quick values: Quick values. This league isn't in the hourly build, so player values come from Centurion, the built league with the closest settings, and everything else (rosters, picks, records, schedule, builds) i
+333:league-3: Week 8 · live from Sleeper, updated 2:20:54 PM. Projected final = points so far plus each starter's projection for the p
+346:league-3: 432 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
+359:Site errors:
+360:league-3: finder offered pieces not picked: 2027 1.07 (DS107), 2029 1st (DS107), 2028 Mid 1st (DS107)
+361:sl-1420817565600509952: finder offered pieces not picked: 2026 1.12 (DS107)
+362:sl-1420817565600509952: finder offered pieces not picked: 2028 1st (DS107), 2028 2nd (DS107), 2027 Late 4th (DS107)
+363:league-6: finder offered pieces not picked: 2027 1.01 (Megatron, DS107)
+364:league-2: finder offered pieces not picked: 2027 1.04 (Champ%Odds: 8.187397 $1K , DS107), 2028 Mid 1st (Champ%Odds: 8.187397 $1K , DS107), 2029 1st (Champ%Odds: 8.187397 $1K , DS107)
+365:league-4: finder offered pieces not picked: 2028 Early 1st (via SamSin123), 2029 1st (Medical Tents, DS107), 2029 2nd (Medical Tents, DS107)
 ---
-  schedule: 7 weeks left; hardest 1 | Neekmo | 3-11 | 149.6 | 173.1 | 2.2 | -0.6 | 2.6  //  2 | VanillaGorilla92 | 11-3 | 171.9 | 169.9 | 3.6 | -0.5 | 4.6  //  3 | DomBrady40 | 5-9 | 160.7 | 168.1 | 3.1 | -0.3 | 3.7
-  trades 22: Oct 6 · Week 5 Market winner: Purdy, Purdy, Purdy Good DMFG Purdy, Purdy, Purdy Good DMFG GetsBrian Robinson Jr. (RB, ATL)660Bijan Robinson (RB, ATL)8,598 Gives2027 2.08 (via RunJordyRun87)1,6572027 1.12 (via Purdy, Purdy, Purdy Good, DMFG)2,6832027 2.12 (via 
-  matchups 6 (lineup rows shown 22), players of the week rows 15, movers 30, news 9, injuries 94
-  first matchup: DS107 ★ 0.00 (proj 154.8 · 11 left · 97% to win)  vs  Palko28 0.00 (proj 62.8 · 11 left · 3% to win)
-  top scorers: Joe Burrow QB CIN 37.38; Tony Pollard RB TEN 36.50; Drake Maye QB NE 32.94
+  first matchup: DS107 ★ 0.00 (proj 154.8 · 11 left · 97% to win)  vs  Palko28 0.00 (proj 62.7 · 11 left · 3% to win)
+  top scorers: Jordan Love QB GB 28.52; Chuba Hubbard RB CAR 22.90; Josh Jacobs RB GB 21.70
   rookie mock: 0 picks, 0 prospects; 
   standings today:
 
-league-3: 435 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
+league-3: 432 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (3rd) | 23-5 (1st) | 2,878 (1st), max PF high 2878, impact rows 2, owner messages 2
     Hey DMFG, I've got a trade idea for you.
     
     You get: Caleb Williams
@@ -40,10 +41,13 @@ league-3: 435 players, 12 teams, top team Purdy, Purdy, Purdy Good DMFG | 11-3 (
     - It fixes your TE room: you go from 9th to 6th in the league at TE.
     
     Let me know what you think!
-  by each team's situation: Purdy, Purdy, Purdy Good (DMFG) |  | 6,845 | 10,578 | -35%; The Williams Brothers (teddybeergame) |  | 10,578 | 6,845 | +35% (to-them values shown 2)
+  by each team's situation: Purdy, Purdy, Purdy Good (DMFG) |  | 6,967 | 10,610 | -34%; The Williams Brothers (teddybeergame) |  | 10,610 | 6,967 | +34% (to-them values shown 2)
 money bank after reload: Invested$100 | Won$250 | Net$150 | ROI+150% | Still owed$50 | Paid ahead$0
-Live calls from the browser (ok, failed): {"api.sleeper.app":[166,29],"site.api.espn.com":[0,8]}
+Live calls from the browser (ok, failed): {"api.sleeper.app":[146,5],"site.api.espn.com":[0,9]}
 Site errors:
-sl-1420817565600509952: max PF column missing or not sorted: 0,0,0,0,0,0,0,0,0,0,0,0
-sl-1420817565600509952: value adjustment or direction missing
-sl-1420817565600509952: trade ideas did not render
+league-3: finder offered pieces not picked: 2027 1.07 (DS107), 2029 1st (DS107), 2028 Mid 1st (DS107)
+sl-1420817565600509952: finder offered pieces not picked: 2026 1.12 (DS107)
+sl-1420817565600509952: finder offered pieces not picked: 2028 1st (DS107), 2028 2nd (DS107), 2027 Late 4th (DS107)
+league-6: finder offered pieces not picked: 2027 1.01 (Megatron, DS107)
+league-2: finder offered pieces not picked: 2027 1.04 (Champ%Odds: 8.187397 $1K , DS107), 2028 Mid 1st (Champ%Odds: 8.187397 $1K , DS107), 2029 1st (Champ%Odds: 8.187397 $1K , DS107)
+league-4: finder offered pieces not picked: 2028 Early 1st (via SamSin123), 2029 1st (Medical Tents, DS107), 2029 2nd (Medical Tents, DS107)
