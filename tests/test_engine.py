@@ -644,3 +644,13 @@ def test_upcoming_weekly_projections_lead_rest_of_season():
     assert record.blend_ppg(4.65, up) == pytest.approx(0.7 * 14.5 + 0.3 * 4.65)
     assert record.blend_ppg(4.65, None) == 4.65
     assert record.upcoming_ppg("nobody", "RB", weeks, scoring) is None
+
+
+def test_future_classes_are_priced_on_the_league_scale(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    fc = data["future_classes"]
+    assert "2028" in fc and fc["2028"]
+    rows = fc["2028"]
+    assert all(r["name"] and r["pos"] and r["value"] > 0 for r in rows)
+    assert [r["value"] for r in rows] == sorted((r["value"] for r in rows), reverse=True)
+    assert "2027" not in fc  # the coming class stays on the Rookie Mock

@@ -376,6 +376,17 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         t["pick_value"] = sum(p["value"] for p in picks if p["roster_id"] == t["roster_id"])
         t["total_value"] = t["player_value"] + t["pick_value"]
 
+    # The classes after next on this league's scale: KTC's superflex (or 1QB) devy
+    # values, adjusted for how this league values each position. Research notes for
+    # each prospect live in data/devy_notes.json and are joined in the browser.
+    future_classes = {}
+    if first_year and devy["players"]:
+        for yr in (first_year + 1, first_year + 2):
+            if any(p["class"] == yr for p in devy["players"]):
+                rows = draft.rookie_class(devy["players"], yr, players, pick_values, n, rounds, scale, prospect_overrides())
+                future_classes[str(yr)] = [{k: p.get(k) for k in ("name", "pos", "school", "age", "value", "ktc", "ktc_rank",
+                                                                 "ktc_pos_rank", "trend", "class_rank", "pinned")} for p in rows[:60]]
+
     rookie = None
     if first_year:
         rookie = {
@@ -431,6 +442,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "picks": picks,
         "rookie_draft": rookie,
         "next_draft": next_draft,
+        "future_classes": future_classes,
         "teams": teams,
         "team_values": tv,
         # Completed trades this season, newest first; the site values them with today's numbers.
