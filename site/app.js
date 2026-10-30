@@ -12,6 +12,27 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fmt = (n) => (n == null ? "" : Math.round(n).toLocaleString());
 
+// Sleeper headshots (players) and team logos (defenses), loaded straight from Sleeper's CDN.
+// Picks get a round badge instead. Anything Sleeper has no picture for just drops out.
+function face(id, cls = "") {
+  const sid = String(id ?? "");
+  const m = sid.match(/^pick:(\d+):(\d+)/);
+  if (m) return `<span class="face pick-face ${cls}" aria-hidden="true">${["", "1st", "2nd", "3rd"][m[2]] || m[2] + "th"}</span>`;
+  const src = /^\d+$/.test(sid) ? `https://sleepercdn.com/content/nfl/players/thumb/${sid}.jpg`
+    : /^[A-Z]{2,3}$/.test(sid) ? `https://sleepercdn.com/images/team_logos/nfl/${sid.toLowerCase()}.png` : "";
+  return src ? `<img class="face ${cls}" src="${src}" alt="" loading="lazy" onerror="this.remove()">` : "";
+}
+// Every player link anywhere on the page gets its headshot, however it was rendered.
+new MutationObserver(() => {
+  document.querySelectorAll(".player-link[data-pid]:not([data-faced])").forEach((el) => {
+    el.dataset.faced = "1";
+    el.insertAdjacentHTML("afterbegin", face(el.dataset.pid));
+  });
+}).observe(document.body, { childList: true, subtree: true });
+const setHeadHeight = () => document.documentElement.style.setProperty("--head-h", `${document.querySelector("header").offsetHeight}px`);
+addEventListener("resize", setHeadHeight);
+setHeadHeight();
+
 async function getJSON(path) {
   const r = await fetch(path, { cache: "no-cache" });
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
@@ -593,8 +614,10 @@ async function openPlayer(id) {
     ${c ? `<p>${typeof callBadge === "function" ? callBadge(c.signal) : `<b>${c.signal}</b>`} ${esc(c.why)}.</p>` : ""}` : "";
   const ownerTxt = p.roster_id ? teamHtml(p.roster_id) : "Free agent";
   $("#player-body").innerHTML = `
+    <div class="player-hero">${face(p.id, "big")}<div>
     <h2>${esc(p.name)} <span class="pos pos-${p.pos}">${p.pos}${p.pos_rank ?? ""}</span></h2>
     <p class="muted">${esc(p.team || "FA")}${p.age ? ` · age ${p.age}` : ""}${p.exp != null ? ` · year ${p.exp + 1}` : ""}${p.injury ? ` · <span class="inj">${esc(p.injury)}</span>` : ""} · ${ownerTxt}</p>
+    </div></div>
     <div class="stats">
       <div><label>Value</label><b>${fmt(p.value)}</b></div>
       <div><label>Overall</label><b>#${p.rank ?? "–"}</b></div>
@@ -861,7 +884,7 @@ function renderTrade() {
         const toThem = tm[i] != null && f !== 1
           ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(x.value * f)} to them</span>` : "";
         const sites = x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
-        return `<li><span>${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+        return `<li><span>${face(x.id)}${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
       })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
@@ -1454,7 +1477,7 @@ function renderTeamDetail() {
         .map((p) => `<li class="${starters.has(p.id) ? "starter" : ""}"><span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}${t.taxi.includes(p.id) ? ' <span class="muted">taxi</span>' : ""}</span><span class="num">${fmt(p.value)}</span></li>`)
         .join("")}</ul></div>`)
       .join("")}
-      <div class="card"><h4>Picks</h4><ul>${picks.map((p) => `<li><span>${esc(p.label)}</span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li>None</li>"}</ul></div>
+      <div class="card"><h4>Picks</h4><ul>${picks.map((p) => `<li><span>${face(p.id)}${esc(p.label)}</span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li>None</li>"}</ul></div>
     </div><p class="muted">Bold = in the optimal starting lineup by value.</p>`;
 }
 
@@ -1506,7 +1529,7 @@ function renderFormula() {
   if (mine) {
     const calls = mine.players.map(assetById).filter((p) => p && p.formula).map((p) => ({ p, c: myCall(p, mine) }));
     const group = (sig) => calls.filter((x) => x.c.signal === sig).sort((a, b) => b.p.value - a.p.value);
-    const list = (xs) => xs.map(({ p, c }) => `<li><span><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span><br><span class="muted">${esc(c.why)}</span></span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li><span class='muted'>None</span></li>";
+    const list = (xs) => xs.map(({ p, c }) => `<li><span>${face(p.id)}<b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.age ? ", " + p.age : ""}</span><br><span class="muted">${esc(c.why)}</span></span><span class="num">${fmt(p.value)}</span></li>`).join("") || "<li><span class='muted'>None</span></li>";
     const sit = state.data.teams.length && mine.build ? mine.build.name : situationText(mine.roster_id);
     myBlock = `<h3>Your calls <span class="muted">(${esc(mine.name)}${sit ? " · " + esc(sit) : ""})</span></h3>
       <div class="cols calls-grid">
@@ -1809,7 +1832,7 @@ function renderMatchups() {
       <div class="score">${s.points.toFixed(2)}</div>
       <div class="muted">proj ${s.proj.toFixed(1)} · ${s.left} left · ${Math.round(odds * 100)}% to win</div></div>`;
   const lineup = (s) => `<div><table class="lineup"><thead><tr><th>Player</th><th>Game</th><th class="num">Pts</th><th class="num">Proj</th><th class="num">Left</th></tr></thead><tbody>${s.starters
-      .map((x) => `<tr class="${x.left > 0 ? "" : "done"}"><td><span class="pos pos-${x.p.pos}">${x.p.pos}</span> ${esc(x.p.name)} <span class="muted">${esc(x.p.team || "")}</span></td>
+      .map((x) => `<tr class="${x.left > 0 ? "" : "done"}"><td><span class="pos pos-${x.p.pos}">${x.p.pos}</span> ${face(x.p.id)}${esc(x.p.name)} <span class="muted">${esc(x.p.team || "")}</span></td>
         <td class="muted">${esc(x.status)}</td><td class="num strong">${x.pts.toFixed(2)}</td><td class="num">${x.full.toFixed(1)}</td><td class="num">${x.left > 0 ? x.rem.toFixed(1) : ""}</td></tr>`)
       .join("")}</tbody></table></div>`;
   el.innerHTML = `<p class="muted">Week ${L.week} · ${when}. Projected final = points so far plus each starter's projection for the part of his game still to play.</p>` +
@@ -1958,7 +1981,7 @@ function renderFinder() {
   const mine = [...state.assetMap.values()].filter((a) => a.roster_id === finder.me && a.value > 0).sort((a, b) => b.value - a.value);
   const theirs = [...state.assetMap.values()].filter((a) => a.roster_id != null && a.roster_id !== finder.me && a.value > 0
     && (!finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
-  const chips = (ids, kind) => ids.map(assetById).filter(Boolean).map((a) => `<li><span>${esc(a.label)}${kind === "get" ? ` <span class="muted">${esc(teamName(a.roster_id))}</span>` : ""}</span><span class="num">${fmt(a.value)}</span><button data-kind="${kind}" data-id="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("");
+  const chips = (ids, kind) => ids.map(assetById).filter(Boolean).map((a) => `<li><span>${face(a.id)}${esc(a.label)}${kind === "get" ? ` <span class="muted">${esc(teamName(a.roster_id))}</span>` : ""}</span><span class="num">${fmt(a.value)}</span><button data-kind="${kind}" data-id="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("");
   const posList = [...new Set(["QB", "RB", "WR", "TE", ...roomPositions()])].filter((p) => POSITIONS.includes(p)).concat("PICK");
   const countChips = (key, opts) => opts.map((k) => `<button class="chip ${finder[key] === k ? "active" : ""}" data-count="${key}" data-k="${k ?? ""}">${k == null ? "Any" : k}</button>`).join("");
   const myStarters = new Set(bestLineup(rosterOf(finder.me), "ros_ppg").map((x) => x.p.id));
