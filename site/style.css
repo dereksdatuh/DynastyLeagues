@@ -251,6 +251,7 @@ tr.mine-row td { background: rgba(255, 159, 67, .08); }
 .face { display: inline-block; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--hi); vertical-align: middle; margin: -4px 8px -4px 0; border: 1px solid var(--border); }
 .assets .face { width: 40px; height: 40px; margin: -6px 10px -6px 0; }
 .face.big { width: 112px; height: 112px; margin: 0; border: 3px solid var(--blue); box-shadow: 0 0 32px rgba(90, 176, 255, .3); }
+.pick-face::before { content: attr(data-round); }
 .pick-face { display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 var(--display); color: var(--blue); background: #16263C; border: 2px solid var(--blue); }
 .player-hero { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
 .player-hero h2 { margin: 0 32px 4px 0; font-size: 32px; }

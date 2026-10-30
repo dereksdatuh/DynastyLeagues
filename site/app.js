@@ -17,7 +17,8 @@ const fmt = (n) => (n == null ? "" : Math.round(n).toLocaleString());
 function face(id, cls = "") {
   const sid = String(id ?? "");
   const m = sid.match(/^pick:(\d+):(\d+)/);
-  if (m) return `<span class="face pick-face ${cls}" aria-hidden="true">${["", "1st", "2nd", "3rd"][m[2]] || m[2] + "th"}</span>`;
+  // The round goes in a CSS label, so the badge adds no text to the row it sits in.
+  if (m) return `<span class="face pick-face ${cls}" data-round="${["", "1st", "2nd", "3rd"][m[2]] || m[2] + "th"}" aria-hidden="true"></span>`;
   const src = /^\d+$/.test(sid) ? `https://sleepercdn.com/content/nfl/players/thumb/${sid}.jpg`
     : /^[A-Z]{2,3}$/.test(sid) ? `https://sleepercdn.com/images/team_logos/nfl/${sid.toLowerCase()}.png` : "";
   return src ? `<img class="face ${cls}" src="${src}" alt="" loading="lazy" onerror="this.remove()">` : "";
