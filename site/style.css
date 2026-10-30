@@ -1,24 +1,26 @@
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --text: #16181d;
-  --muted: #6b7280;
-  --border: #e3e6eb;
-  --accent: #2563eb;
-  --good: #15803d;
-  --bad: #b91c1c;
-  --tier: #eef2f7;
-  --QB: #d9466f; --RB: #13a89e; --WR: #3b82f6; --TE: #e08a1e;
-  --DL: #8b5cf6; --LB: #7c3aed; --DB: #a855f7; --K: #64748b; --DEF: #475569;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1115; --surface: #171a21; --text: #e7e9ee; --muted: #9aa3b2;
-    --border: #2a2f3a; --accent: #60a5fa; --good: #4ade80; --bad: #f87171; --tier: #1e232c;
-  }
+  /* Colors from "The Three-Way" trade deck: navy night, cream text, team neons. */
+  color-scheme: dark;
+  --bg: #0E1424;
+  --surface: #182036;
+  --raised: #1C2537;
+  --hi: #26324A;
+  --text: #F2EFE6;
+  --muted: #A9B4C8;
+  --dim: #6B7590;
+  --border: #2A3450;
+  --accent: #5AB0FF;
+  --orange: #FF9F43; --blue: #5AB0FF; --green: #6FE3A4; --pink: #FF2A6D; --purple: #BD66FF;
+  --good: #6FE3A4;
+  --bad: #FF6B6B;
+  --tier: #141B2E;
+  --QB: #FF2A6D; --RB: #00CEB8; --WR: #58A7FF; --TE: #FFAE58; --FLEX: #8C97AD; --SF: #BD66FF;
+  --DL: #B98CFF; --LB: #9F7BFF; --DB: #D08CFF; --K: #8C97AD; --DEF: #6B7590; --PICK: #5AB0FF;
+  --display: "Oswald", "Arial Narrow", Arial, sans-serif;
+  --body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 * { box-sizing: border-box; }
-body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+body { margin: 0; font: 14px/1.45 var(--body); background: var(--bg); color: var(--text); }
 header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .brand { display: flex; flex-direction: column; }
 h1 { margin: 0; font-size: 20px; }
@@ -192,3 +194,116 @@ b.up, span.up { color: var(--good); } b.down, span.down { color: var(--bad); }
 .welcome h2 { margin-top: 0; }
 .note { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
 @media (max-width: 600px) { .login input { min-width: 0; flex: 1; } .account select { max-width: 100%; } }
+
+/* ---------- deck look ---------- */
+body { background: radial-gradient(ellipse 120% 60% at 50% -10%, #22305A 0%, var(--bg) 60%) fixed, var(--bg); min-height: 100vh; }
+h1, h2, h3, .verdict, .stats b, .matchup .score { font-family: var(--display); letter-spacing: .02em; }
+h2, h3 { text-transform: uppercase; font-weight: 600; }
+h2 { font-size: 26px; } h3 { font-size: 18px; }
+h4 { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; font-weight: 700; }
+header { position: sticky; top: 0; z-index: 20; background: rgba(14, 20, 36, .82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.brand h1 { font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; line-height: 1; }
+.brand h1 span { background: linear-gradient(90deg, var(--orange), var(--blue) 55%, var(--green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+select, input { background: var(--raised); border-color: var(--border); border-radius: 10px; }
+select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tabs { position: sticky; top: var(--head-h, 64px); z-index: 19; background: rgba(14, 20, 36, .9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); gap: 6px; padding: 10px 16px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { border: 1px solid transparent; border-radius: 999px; padding: 7px 14px; font-weight: 500; transition: color .2s, background .2s, border-color .2s; }
+.tabs button:hover { color: var(--text); background: var(--raised); }
+.tabs button.active { color: var(--bg); background: var(--text); border-color: var(--text); font-weight: 700; }
+.chip { background: var(--raised); border-color: var(--border); transition: transform .15s, background .2s, border-color .2s; }
+.chip:hover { transform: translateY(-1px); border-color: var(--accent); }
+.chip.active { background: var(--blue); border-color: var(--blue); color: var(--bg); font-weight: 700; box-shadow: 0 0 18px rgba(90, 176, 255, .35); }
+button.chip:active { transform: scale(.96); }
+.table-wrap, .card, .trade-side, #trade-result, .matchup, .stats div, .note, .kv { background: var(--surface); border-color: var(--border); }
+.table-wrap, .card, .trade-side, #trade-result, .matchup { border-radius: 16px; }
+.card, .stats div { transition: transform .2s, box-shadow .2s, border-color .2s; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0, 0, 0, .35); border-color: #34406A; }
+th { background: var(--surface); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+td { border-bottom-color: rgba(42, 52, 80, .6); }
+tbody tr { transition: background .15s; }
+tbody tr:hover td { background: var(--raised); }
+.tier-row td { background: var(--tier); color: var(--orange); letter-spacing: .14em; }
+.pos { color: var(--bg); font-weight: 700; border-radius: 7px; }
+.pos-FLEX { background: var(--FLEX); } .pos-SF, .pos-SUPER_FLEX { background: var(--SF); } .pos-PICK { background: var(--PICK); }
+.player-link:hover { color: var(--blue); text-decoration: none; }
+.stats div { border-radius: 14px; border-top: 3px solid var(--blue); }
+.stats div:nth-child(4n+2) { border-top-color: var(--orange); } .stats div:nth-child(4n+3) { border-top-color: var(--green); } .stats div:nth-child(4n+4) { border-top-color: var(--purple); }
+.stats b { font-size: 26px; font-weight: 700; }
+.stats label { text-transform: uppercase; letter-spacing: .1em; font-size: 10px; color: var(--dim); }
+.mine { color: var(--orange); }
+tr.mine-row td { background: rgba(255, 159, 67, .08); }
+.news li.mine-row, .trade-log.mine-row { border-left-color: var(--orange); }
+.badge.new { background: var(--orange); }
+.verdict { font-size: 30px; text-transform: uppercase; } .verdict.fair { color: var(--green); }
+.bar { background: var(--hi); } .bar div, .matchup .odds div { background: linear-gradient(90deg, var(--blue), var(--green)); }
+
+/* Each side of a trade gets a team color, like the deck's three columns. */
+.trade-side { border-top: 6px solid var(--orange); }
+.trade-side:nth-child(4n+2) { border-top-color: var(--blue); }
+.trade-side:nth-child(4n+3) { border-top-color: var(--green); }
+.trade-side:nth-child(4n+4) { border-top-color: var(--pink); }
+.trade-side h3 { color: var(--orange); letter-spacing: .1em; font-size: 15px; }
+.trade-side:nth-child(4n+2) h3 { color: var(--blue); } .trade-side:nth-child(4n+3) h3 { color: var(--green); } .trade-side:nth-child(4n+4) h3 { color: var(--pink); }
+.assets li { align-items: center; padding: 8px 0; animation: pop .28s ease-out both; }
+
+/* Sleeper headshots */
+.face { display: inline-block; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--hi); vertical-align: middle; margin: -4px 8px -4px 0; border: 1px solid var(--border); }
+.assets .face { width: 40px; height: 40px; margin: -6px 10px -6px 0; }
+.face.big { width: 112px; height: 112px; margin: 0; border: 3px solid var(--blue); box-shadow: 0 0 32px rgba(90, 176, 255, .3); }
+.pick-face::before { content: attr(data-round); }
+.pick-face { display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 var(--display); color: var(--blue); background: #16263C; border: 2px solid var(--blue); }
+.player-hero { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
+.player-hero h2 { margin: 0 32px 4px 0; font-size: 32px; }
+.player-hero p { margin: 0; }
+.modal { background: rgba(5, 8, 16, .7); backdrop-filter: blur(4px); animation: fade .2s ease-out; }
+.modal-box { background: linear-gradient(180deg, #1A2340, var(--bg) 220px); border-color: var(--border); border-radius: 20px; animation: rise .3s cubic-bezier(.2, .8, .2, 1); }
+
+/* Welcome = the deck's cover slide */
+.welcome { text-align: center; margin: 9vh auto; }
+.welcome .kicker { letter-spacing: .4em; text-transform: uppercase; color: var(--muted); font-size: 13px; }
+.welcome h2 { font-size: clamp(56px, 12vw, 120px); line-height: .95; font-weight: 700; letter-spacing: .03em; margin: 10px 0 22px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 22px; }
+.pill { font-weight: 700; padding: 8px 18px; border-radius: 999px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+.pill.orange { color: var(--orange); background: #2A2218; animation-delay: .1s; }
+.pill.blue { color: var(--blue); background: #16263C; animation-delay: .2s; }
+.pill.green { color: var(--green); background: #15291F; animation-delay: .3s; }
+
+/* Motion */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+.tab:not(.hidden) { animation: rise .35s cubic-bezier(.2, .8, .2, 1); }
+.tab:not(.hidden) .card, .tab:not(.hidden) .matchup, .tab:not(.hidden) .stats div { animation: rise .45s cubic-bezier(.2, .8, .2, 1) both; }
+.tab:not(.hidden) .cols > :nth-child(2), .tab:not(.hidden) .stats div:nth-child(2) { animation-delay: .05s; }
+.tab:not(.hidden) .cols > :nth-child(3), .tab:not(.hidden) .stats div:nth-child(3) { animation-delay: .1s; }
+.tab:not(.hidden) .cols > :nth-child(4), .tab:not(.hidden) .stats div:nth-child(4) { animation-delay: .15s; }
+.tab:not(.hidden) .cols > :nth-child(n+5), .tab:not(.hidden) .stats div:nth-child(n+5) { animation-delay: .2s; }
+#rankings tbody tr:nth-child(-n+24) { animation: rise .4s cubic-bezier(.2, .8, .2, 1) both; }
+#rankings tbody tr:nth-child(2) { animation-delay: 0.04s; }
+#rankings tbody tr:nth-child(3) { animation-delay: 0.06s; }
+#rankings tbody tr:nth-child(4) { animation-delay: 0.08s; }
+#rankings tbody tr:nth-child(5) { animation-delay: 0.10s; }
+#rankings tbody tr:nth-child(6) { animation-delay: 0.12s; }
+#rankings tbody tr:nth-child(7) { animation-delay: 0.14s; }
+#rankings tbody tr:nth-child(8) { animation-delay: 0.16s; }
+#rankings tbody tr:nth-child(9) { animation-delay: 0.18s; }
+#rankings tbody tr:nth-child(10) { animation-delay: 0.20s; }
+#rankings tbody tr:nth-child(11) { animation-delay: 0.22s; }
+#rankings tbody tr:nth-child(12) { animation-delay: 0.24s; }
+#rankings tbody tr:nth-child(13) { animation-delay: 0.26s; }
+#rankings tbody tr:nth-child(14) { animation-delay: 0.28s; }
+#rankings tbody tr:nth-child(15) { animation-delay: 0.30s; }
+#rankings tbody tr:nth-child(16) { animation-delay: 0.32s; }
+#rankings tbody tr:nth-child(17) { animation-delay: 0.34s; }
+#rankings tbody tr:nth-child(18) { animation-delay: 0.36s; }
+#rankings tbody tr:nth-child(19) { animation-delay: 0.38s; }
+#rankings tbody tr:nth-child(20) { animation-delay: 0.40s; }
+#rankings tbody tr:nth-child(21) { animation-delay: 0.42s; }
+#rankings tbody tr:nth-child(22) { animation-delay: 0.44s; }
+#rankings tbody tr:nth-child(23) { animation-delay: 0.46s; }
+#rankings tbody tr:nth-child(24) { animation-delay: 0.48s; }
+#trade-result { animation: pop .3s ease-out; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (max-width: 600px) { .brand h1 { font-size: 22px; } .tabs { top: 0; position: static; } header { position: static; } }
+#formula .card li .face { float: left; width: 36px; height: 36px; margin: 2px 10px 6px 0; }
