@@ -108,6 +108,15 @@ for (const [id, liteRun] of runs) {
   const lens = await page.$$eval("#trade-result table.net tbody tr", (rs) => rs.map((r) => [...r.cells].map((c) => c.textContent.trim()).join(" | ")));
   const toThem = await page.$$eval(".trade-side .tv", (r) => r.length);
   const pitches = await page.$$eval(".pitch textarea", (ts) => ts.map((t) => t.value));
+  // The Lineups tab shows a team's lineup with this trade applied.
+  if (drafted && (await page.$("#to-lab"))) {
+    await page.click("#to-lab");
+    const lab = await page.$eval("#lab .lab-score", (e) => e.textContent.replace(/\s+/g, " ").trim()).catch(() => "");
+    const labRows = await page.$$eval("#lab .lab-col.after .lab-row", (r) => r.length);
+    console.log(`  lineups: ${lab} (${labRows} rows after the trade)`);
+    if (!lab || !labRows) errors.push(`${id}: lineups after the trade missing`);
+    await page.click('button[data-tab="trade"]');
+  }
   // This week's tabs.
   await page.click('button[data-tab="matchups"]');
   const matchups = await page.$$eval("#matchups .matchup", (ms) => ms.map((m) => [...m.querySelectorAll(".side")].map((s) => s.querySelector(".team").textContent.trim() + " " + s.querySelector(".score").textContent + " (" + s.querySelector(".muted").textContent + ")").join("  vs  ")));
