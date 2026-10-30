@@ -2,6 +2,1078 @@
  "as_of": "2026-10-30",
  "method": "Ranks blend 2026 production and efficiency (weighted most for players with a real role), 2025 production, recruiting pedigree, size and frame where verified, and depth-chart/landing context, with a superflex bump for QBs who start and project as possible first- or second-round NFL picks. Consensus devy boards (KeepTradeCut, FantasyPros Aug 2026, Draft Sharks Jul 2026, FantraxHQ Aug 2026) were the starting point, and I moved players off consensus only where the 2026 tape-of-record (stats, injuries, starting status) clearly changed the picture. Class assignment uses NFL eligibility (3 years removed from high school): 2025 HS grads (true sophomores and redshirt freshmen in 2026) are the 2028 class, and 2026 HS grads, including reclassified early enrollees, are the 2029 class. 2026 stats come mostly from StatSniper season pages, which often run 1-2 weeks behind (roughly through Weeks 6-8); each line says how many games it covers.",
  "classes": {
+  "2027": [
+   {
+    "rank": 1,
+    "name": "Jeremiah Smith",
+    "pos": "WR",
+    "school": "Ohio State",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-4",
+    "weight": 222,
+    "hs_rank": "5-star; top-ranked prospect in the 2024 class (per Wikipedia)",
+    "stats_2026": "7 g (through Wk 8 bye): 52 rec, 984 yds, 12 TD",
+    "stats_2025": "87 rec, 1,243 yds, 12 TD; 3 rush, 21 yds, 1 TD",
+    "tier": 1,
+    "nfl_comp": "Ja'Marr Chase",
+    "notes": "He is the best player in the class on every board we checked, NFL or fantasy, and Kiper has him No. 1 overall. He is averaging about 140 yards per game with 12 TD in 7 games, even with Ohio State now down to a backup QB. He has the size, speed and hands of a true alpha WR1 and is the clear 1.01 even in superflex.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     94,
+     113
+    ]
+   },
+   {
+    "rank": 2,
+    "name": "Darian Mensah",
+    "pos": "QB",
+    "school": "Miami (FL)",
+    "class_year": "RS Jr.",
+    "class_note": "He is a 2023 HS grad (redshirted at Tulane in 2023) on his third school, and is widely expected to declare.",
+    "height": "6-3",
+    "weight": 205,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 166/204 (81.4%), 2,151 yds, 22 TD, 1 INT; 20 rush, 73 yds, 2 TD",
+    "stats_2025": "Duke: 334/500 (66.8%), 3,973 yds, 34 TD, 6 INT",
+    "tier": 1,
+    "nfl_comp": null,
+    "notes": "He has been the most efficient passer in the country, completing 81 percent of his throws with a 22 to 1 TD to INT ratio. Kiper ranks him No. 4 overall and he is a near lock to be a first-round pick. He adds little as a runner, which caps his fantasy ceiling a bit, but in superflex a first-round QB with this accuracy is a top-three pick.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     91,
+     92,
+     96,
+     115
+    ]
+   },
+   {
+    "rank": 3,
+    "name": "Drew Mestemaker",
+    "pos": "QB",
+    "school": "Oklahoma State",
+    "class_year": "Jr.",
+    "class_note": "He is a 2024 HS grad who walked on at North Texas, so he is eligible for 2027 but could still return to school.",
+    "height": "6-3",
+    "weight": 215,
+    "hs_rank": "Unranked walk-on (never started a varsity game in HS)",
+    "stats_2026": "7 g (through Wk 8): 157/239 (65.7%), 2,326 yds, 20 TD, 6 INT; 29 rush, 150 yds, 2 TD",
+    "stats_2025": "North Texas: 319/463 (68.9%), 4,379 yds, 34 TD, 9 INT",
+    "tier": 1,
+    "nfl_comp": null,
+    "notes": "He went from an unranked walk-on to No. 2 on Kiper's board, and the 2026 tape at Oklahoma State has backed up his 4,379-yard 2025 season. He has a big arm, he can run when needed (109 rush yds in the upset of Oregon), and he has thrown for over 330 yds per game. The risk is a short track record, but his draft stock is now first round, which matters most in superflex.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     97,
+     116
+    ]
+   },
+   {
+    "rank": 4,
+    "name": "Dante Moore",
+    "pos": "QB",
+    "school": "Oregon",
+    "class_year": "RS Jr.",
+    "class_note": "He passed on the 2026 draft to return. He is out for the 2026 season with a concussion, and ESPN's Pete Thamel reports the overwhelming expectation is that he declares.",
+    "height": "6-3",
+    "weight": 220,
+    "hs_rank": "5-star; No. 8 by ESPN (2023)",
+    "stats_2026": "4 g (season over, concussion vs USC): 69/99 (69.7%), 926 yds, 9 TD, 0 INT; 10 rush, -7 yds, 1 TD",
+    "stats_2025": "296/412 (71.8%), 3,565 yds, 30 TD, 10 INT; 73 rush, 156 yds, 2 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He was the top QB on most boards in the summer and played well in four starts (9 TD, 0 INT) before a concussion against USC ended his season. His talent and 2025 tape still point to a first-round pick, but his stock has slipped behind Mensah and Mestemaker, and the concussion adds medical risk. He drops a few spots from consensus, but he is still a strong superflex pick if he declares as expected.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     91,
+     92,
+     95,
+     114,
+     154
+    ]
+   },
+   {
+    "rank": 5,
+    "name": "Charlie Becker",
+    "pos": "WR",
+    "school": "Indiana",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-4",
+    "weight": 208,
+    "hs_rank": "3-star (247Sports), 2024",
+    "stats_2026": "8 g (through Wk 8): 42 rec, 726 yds, 8 TD",
+    "stats_2025": "16 g: 34 rec, 679 yds, 4 TD",
+    "tier": 2,
+    "nfl_comp": "Alec Pierce / Christian Watson (A to Z Sports)",
+    "notes": "He is a tall, fast vertical receiver who wins at the catch point, and he has taken over as Indiana's top target with 726 yds and 8 TD. Kiper has him No. 11 overall and the No. 2 WR in the class. His route tree is still mostly vertical, so the question is whether he can earn volume, but his size and speed give him a high ceiling.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     93,
+     125,
+     162
+    ]
+   },
+   {
+    "rank": 6,
+    "name": "Cam Coleman",
+    "pos": "WR",
+    "school": "Texas",
+    "class_year": "Jr.",
+    "class_note": "He transferred from Auburn to Texas for 2026.",
+    "height": "6-3",
+    "weight": 204,
+    "hs_rank": "5-star; No. 5 overall and No. 2 WR in the 2024 class",
+    "stats_2026": "7 g (through Wk 8): 21 rec, 348 yds, 6 TD",
+    "stats_2025": "Auburn, 12 g: 56 rec, 708 yds, 5 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He has the size, burst and recruiting pedigree of a top-15 NFL pick, and Kiper still has him No. 12 overall. His 2026 volume at Texas has been light (21 catches in 7 games) as Ryan Wingo leads the team in targets, though he scores often. He stays near the top of the class on talent, but he needs a stronger second half to back up the ranking.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     101,
+     152
+    ]
+   },
+   {
+    "rank": 7,
+    "name": "Jadan Baugh",
+    "pos": "RB",
+    "school": "Florida",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-1",
+    "weight": 225,
+    "hs_rank": "4-star",
+    "stats_2026": "7 g (through Wk 8): 135 rush, 763 yds, 13 TD; 9 rec, 59 yds, 2 TD",
+    "stats_2025": "220 rush, 1,170 yds, 8 TD; 33 rec, 210 yds, 2 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He is the top RB in the class for us and on most boards (Kiper No. 14 overall, KTC No. 3 devy). He is a big, physical runner with 15 total TD in 7 games and enough receiving work in 2025 (33 catches) to be a three-down back. He looks like a Day 1 or early Day 2 pick and a safe early-first-round rookie pick.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     102,
+     150
+    ]
+   },
+   {
+    "rank": 8,
+    "name": "CJ Carr",
+    "pos": "QB",
+    "school": "Notre Dame",
+    "class_year": "RS So.",
+    "class_note": "He is a 2024 HS grad who redshirted in 2024, so he is eligible as a redshirt sophomore and could return to school.",
+    "height": "6-2",
+    "weight": 215,
+    "hs_rank": "4-star",
+    "stats_2026": "7 g (through Wk 8): 129/193 (66.8%), 1,639 yds, 16 TD, 1 INT; 23 rush, 82 yds, 3 TD",
+    "stats_2025": "195/293 (66.6%), 2,741 yds, 24 TD, 6 INT; 41 rush, 33 yds, 3 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He is a polished pocket passer who protects the ball (1 INT in 7 games) and Kiper ranks him No. 8 overall. Draft Sharks calls him the most pro-ready QB in the group. He is young enough to go back to school, which is the main risk, and he adds little as a runner.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     91,
+     92,
+     100,
+     118
+    ]
+   },
+   {
+    "rank": 9,
+    "name": "Trinidad Chambliss",
+    "pos": "QB",
+    "school": "Ole Miss",
+    "class_year": "Sr.",
+    "class_note": "He is in his sixth college season after a court injunction granted him the extra year, so 2027 is his only path.",
+    "height": "6-1",
+    "weight": 205,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 167/262 (63.7%), 1,926 yds, 16 TD, 7 INT; 41 rush, 134 yds, 6 TD",
+    "stats_2025": "294/445 (66.1%), 3,937 yds, 22 TD, 3 INT; 133 rush, 527 yds, 8 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He is a twitchy dual threat who has beaten LSU and Missouri this year, and Kiper ranks him No. 6 overall. His efficiency is down from 2025 (7 INT already), he is small for the position and he will be an older rookie. The rushing floor and a possible first-round grade keep him in the first round of superflex rookie drafts.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     91,
+     92,
+     98,
+     153
+    ]
+   },
+   {
+    "rank": 10,
+    "name": "KJ Duff",
+    "pos": "WR",
+    "school": "Rutgers",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-6",
+    "weight": 225,
+    "hs_rank": "4-star",
+    "stats_2026": "7 g (through Wk 8): 45 rec, 774 yds, 9 TD",
+    "stats_2025": "12 g: 60 rec, 1,084 yds, 7 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He is a 6-6 deep threat who turned down transfer offers to stay at Rutgers and has produced at a high level for two straight years (110 yds per game in 2026). He is a dominant share of a weak offense, which is a good sign for target earning. Boards have him as a possible first-round pick, and he is a top-10 rookie pick for us.",
+    "sources": [
+     0,
+     87,
+     89,
+     91,
+     92,
+     111,
+     163
+    ]
+   },
+   {
+    "rank": 11,
+    "name": "Arch Manning",
+    "pos": "QB",
+    "school": "Texas",
+    "class_year": "RS Jr.",
+    "class_note": "He is a 2023 HS grad who could return to school, but Draft Sharks lists him as expected to declare.",
+    "height": "6-4",
+    "weight": 222,
+    "hs_rank": "5-star; cited as No. 1 overall in the 2023 class",
+    "stats_2026": "7 g (through Wk 8): 124/196 (63.3%), 1,507 yds, 12 TD, 7 INT; 57 rush, 110 yds, 2 TD",
+    "stats_2025": "248/404 (61.4%), 3,163 yds, 26 TD, 7 INT; 92 rush, 399 yds, 10 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "His 2026 season has been uneven (63 percent, 7 INT) and Kiper has dropped him to No. 24 overall and QB6. He still has the size, arm and running ability (10 rush TD in 2025) that fantasy managers want. He slides behind the more efficient QBs, and there is a real chance he returns to Texas for 2027.",
+    "sources": [
+     0,
+     87,
+     88,
+     89,
+     90,
+     91,
+     92,
+     99,
+     117
+    ]
+   },
+   {
+    "rank": 12,
+    "name": "Nick Marsh",
+    "pos": "WR",
+    "school": "Indiana",
+    "class_year": "Jr.",
+    "class_note": "He transferred from Michigan State to Indiana for 2026.",
+    "height": "6-3",
+    "weight": 210,
+    "hs_rank": "4-star",
+    "stats_2026": "8 g (through Wk 8): 34 rec, 610 yds, 7 TD",
+    "stats_2025": "Michigan State: 59 rec, 662 yds, 6 TD",
+    "tier": 2,
+    "nfl_comp": null,
+    "notes": "He is a big, physical outside receiver who has paired well with Becker in Indiana's offense (18 yds per catch, 7 TD). He produced as a freshman and sophomore at Michigan State too, so the track record is solid. He is on the first-round edge for the NFL and a mid first-round rookie pick for us.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     91,
+     92,
+     106,
+     151
+    ]
+   },
+   {
+    "rank": 13,
+    "name": "Austin Simmons",
+    "pos": "QB",
+    "school": "Missouri",
+    "class_year": "Jr.",
+    "class_note": "He transferred from Ole Miss and has little starting experience, and Kiper says he could return to school for another year.",
+    "height": "6-4",
+    "weight": 220,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 132/209 (63.2%), 1,773 yds, 14 TD, 2 INT; 20 rush, 18 yds",
+    "stats_2025": "Ole Miss, 8 g (backup): 45/75, 744 yds, 4 TD, 5 INT",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a left-handed passer with a live arm who has jumped to No. 10 on Kiper's board in his first year as a full-time starter. He has thrown only 2 INT, but he had a rough game at Ole Miss and has almost no rushing value. His draft stock is rising fast, but the chance he goes back to school keeps him outside the top 10.",
+    "sources": [
+     88,
+     92,
+     93,
+     120,
+     161
+    ]
+   },
+   {
+    "rank": 14,
+    "name": "Ryan Coleman-Williams",
+    "pos": "WR",
+    "school": "Alabama",
+    "class_year": "Jr.",
+    "class_note": "He reclassified from the 2025 to the 2024 HS class, so he is very young for the class and could return to school.",
+    "height": "6-0",
+    "weight": 184,
+    "hs_rank": "5-star; reclassified from 2025 to 2024",
+    "stats_2026": "6 g (missed 2 g after knee surgery): 23 rec, 415 yds, 4 TD",
+    "stats_2025": "14 g: 49 rec, 689 yds, 4 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He was a breakout star as a 17-year-old freshman in 2024 (865 yds, 8 TD), but his last two seasons have been less consistent. He had arthroscopic meniscus surgery in October and is out for the near term. His speed and youth are real pluses, but he is slight and his production has stalled.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     91,
+     92,
+     93,
+     105,
+     126,
+     158
+    ]
+   },
+   {
+    "rank": 15,
+    "name": "Ahmad Hardy",
+    "pos": "RB",
+    "school": "Missouri",
+    "class_year": "Jr.",
+    "class_note": "He has not played in 2026, so a return for 2027 is possible.",
+    "height": "5-10",
+    "weight": 210,
+    "hs_rank": null,
+    "stats_2026": "0 g: has not played (recovering from a May gunshot wound to the leg; returned to practice the week of 10/26)",
+    "stats_2025": "241 rush, 1,560 yds, 16 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He was one of the best RBs in the country in 2025 with 1,560 yds and 16 TD. He was shot in the leg in May, has missed the whole season so far, and the earliest return looks like Nov. 7 against Texas. The talent is top-of-class, but the missing season and medical questions push him down and raise the chance he returns to school.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     104,
+     130,
+     156
+    ]
+   },
+   {
+    "rank": 16,
+    "name": "Kewan Lacy",
+    "pos": "RB",
+    "school": "Ole Miss",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-11",
+    "weight": 205,
+    "hs_rank": "4-star",
+    "stats_2026": "6 g (through Wk 8): 78 rush, 388 yds, 5 TD; 10 rec, 33 yds",
+    "stats_2025": "15 g: 306 rush, 1,567 yds, 24 TD; 29 rec, 177 yds",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He was a workhorse in 2025 (306 carries, 24 TD) and some boards had him as the top RB in the class. His 2026 season has been hurt by a lower-leg injury and repeated left shoulder injuries, ending with a dislocated shoulder vs Texas that will keep him out at least vs Auburn. The 2025 tape still matters, but the injuries and 5.0 yards per carry drop him out of the top tier.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     103,
+     149,
+     157
+    ]
+   },
+   {
+    "rank": 17,
+    "name": "Trey'Dez Green",
+    "pos": "TE",
+    "school": "LSU",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-7",
+    "weight": 237,
+    "hs_rank": null,
+    "stats_2026": "4 g (missed 4 g, lower-body injury): 19 rec, 272 yds, 2 TD",
+    "stats_2025": "11 g: 33 rec, 433 yds, 7 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a 6-7 move tight end who scored 7 TD as a sophomore and is the top TE on most 2027 boards. He missed four games with a lower-body injury and returned with 5 catches, 50 yds and a TD at Auburn. He is a long-term TE1 type in PPR leagues, but tight ends take time, so he fits in the late first or early second round.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     91,
+     92,
+     93,
+     128,
+     159
+    ]
+   },
+   {
+    "rank": 18,
+    "name": "Julian Sayin",
+    "pos": "QB",
+    "school": "Ohio State",
+    "class_year": "RS So.",
+    "class_note": "He is a 2024 HS grad who redshirted in 2024. He is out indefinitely with a throwing-arm injury, which makes a return to school for 2027 more likely.",
+    "height": "6-1",
+    "weight": 214,
+    "hs_rank": "5-star; No. 2 QB and ESPN 300 No. 34 in 2024",
+    "stats_2026": "7 g (out since Wk 7 arm injury): 131/192 (68.2%), 2,007 yds, 19 TD, 4 INT; 37 rush, -9 yds, 2 TD",
+    "stats_2025": "301/391 (77.0%), 3,610 yds, 32 TD, 8 INT",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He was very accurate in two seasons as Ohio State's starter, and The Big Board still ranks him No. 3. He hurt his throwing arm vs Indiana on Oct. 17, and Ryan Day is planning for him to miss the rest of the season. Between the injury, limited arm strength and almost no rushing value, he is more likely to return to school than declare, so we rank him well below consensus.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     107,
+     119,
+     155
+    ]
+   },
+   {
+    "rank": 19,
+    "name": "Reed Harris",
+    "pos": "WR",
+    "school": "Arizona State",
+    "class_year": "RS Jr.",
+    "class_note": "He transferred from Boston College to Arizona State for 2026.",
+    "height": "6-5",
+    "weight": 220,
+    "hs_rank": "3-star (247Sports); top player in Montana, 2023",
+    "stats_2026": "7 g (through Wk 8): 47 rec, 800 yds, 8 TD",
+    "stats_2025": "Boston College: 39 rec, 673 yds, 5 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He has broken out at Arizona State with 800 yds and 8 TD in 7 games, and The Game Haus has him No. 41 overall. He is a 6-5 former three-sport athlete with big-play ability (17 yds per catch). He is a Day 2 type prospect with upside if he keeps this pace.",
+    "sources": [
+     87,
+     91,
+     92,
+     127,
+     165
+    ]
+   },
+   {
+    "rank": 20,
+    "name": "Jamari Johnson",
+    "pos": "TE",
+    "school": "Oregon",
+    "class_year": "RS Jr.",
+    "class_note": "He is a 2023 HS grad who could return, but he is ranked as a 2027 prospect.",
+    "height": "6-5",
+    "weight": 255,
+    "hs_rank": "4-star",
+    "stats_2026": "5 g (through Wk 8): 24 rec, 293 yds, 2 TD",
+    "stats_2025": "Backup to Kenyon Sadiq; no receiving totals found",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a big, athletic tight end who has stepped into Kenyon Sadiq's role at Oregon and is a top-30 prospect on The Game Haus board. His production has been fine but not special (24 catches in 5 games), and he has limited career tape. He is the TE2 in the class for us.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     91,
+     92,
+     112,
+     129
+    ]
+   },
+   {
+    "rank": 21,
+    "name": "Jayden Maiava",
+    "pos": "QB",
+    "school": "USC",
+    "class_year": "RS Sr.",
+    "class_note": null,
+    "height": "6-4",
+    "weight": 230,
+    "hs_rank": "3-star (2022)",
+    "stats_2026": "8 g (through Wk 9): 183/274 (66.8%), 2,302 yds, 19 TD, 5 INT",
+    "stats_2025": "265/403 (65.8%), 3,711 yds, 24 TD, 10 INT",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a big-armed, experienced starter for a ranked USC team. He projects as a Day 2 pick with some first-round buzz, per Draft Sharks. He offers little as a runner, so he is a mid-round superflex QB with starter upside rather than a sure thing.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     108,
+     121
+    ]
+   },
+   {
+    "rank": 22,
+    "name": "Isaac Brown",
+    "pos": "RB",
+    "school": "Louisville",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-9",
+    "weight": 190,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 83 rush, 568 yds, 4 TD; 10 rec, 48 yds",
+    "stats_2025": "9 g: 101 rush, 884 yds, 7 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is an explosive, slashing runner who averages almost 7 yards per carry, with a 235-yard game vs Florida State this year. He shares work in Louisville's backfield, and at 190 pounds he may be a committee back in the NFL. His big-play ability keeps him in the second round of rookie drafts.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     131
+    ]
+   },
+   {
+    "rank": 23,
+    "name": "DeSean Bishop",
+    "pos": "RB",
+    "school": "Tennessee",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-10",
+    "weight": 215,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 139 rush, 837 yds, 10 TD; 8 rec, 54 yds",
+    "stats_2025": "13 g: 182 rush, 1,076 yds, 16 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He has been one of the most productive SEC backs this season (837 yds, 10 TD), including 159 yds and 2 TD vs Alabama. He is a compact, tough runner with 26 TD over the last two seasons. He is rising above his consensus rank and is a solid second-round rookie pick.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     133
+    ]
+   },
+   {
+    "rank": 24,
+    "name": "Mark Fletcher Jr.",
+    "pos": "RB",
+    "school": "Miami (FL)",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-2",
+    "weight": 225,
+    "hs_rank": null,
+    "stats_2026": "6 g (through Wk 8): 81 rush, 414 yds, 7 TD; 5 rec, 42 yds, 1 TD",
+    "stats_2025": "14 g: 216 rush, 1,192 yds, 12 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a big back who ran for 1,192 yds in 2025 and still scores near the goal line. His 2026 efficiency is down (5.1 yards per carry) and Javian Mallory has outrushed him. His size and track record keep him in range of Day 2, but the split backfield is a concern.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     132
+    ]
+   },
+   {
+    "rank": 25,
+    "name": "LaNorris Sellers",
+    "pos": "QB",
+    "school": "South Carolina",
+    "class_year": "RS Jr.",
+    "class_note": "He is a 2023 HS grad who returned for 2026 and could return again.",
+    "height": "6-3",
+    "weight": 238,
+    "hs_rank": "247Sports Composite No. 246 overall, No. 16 QB (2023)",
+    "stats_2026": "7 g (through Wk 8): 133/219 (60.7%), 1,548 yds, 13 TD, 5 INT; 85 rush, 507 yds, 4 TD",
+    "stats_2025": "178/293 (60.8%), 2,437 yds, 13 TD, 8 INT; 149 rush, 270 yds, 5 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He has rare size and running ability for a QB, which gives him a high fantasy ceiling (507 rush yds already). His passing has not improved, still around 61 percent, and he is not on the first-round boards we checked. He is a boom-or-bust superflex pick in the second round.",
+    "sources": [
+     87,
+     89,
+     90,
+     92,
+     109,
+     122
+    ]
+   },
+   {
+    "rank": 26,
+    "name": "John Mateer",
+    "pos": "QB",
+    "school": "Oklahoma",
+    "class_year": "RS Sr.",
+    "class_note": null,
+    "height": "6-1",
+    "weight": 224,
+    "hs_rank": "3-star",
+    "stats_2026": "7 g (through Wk 8): 136/204 (66.7%), 1,591 yds, 11 TD, 7 INT; 75 rush, 116 yds, 7 TD",
+    "stats_2025": "247/397 (62.2%), 2,885 yds, 14 TD, 11 INT; 149 rush, 431 yds, 8 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He is a tough dual threat who scores with his legs (7 rush TD this year). His passing has been only average in two seasons at Oklahoma, and he is small for the position. He looks like a Day 2 or Day 3 pick and a backup superflex option.",
+    "sources": [
+     89,
+     92,
+     110,
+     123
+    ]
+   },
+   {
+    "rank": 27,
+    "name": "Antwan Raymond",
+    "pos": "RB",
+    "school": "Rutgers",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-11",
+    "weight": 205,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 123 rush, 648 yds, 6 TD; 13 rec, 128 yds, 1 TD",
+    "stats_2025": "12 g: 244 rush, 1,241 yds, 13 TD",
+    "tier": 3,
+    "nfl_comp": null,
+    "notes": "He carried a big load in 2025 (244 carries, 1,241 yds) and is on the 2027 Senior Bowl watch list. He has a complete game with some receiving work. He lacks top-end burst, so he projects more as a Day 3 starter than a star.",
+    "sources": [
+     87,
+     92,
+     93,
+     134,
+     164
+    ]
+   },
+   {
+    "rank": 28,
+    "name": "Isaiah Sategna III",
+    "pos": "WR",
+    "school": "Oklahoma",
+    "class_year": "Sr.",
+    "class_note": null,
+    "height": "5-10",
+    "weight": 185,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 41 rec, 578 yds, 3 TD",
+    "stats_2025": "13 g: 67 rec, 965 yds, 8 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He is a fast slot receiver who has led Oklahoma in receiving for two seasons. Draft Sharks sees him as a possible top-100 pick. His size limits him to the slot, but his speed and steady production make him a good third-round value.",
+    "sources": [
+     87,
+     92,
+     93,
+     135
+    ]
+   },
+   {
+    "rank": 29,
+    "name": "Ryan Wingo",
+    "pos": "WR",
+    "school": "Texas",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-2",
+    "weight": 214,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 33 rec, 456 yds, 4 TD",
+    "stats_2025": "13 g: 54 rec, 834 yds, 7 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He leads Texas in catches and yards this year, ahead of Cam Coleman. He is a strong, fast outside receiver who produced well in 2025. He could return to school, but he is a solid mid-round pick with some upside.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     136
+    ]
+   },
+   {
+    "rank": 30,
+    "name": "Mario Craver",
+    "pos": "WR",
+    "school": "Texas A&M",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-9",
+    "weight": 180,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 9): 30 rec, 286 yds, 3 TD",
+    "stats_2025": "12 g: 59 rec, 917 yds, 4 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was a big-play slot in 2025 (917 yds), but his 2026 production has dropped to under 10 yards per catch. He is small at 5-9 and 180 pounds. He falls from consensus because of the down year and his size.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     137
+    ]
+   },
+   {
+    "rank": 31,
+    "name": "Nate Frazier",
+    "pos": "RB",
+    "school": "Georgia",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "5-10",
+    "weight": 205,
+    "hs_rank": null,
+    "stats_2026": "5 g (through Wk 8): 35 rush, 230 yds, 5 TD; 4 rec, 21 yds, 1 TD",
+    "stats_2025": "14 g: 173 rush, 947 yds, 6 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was Georgia's lead back in 2025, but in 2026 he is in a crowded rotation and has only 35 carries. He is efficient when used (6.6 yards per carry). The lack of volume makes him more likely to return to school or to go on Day 3.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     138
+    ]
+   },
+   {
+    "rank": 32,
+    "name": "Justice Haynes",
+    "pos": "RB",
+    "school": "Georgia Tech",
+    "class_year": "Sr.",
+    "class_note": "He transferred from Michigan to Georgia Tech for 2026.",
+    "height": "5-11",
+    "weight": 210,
+    "hs_rank": null,
+    "stats_2026": "6 g (through Wk 8): 101 rush, 515 yds, 4 TD; 11 rec, 47 yds, 2 TD",
+    "stats_2025": "Michigan, 7 g: 121 rush, 857 yds, 10 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was very good at Michigan in 2025 before injury cut his season to 7 games. At Georgia Tech he is the lead back but his efficiency is down to 5.1 yards per carry. He is a Day 3 type prospect with three-down potential.",
+    "sources": [
+     0,
+     87,
+     89,
+     90,
+     92,
+     93,
+     139
+    ]
+   },
+   {
+    "rank": 33,
+    "name": "Duce Robinson",
+    "pos": "WR",
+    "school": "Florida State",
+    "class_year": "Sr.",
+    "class_note": null,
+    "height": "6-6",
+    "weight": 230,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 22 rec, 407 yds, 4 TD",
+    "stats_2025": "12 g: 56 rec, 1,081 yds, 6 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He is a 6-6 former tight end who broke out with 1,081 yds at Florida State in 2025. His 2026 volume is down, but he still makes big plays (18.5 yards per catch). His size and speed give him a chance to rise in the pre-draft process.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     140
+    ]
+   },
+   {
+    "rank": 34,
+    "name": "LJ Martin",
+    "pos": "RB",
+    "school": "BYU",
+    "class_year": "Sr.",
+    "class_note": null,
+    "height": "6-2",
+    "weight": 225,
+    "hs_rank": null,
+    "stats_2026": "4 g (missed 3 g): 44 rush, 344 yds, 3 TD; 5 rec, 41 yds",
+    "stats_2025": "13 g: 236 rush, 1,305 yds, 12 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was a 1,305-yard workhorse in 2025 and has averaged 7.8 yards per carry when on the field in 2026. He has missed three games, so durability is the concern. He is a big back with a clear role and a fine mid-round pick.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     141
+    ]
+   },
+   {
+    "rank": 35,
+    "name": "Hollywood Smothers",
+    "pos": "RB",
+    "school": "Texas",
+    "class_year": "Jr.",
+    "class_note": "He transferred from NC State to Texas for 2026.",
+    "height": "5-11",
+    "weight": 193,
+    "hs_rank": null,
+    "stats_2026": "5 g (through Wk 8): 65 rush, 289 yds, 2 TD; 10 rec, 79 yds, 1 TD",
+    "stats_2025": "NC State, 11 g: 160 rush, 939 yds, 6 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was productive at NC State (5.9 yards per carry), but at Texas he has been in a committee and Raleek Brown has more work. He has the speed and receiving skill for a change-of-pace NFL role. His 2026 season has been a disappointment, so he falls from consensus.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     142
+    ]
+   },
+   {
+    "rank": 36,
+    "name": "Raleek Brown",
+    "pos": "RB",
+    "school": "Texas",
+    "class_year": "Sr.",
+    "class_note": "He transferred from Arizona State to Texas for 2026.",
+    "height": "5-9",
+    "weight": 193,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 84 rush, 422 yds, 5 TD; 10 rec, 28 yds",
+    "stats_2025": "Arizona State, 12 g: 186 rush, 1,141 yds, 4 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He ran for 1,141 yds at Arizona State in 2025 and now leads Texas in rushing, including 157 yds vs Ole Miss. He is small and quick, so he projects as a change-of-pace back. He is a late-round dart throw.",
+    "sources": [
+     87,
+     89,
+     92,
+     93,
+     143
+    ]
+   },
+   {
+    "rank": 37,
+    "name": "Bryant Wesco Jr.",
+    "pos": "WR",
+    "school": "Clemson",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-2",
+    "weight": 195,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 34 rec, 378 yds, 0 TD",
+    "stats_2025": "7 g: 31 rec, 537 yds, 6 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He is a smooth outside receiver who leads Clemson in catches and yards. His efficiency has dropped in a struggling Clemson passing game, and he has not scored yet this year. He may be a better 2028 prospect if he returns.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     144
+    ]
+   },
+   {
+    "rank": 38,
+    "name": "Omarion Miller",
+    "pos": "WR",
+    "school": "Arizona State",
+    "class_year": "Sr.",
+    "class_note": null,
+    "height": "6-2",
+    "weight": 215,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 37 rec, 390 yds, 2 TD",
+    "stats_2025": "Colorado, 11 g: 45 rec, 808 yds, 8 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was a big-play receiver at Colorado in 2025 (18 yards per catch). At Arizona State he is second to Reed Harris and averaging only 10.5 yards per catch. He is a Day 3 type prospect and a late-round pick for us.",
+    "sources": [
+     87,
+     90,
+     92,
+     93,
+     145
+    ]
+   },
+   {
+    "rank": 39,
+    "name": "Cam Cook",
+    "pos": "RB",
+    "school": "West Virginia",
+    "class_year": "Sr.",
+    "class_note": null,
+    "height": "5-9",
+    "weight": 203,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 168 rush, 833 yds, 7 TD; 10 rec, 102 yds, 1 TD",
+    "stats_2025": "Jacksonville State, 13 g: 295 rush, 1,659 yds, 16 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He ran for 1,659 yds at Jacksonville State in 2025 and has carried a big load at West Virginia (168 carries). He is under 5 yards per carry in a Power Four league. He is a volume back with a Day 3 outlook.",
+    "sources": [
+     0,
+     87,
+     92,
+     93,
+     146
+    ]
+   },
+   {
+    "rank": 40,
+    "name": "Luke Reynolds",
+    "pos": "TE",
+    "school": "Virginia Tech",
+    "class_year": "Jr.",
+    "class_note": "He transferred from Penn State to Virginia Tech for 2026.",
+    "height": "6-4",
+    "weight": 250,
+    "hs_rank": "Former 5-star (per Sports Illustrated)",
+    "stats_2026": "8 g (through Wk 9): 50 rec, 493 yds, 6 TD",
+    "stats_2025": "Penn State, 13 g: 26 rec, 257 yds, 0 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He is a former five-star who has broken out after following James Franklin to Virginia Tech, with 50 catches in 8 games. He is a reliable short-area target rather than a big-play tight end. He is a good late-round TE stash.",
+    "sources": [
+     0,
+     87,
+     92,
+     93,
+     147,
+     166
+    ]
+   },
+   {
+    "rank": 41,
+    "name": "Brendan Sorsby",
+    "pos": "QB",
+    "school": "None (ineligible; formerly Cincinnati / Texas Tech)",
+    "class_year": "Sr.",
+    "class_note": "The NCAA ruled him ineligible for 2026 over gambling, and the NFL declined a supplemental draft, so he is not playing and enters the 2027 draft.",
+    "height": null,
+    "weight": null,
+    "hs_rank": null,
+    "stats_2026": "0 g: not playing (ruled ineligible by the NCAA)",
+    "stats_2025": "Cincinnati, 12 g: 207/336, 2,800 yds, 27 TD, 5 INT",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He was a productive starter at Cincinnati in 2025 (27 TD, 5 INT) before transferring to Texas Tech. A gambling ban means he will enter the 2027 draft after a full year away from football. Teams will weigh the off-field issue, so he is a late-round superflex flier.",
+    "sources": [
+     87,
+     89,
+     93,
+     160
+    ]
+   },
+   {
+    "rank": 42,
+    "name": "Dylan Raiola",
+    "pos": "QB",
+    "school": "Oregon",
+    "class_year": "Jr.",
+    "class_note": "He transferred from Nebraska to Oregon for 2026 and is very likely to return to school as Oregon's starter for 2027.",
+    "height": "6-3",
+    "weight": 232,
+    "hs_rank": null,
+    "stats_2026": "5 g (through Wk 8): 74/114 (64.9%), 761 yds, 6 TD, 2 INT",
+    "stats_2025": "Nebraska, 9 g: 181/250, 2,000 yds, 18 TD, 6 INT",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He is now Oregon's starter with Moore out, but he has been average in that role (210 yds, 0 TD in a loss at Illinois). He has the arm and pedigree to rise if he plays well over the second half. We expect him to return to school, so he is a late flier in 2027 drafts.",
+    "sources": [
+     87,
+     92,
+     93,
+     124
+    ]
+   },
+   {
+    "rank": 43,
+    "name": "T.J. Moore",
+    "pos": "WR",
+    "school": "Clemson",
+    "class_year": "Jr.",
+    "class_note": null,
+    "height": "6-3",
+    "weight": 200,
+    "hs_rank": null,
+    "stats_2026": "7 g (through Wk 8): 30 rec, 269 yds, 1 TD",
+    "stats_2025": "13 g: 52 rec, 837 yds, 4 TD",
+    "tier": 4,
+    "nfl_comp": null,
+    "notes": "He had a strong 2025 (837 yds), but his 2026 season has been poor at under 9 yards per catch. Clemson's passing game has struggled as a whole. He is likely to return to school, and he is a deep-league stash only.",
+    "sources": [
+     0,
+     87,
+     89,
+     92,
+     93,
+     148
+    ]
+   }
+  ],
   "2028": [
    {
     "rank": 1,
@@ -1819,6 +2891,409 @@
    "title": "Live 5 News: Tait Reynolds will become earliest freshman to start at QB for Clemson in 50+ years",
    "url": "https://www.live5news.com/2026/09/17/tait-reynolds-will-become-earliest-freshman-start-qb-clemson-more-than-50-years/",
    "date": "2026-09-17"
+  },
+  {
+   "title": "Draft Sharks: 2027 Dynasty Superflex Rookie Rankings (Shane Hallam)",
+   "url": "https://www.draftsharks.com/article/2027-superflex-rookie-rankings",
+   "date": "2026-10-01"
+  },
+  {
+   "title": "ESPN: Kiper's 2027 NFL Draft Big Board (top 25)",
+   "url": "https://www.espn.com/nfl/draft2027/story/_/id/50182998/2027-nfl-draft-rankings-kiper-big-board-top-prospects",
+   "date": "2026-10-15"
+  },
+  {
+   "title": "The Big Board: 2027 Dynasty Rookie Rankings (Superflex)",
+   "url": "https://www.thebigboard.gg/dynasty/rookie-rankings-2027",
+   "date": "2026-10-26"
+  },
+  {
+   "title": "TWSN via Yardbarker: Way Too Early 2027 Dynasty Superflex Rookie Rankings (August Update)",
+   "url": "https://www.yardbarker.com/college_football/articles/way_too_early_2027_dynasty_superflex_rookie_rankings_august_update/s1_17814_44172255",
+   "date": "2026-08-13"
+  },
+  {
+   "title": "The Game Haus: 2027 NFL Draft Big Board, Midseason Top Prospects",
+   "url": "https://thegamehaus.com/nfl-draft/2027-nfl-draft-big-board-midseason-top-prospects/2026/10/28/",
+   "date": "2026-10-28"
+  },
+  {
+   "title": "cfbstats.com 2026 team passing/rushing/receiving pages (through 10/23-10/29/2026)",
+   "url": "https://cfbstats.com/2026/team/index.html",
+   "date": "2026-10-29"
+  },
+  {
+   "title": "cfbstats.com 2025 team passing/rushing/receiving pages",
+   "url": "https://cfbstats.com/2025/team/index.html",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Jeremiah Smith",
+   "url": "https://en.wikipedia.org/wiki/Jeremiah_Smith_(American_football)",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Dante Moore",
+   "url": "https://en.wikipedia.org/wiki/Dante_Moore",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Darian Mensah",
+   "url": "https://en.wikipedia.org/wiki/Darian_Mensah",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Drew Mestemaker",
+   "url": "https://en.wikipedia.org/wiki/Drew_Mestemaker",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Trinidad Chambliss",
+   "url": "https://en.wikipedia.org/wiki/Trinidad_Chambliss",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Arch Manning",
+   "url": "https://en.wikipedia.org/wiki/Arch_Manning",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: CJ Carr",
+   "url": "https://en.wikipedia.org/wiki/CJ_Carr",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Cam Coleman",
+   "url": "https://en.wikipedia.org/wiki/Cam_Coleman",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Jadan Baugh",
+   "url": "https://en.wikipedia.org/wiki/Jadan_Baugh",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Kewan Lacy",
+   "url": "https://en.wikipedia.org/wiki/Kewan_Lacy",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Ahmad Hardy",
+   "url": "https://en.wikipedia.org/wiki/Ahmad_Hardy",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Ryan Coleman-Williams",
+   "url": "https://en.wikipedia.org/wiki/Ryan_Williams_(wide_receiver)",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Nick Marsh",
+   "url": "https://en.wikipedia.org/wiki/Nick_Marsh_(American_football)",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Julian Sayin",
+   "url": "https://en.wikipedia.org/wiki/Julian_Sayin",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Jayden Maiava",
+   "url": "https://en.wikipedia.org/wiki/Jayden_Maiava",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: LaNorris Sellers",
+   "url": "https://en.wikipedia.org/wiki/LaNorris_Sellers",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: John Mateer",
+   "url": "https://en.wikipedia.org/wiki/John_Mateer",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: KJ Duff",
+   "url": "https://en.wikipedia.org/wiki/KJ_Duff",
+   "date": null
+  },
+  {
+   "title": "Wikipedia: Jamari Johnson",
+   "url": "https://en.wikipedia.org/wiki/Jamari_Johnson",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Jeremiah Smith",
+   "url": "https://statsniper.com/leagues/ncaaf/player/jeremiah-smith/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Dante Moore",
+   "url": "https://statsniper.com/leagues/ncaaf/player/dante-moore/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Darian Mensah",
+   "url": "https://statsniper.com/leagues/ncaaf/player/darian-mensah/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Drew Mestemaker",
+   "url": "https://statsniper.com/leagues/ncaaf/player/drew-mestemaker/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Arch Manning",
+   "url": "https://statsniper.com/leagues/ncaaf/player/arch-manning/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: CJ Carr",
+   "url": "https://statsniper.com/leagues/ncaaf/player/cj-carr/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Julian Sayin",
+   "url": "https://statsniper.com/leagues/ncaaf/player/julian-sayin/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Austin Simmons",
+   "url": "https://statsniper.com/leagues/ncaaf/player/austin-simmons/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Jayden Maiava",
+   "url": "https://statsniper.com/leagues/ncaaf/player/jayden-maiava/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: LaNorris Sellers",
+   "url": "https://statsniper.com/leagues/ncaaf/player/lanorris-sellers/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: John Mateer",
+   "url": "https://statsniper.com/leagues/ncaaf/player/john-mateer/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Dylan Raiola",
+   "url": "https://statsniper.com/leagues/ncaaf/player/dylan-raiola/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Charlie Becker",
+   "url": "https://statsniper.com/leagues/ncaaf/player/charlie-becker/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Ryan Coleman-Williams",
+   "url": "https://statsniper.com/leagues/ncaaf/player/ryan-coleman-williams/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Reed Harris",
+   "url": "https://statsniper.com/leagues/ncaaf/player/reed-harris/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Trey'Dez Green",
+   "url": "https://statsniper.com/leagues/ncaaf/player/trey-dez-green/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Jamari Johnson",
+   "url": "https://statsniper.com/leagues/ncaaf/player/jamari-johnson/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Ahmad Hardy",
+   "url": "https://statsniper.com/leagues/ncaaf/player/ahmad-hardy/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Isaac Brown",
+   "url": "https://statsniper.com/leagues/ncaaf/player/isaac-brown/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Mark Fletcher Jr.",
+   "url": "https://statsniper.com/leagues/ncaaf/player/mark-fletcher-jr/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: DeSean Bishop",
+   "url": "https://statsniper.com/leagues/ncaaf/player/desean-bishop/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Antwan Raymond",
+   "url": "https://statsniper.com/leagues/ncaaf/player/antwan-raymond/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Isaiah Sategna III",
+   "url": "https://statsniper.com/leagues/ncaaf/player/isaiah-sategna-iii/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Ryan Wingo",
+   "url": "https://statsniper.com/leagues/ncaaf/player/ryan-wingo/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Mario Craver",
+   "url": "https://statsniper.com/leagues/ncaaf/player/mario-craver/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Nate Frazier",
+   "url": "https://statsniper.com/leagues/ncaaf/player/nate-frazier/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Justice Haynes",
+   "url": "https://statsniper.com/leagues/ncaaf/player/justice-haynes/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Duce Robinson",
+   "url": "https://statsniper.com/leagues/ncaaf/player/duce-robinson/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: LJ Martin",
+   "url": "https://statsniper.com/leagues/ncaaf/player/lj-martin/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Hollywood Smothers",
+   "url": "https://statsniper.com/leagues/ncaaf/player/hollywood-smothers/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Raleek Brown",
+   "url": "https://statsniper.com/leagues/ncaaf/player/raleek-brown/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Bryant Wesco Jr.",
+   "url": "https://statsniper.com/leagues/ncaaf/player/bryant-wesco-jr/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Omarion Miller",
+   "url": "https://statsniper.com/leagues/ncaaf/player/omarion-miller/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Cam Cook",
+   "url": "https://statsniper.com/leagues/ncaaf/player/cam-cook/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Luke Reynolds",
+   "url": "https://statsniper.com/leagues/ncaaf/player/luke-reynolds/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: T.J. Moore",
+   "url": "https://statsniper.com/leagues/ncaaf/player/t-j-moore/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Kewan Lacy",
+   "url": "https://statsniper.com/leagues/ncaaf/player/kewan-lacy/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Jadan Baugh",
+   "url": "https://statsniper.com/leagues/ncaaf/player/jadan-baugh/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Nick Marsh",
+   "url": "https://statsniper.com/leagues/ncaaf/player/nick-marsh/",
+   "date": null
+  },
+  {
+   "title": "StatSniper: Cam Coleman",
+   "url": "https://statsniper.com/leagues/ncaaf/player/cam-coleman/",
+   "date": null
+  },
+  {
+   "title": "cfbstats.com: Trinidad Chambliss 2026 player page",
+   "url": "https://cfbstats.com/2026/player/433/1136057/index.html",
+   "date": "2026-10-29"
+  },
+  {
+   "title": "ClutchPoints (citing ESPN's Pete Thamel): Dante Moore's plan for rest of season, NFL draft",
+   "url": "https://clutchpoints.com/ncaa-football/oregon-football-rumors-pete-thamel-reveals-dante-moores-plan-for-rest-of-season-nfl-draft",
+   "date": "2026-10-28"
+  },
+  {
+   "title": "News4JAX (AP): Ohio State QB Julian Sayin out indefinitely after injuring throwing arm",
+   "url": "https://www.news4jax.com/sports/2026/10/21/ohio-state-qb-julian-sayin-out-indefinitely-after-injuring-throwing-arm/",
+   "date": "2026-10-21"
+  },
+  {
+   "title": "KCTV5: Mizzou star Ahmad Hardy to return to practice after offseason gunshot wound injury",
+   "url": "https://www.kctv5.com/2026/10/26/mizzou-star-ahmad-hardy-return-practice-after-offseason-gunshot-wound-injury/",
+   "date": "2026-10-26"
+  },
+  {
+   "title": "AP via YourValley: Ole Miss top rusher Kewan Lacy ruled out against Auburn with shoulder injury",
+   "url": "https://www.yourvalley.net/stories/ole-miss-top-rusher-kewan-lacy-ruled-out-against-auburn-this-week-with-shoulder-injury,735161",
+   "date": "2026-10-26"
+  },
+  {
+   "title": "ClutchPoints: Ryan Coleman-Williams undergoes knee surgery",
+   "url": "https://clutchpoints.com/ncaa-football/alabama-news-ryan-coleman-williams-undergoes-surgery-injured-knee-out-future",
+   "date": "2026-10-17"
+  },
+  {
+   "title": "Saturday Down South: Lane Kiffin accuses Auburn of dangerous tackling tactic on Trey'Dez Green",
+   "url": "https://www.saturdaydownsouth.com/news/college-football/lane-kiffin-accuses-auburn-of-dangerous-tackling-tactic-on-treydez-green/",
+   "date": "2026-10-25"
+  },
+  {
+   "title": "theScore: Sorsby eligible for 2027 NFL Draft after opting not to sue league",
+   "url": "https://www.thescore.com/nfl/news/3560752/sorsby-eligible-for-2027-nfl-draft-after-opting-not-to-sue-league",
+   "date": null
+  },
+  {
+   "title": "Saturday Down South: Austin Simmons cracks top 10 of Mel Kiper's 2027 NFL Draft big board",
+   "url": "https://www.saturdaydownsouth.com/news/college-football/austin-simmons-cracks-top-10-of-mel-kipers-2027-nfl-draft-big-board/",
+   "date": "2026-10-15"
+  },
+  {
+   "title": "A to Z Sports: Charlie Becker 2027 NFL Draft scouting report",
+   "url": "https://atozsports.com/nfl-draft/charlie-becker-2027-nfl-draft-scouting-report-for-indiana-hoosiers-wide-receiver/",
+   "date": "2026-07-12"
+  },
+  {
+   "title": "WTOP (AP): KJ Duff turns down big-money suitors, stays at Rutgers as potential 1st-round NFL prospect",
+   "url": "https://wtop.com/ncaa-football/2026/08/kj-duff-turns-down-big-money-suitors-stays-at-rutgers-as-potential-1st-round-nfl-prospect/",
+   "date": null
+  },
+  {
+   "title": "Rutgers Athletics: Duff Jr., Raymond named to 2027 Senior Bowl Top 300",
+   "url": "https://scarletknights.com/news/2026/8/21/football-duff-jr-raymond-named-to-2027-senior-bowl-top-300",
+   "date": "2026-08-21"
+  },
+  {
+   "title": "Wikipedia mirror: Reed Harris (American football)",
+   "url": "https://wiki.krisyotam.com/content/wikipedia_en_all_nopic_2026-03/Reed_Harris_(American_football)",
+   "date": null
+  },
+  {
+   "title": "Sports Illustrated: Former five-star tight end predicted to transfer to Virginia Tech",
+   "url": "https://www.si.com/college/virginiatech/football/former-five-star-tight-end-predicted-to-transfer-to-virginia-tech-01kdzkdabnm0",
+   "date": null
   }
- ]
+ ],
+ "method_by_year": {
+  "2027": "The 2027 class is players who will be draft eligible for the April 2027 NFL draft: mainly 2024 HS grads (true juniors and redshirt sophomores in 2026) plus older players who returned after the 2026 draft or transferred, with anyone drafted in April 2026 excluded. We started from Draft Sharks' superflex rookie board (Oct. 1), The Big Board superflex rankings (Oct. 26), KeepTradeCut devy values, TWSN's August superflex list, and NFL big boards from Mel Kiper (Oct. 15) and The Game Haus (Oct. 28). We moved players off consensus only when the 2026 season clearly changed the picture: injuries (Moore, Sayin, Hardy, Lacy, Coleman-Williams), a jump in NFL draft stock (Mestemaker, Mensah, Simmons), or a big production gain or drop. QBs who project as first- or second-round picks get a superflex bump, and players likely to return to school are marked down and flagged in class_note. 2026 stats come from cfbstats.com team pages (through Oct. 23-29), with StatSniper used for some QB rushing lines."
+ }
 }
