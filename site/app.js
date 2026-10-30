@@ -225,6 +225,8 @@ async function loadLeague(key) {
   safely("formula", renderFormula);
   resetLab();
   safely("lineups", renderLab);
+  pickProj.year = null;
+  safely("picks", renderPickProj);
 }
 
 // ---------- any Sleeper league, valued in the browser ----------
@@ -1349,6 +1351,84 @@ function renderLab() {
     renderLab();
     if (!done) $("#lab .lab-trade").insertAdjacentHTML("beforeend", ` <span class="error">Those two can't swap: a slot can only take the positions it allows.</span>`);
   }));
+}
+
+// ---------- pick projections ----------
+// Where every team's picks should land, year by year. Next year's slots come from the
+// projected standings under this league's draft rule; the year after from the engine's
+// simulated finishes (rosters a year older plus the rookies each team's picks bring);
+// the third year from each team's projected lineup that season, weakest picking first.
+const pickProj = { year: null };
+const teamAvatar = (t) => (t && t.avatar ? `<img class="face" src="https://sleepercdn.com/avatars/thumbs/${esc(t.avatar)}" alt="" loading="lazy" onerror="this.remove()">` : "");
+const roundWord = (r) => ["", "1st", "2nd", "3rd"][r] || `${r}th`;
+
+function pickYearOrder(year) {
+  const n = state.data.teams.length;
+  const firsts = state.data.picks.filter((p) => p.year === year && p.round === 1);
+  if (firsts.length === n && firsts.every((p) => p.slot)) {
+    return { how: "exact", order: firsts.slice().sort((a, b) => a.slot - b.slot).map((p) => ({ rid: p.original_roster_id, exp: p.slot })) };
+  }
+  if (firsts.length === n && firsts.every((p) => p.proj_slot != null)) {
+    return { how: "sim", order: firsts.slice().sort((a, b) => a.proj_slot - b.proj_slot).map((p) => ({ rid: p.original_roster_id, exp: p.proj_slot })) };
+  }
+  const ppg = (t) => {
+    const f = t.future || {};
+    // The draft follows the season before it.
+    const y = (f.years || []).find((x) => x.year === year - 1);
+    return y ? y.ppg : f.now ? f.now.ppg : t.ros_ppg || 0;
+  };
+  return { how: "lineup", order: state.data.teams.slice().sort((a, b) => ppg(a) - ppg(b)).map((t) => ({ rid: t.roster_id, exp: null, ppg: ppg(t) })) };
+}
+
+function renderPickProj() {
+  const el = $("#pickproj");
+  if (!el || !state.data) return;
+  const picks = state.data.picks || [];
+  const years = [...new Set(picks.map((p) => p.year))].sort();
+  if (!years.length) { el.innerHTML = `<p class="muted">No tradable picks in this league.</p>`; return; }
+  if (!years.includes(pickProj.year)) pickProj.year = years[0];
+  const year = pickProj.year, n = state.data.teams.length;
+  const rd = state.data.rookie_draft || {};
+  const rounds = Math.max(...picks.filter((p) => p.year === year).map((p) => p.round));
+  const snake = rd.type === "snake";
+  const { how, order } = pickYearOrder(year);
+  const mine = myTeam();
+  const pickOf = (r, rid) => picks.find((p) => p.year === year && p.round === r && p.original_roster_id === rid);
+  const card = (r, i) => {
+    const k = snake && r % 2 === 0 ? n - 1 - i : i;
+    const o = order[k], slot = i + 1, pk = pickOf(r, o.rid), orig = teamOf(o.rid);
+    const holder = pk ? teamOf(pk.roster_id) : orig;
+    const isMine = mine && holder && holder.roster_id === mine.roster_id;
+    const moved = pk && pk.roster_id !== pk.original_roster_id;
+    const range = how === "sim" && r === 1 ? `<span class="muted">avg ${Number(o.exp).toFixed(1)}</span>` : "";
+    return `<div class="pick-card ${isMine ? "yours" : ""}" style="animation-delay:${(i * 0.025).toFixed(3)}s">
+      <div class="pick-slot">${r}.${String(slot).padStart(2, "0")}</div>
+      <div class="pick-team">${teamAvatar(orig)}<span><b>${esc(orig ? orig.name : "")}</b>${moved ? `<span class="muted">owned by ${esc(holder.name)}</span>` : managerOf(orig) ? `<span class="muted">${esc(managerOf(orig))}</span>` : ""}</span></div>
+      <div class="pick-foot"><span class="num strong">${pk ? fmt(pk.value) : ""}</span>${range}${isMine ? '<span class="tag new">YOURS</span>' : ""}</div>
+    </div>`;
+  };
+  const myRows = mine ? picks.filter((p) => p.roster_id === mine.roster_id).sort((a, b) => a.year - b.year || a.round - b.round) : [];
+  const where = (p) => {
+    const yo = pickYearOrder(p.year), i = yo.order.findIndex((o) => o.rid === p.original_roster_id);
+    if (i < 0) return "";
+    const slot = snake && p.round % 2 === 0 ? n - i : i + 1;
+    const third = slot <= n / 3 ? "Early" : slot > (2 * n) / 3 ? "Late" : "Mid";
+    return { label: `${p.round}.${String(slot).padStart(2, "0")}`, third, how: yo.how };
+  };
+  const howText = {
+    exact: `${year} slots are where each pick lands if the season ends the way it's projected now, under this league's draft rule${rd.rule && rd.rule.rule === "max_pf" ? " (non-playoff teams ordered by max PF, playoff teams by finish)" : ""}.`,
+    sim: `${year} slots come from thousands of simulated ${year - 1} seasons: every roster a year older, plus the rookies its ${year - 1} picks bring. "avg" is the average first-round slot across those runs; the farther out, the wider the real range.`,
+    lineup: `${year} slots order teams by their projected ${year - 1} lineup (players aged a year, no rookies added yet), weakest picking first. This far out it's a rough guide.`,
+  }[how];
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">Pick projections</p><h2>Where every pick lands</h2></div>
+      <div class="chips">${years.map((y) => `<button class="chip ${y === year ? "active" : ""}" data-year="${y}">${y}</button>`).join("")}</div></div>
+    ${myRows.length ? `<div class="my-picks">${myRows.map((p) => { const w = where(p); return `<div class="my-pick ${p.year === year ? "on" : ""}">
+      ${face(p.id)}<div><b>${p.year} ${w ? w.label : roundWord(p.round)}</b><span class="muted">${w ? `${w.third} ${roundWord(p.round)}` : ""}${p.original_roster_id !== p.roster_id ? ` · via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " · your own"}</span></div><span class="num strong">${fmt(p.value)}</span></div>`; }).join("")}</div>` : ""}
+    <p class="muted">${howText} ${picks.some((p) => p.year === year && p.tier) ? "Values are this league's pick values, which already price in the projected slot." : `${year} picks are still valued as a plain round, the same for every team.`}</p>
+    ${Array.from({ length: rounds }, (_, r) => `<h3>${year} round ${r + 1}${snake ? (r % 2 ? " · snake, order reverses" : "") : ""}</h3>
+      <div class="pick-board">${Array.from({ length: n }, (_, i) => card(r + 1, i)).join("")}</div>`).join("")}`;
+  el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { pickProj.year = Number(b.dataset.year); renderPickProj(); }));
 }
 
 // ---------- team direction (mirrors engine/builds.py assign) ----------

@@ -346,3 +346,21 @@ button.link { background: none; border: none; color: var(--blue); cursor: pointe
 .lab-row:nth-child(2) { animation-delay: .02s; } .lab-row:nth-child(3) { animation-delay: .04s; } .lab-row:nth-child(4) { animation-delay: .06s; }
 .lab-row:nth-child(5) { animation-delay: .08s; } .lab-row:nth-child(6) { animation-delay: .1s; } .lab-row:nth-child(7) { animation-delay: .12s; }
 .lab-row:nth-child(8) { animation-delay: .14s; } .lab-row:nth-child(9) { animation-delay: .16s; } .lab-row:nth-child(n+10) { animation-delay: .18s; }
+
+/* Pick projections: a draft board of cards */
+.pick-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.pick-card { background: var(--surface); border: 1px solid var(--border); border-top: 4px solid var(--blue); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; animation: rise .4s cubic-bezier(.2, .8, .2, 1) both; transition: transform .2s, box-shadow .2s; }
+.pick-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0, 0, 0, .35); }
+.pick-card.yours { border-top-color: var(--green); background: linear-gradient(180deg, #15291F, var(--surface) 70%); }
+.pick-slot { font: 700 28px/1 var(--display); color: var(--text); }
+.pick-card.yours .pick-slot { color: var(--green); }
+.pick-team { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pick-team .face { width: 30px; height: 30px; margin: 0; flex: none; }
+.pick-team span { display: flex; flex-direction: column; min-width: 0; }
+.pick-team b, .pick-team .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.pick-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.my-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.my-pick { display: flex; align-items: center; gap: 10px; background: var(--raised); border-left: 5px solid var(--border); border-radius: 10px; padding: 8px 12px; animation: rise .35s cubic-bezier(.2, .8, .2, 1) both; }
+.my-pick.on { border-left-color: var(--green); background: var(--hi); }
+.my-pick > div { flex: 1; display: flex; flex-direction: column; }
+.my-pick .face { width: 34px; height: 34px; margin: 0; }

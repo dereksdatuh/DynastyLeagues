@@ -117,6 +117,13 @@ for (const [id, liteRun] of runs) {
     if (!lab || !labRows) errors.push(`${id}: lineups after the trade missing`);
     await page.click('button[data-tab="trade"]');
   }
+  // Pick projections draw a board for every year with tradable picks.
+  await page.click('button[data-tab="picks"]');
+  const pickCards = await page.$$eval("#pickproj .pick-card", (r) => r.length);
+  const hasPicks = await page.evaluate(() => (state.data.picks || []).length > 0);
+  console.log(`  pick projections: ${pickCards} cards, yours: ${await page.$$eval("#pickproj .my-pick b", (bs) => bs.slice(0, 4).map((b) => b.textContent).join(", "))}`);
+  if (hasPicks && !pickCards) errors.push(`${id}: pick projections missing`);
+  await page.click('button[data-tab="trade"]');
   // This week's tabs.
   await page.click('button[data-tab="matchups"]');
   const matchups = await page.$$eval("#matchups .matchup", (ms) => ms.map((m) => [...m.querySelectorAll(".side")].map((s) => s.querySelector(".team").textContent.trim() + " " + s.querySelector(".score").textContent + " (" + s.querySelector(".muted").textContent + ")").join("  vs  ")));
