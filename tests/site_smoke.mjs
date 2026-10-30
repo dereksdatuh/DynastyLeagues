@@ -179,6 +179,26 @@ for (const [id, liteRun] of runs) {
     await page.click('button[data-tab="finder"]');
     for (let i = 0; i < 6 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
   }
+  // Three-team finder: you plus two teams, still only offering what you picked.
+  if (drafted && (await page.evaluate(() => state.data.teams.length >= 3))) {
+    await page.click('button[data-tab="finder"]');
+    await page.click('#finder-mode [data-mode="3"]');
+    const opts = await page.$$eval('.three-team[data-k="0"] option', (os) => os.map((o) => o.value).filter(Boolean));
+    await page.selectOption('.three-team[data-k="0"]', opts[0]);
+    await page.selectOption('.three-team[data-k="1"]', opts[1]);
+    await page.click("#offer-picks"); await page.click("#offer-bench");
+    const allowed3 = await page.$$eval("#finder .finder-grid .trade-side:first-child .assets li span:first-child", (ss) => ss.map((x) => x.textContent.trim()));
+    const t3 = Date.now();
+    await page.click("#finder-run");
+    await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 60000 });
+    const gives3 = await page.$$eval("#finder-out .finder-deal .trade-grid > .trade-side:first-child ul:nth-of-type(2) li span:first-child", (ss) => ss.map((x) => x.textContent.trim()));
+    const stray3 = gives3.filter((x) => !allowed3.includes(x));
+    if (stray3.length) errors.push(`${id}: three-team finder offered pieces not picked: ${[...new Set(stray3)].slice(0, 3).join(", ")}`);
+    const n3 = await page.$$eval("#finder-out .finder-deal", (r) => r.length);
+    const err3 = await page.$eval("#finder-out .error", (e) => e.textContent).catch(() => "");
+    console.log(`  three-team finder: ${n3} deals in ${Date.now() - t3} ms${err3 ? " (" + err3 + ")" : ""}`);
+    await page.click('#finder-mode [data-mode="2"]');
+  }
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build
   const trades = await page.$$eval("#trades .trade-log", (ts) => ts.map((t) => t.textContent.replace(/\s+/g, " ").trim().slice(0, 260)));
