@@ -227,6 +227,8 @@ async function loadLeague(key) {
   safely("lineups", renderLab);
   pickProj.year = null;
   safely("picks", renderPickProj);
+  devyView.year = null;
+  renderDevy().catch((e) => console.error(`devy failed: ${e.stack || e}`));
 }
 
 // ---------- any Sleeper league, valued in the browser ----------
@@ -349,7 +351,7 @@ async function buildLite(entry) {
       starters: r.starters, players_points: r.players_points })), potw: potw(base.week?.potw), potw_last: potw(base.week?.potw_last) },
     schedule: { weeks: schedule, median_game: !!st.league_average_match, sigma: 0, sigma_share: 0.21, strength: {} },
     sources: base.sources, model: base.model, formula: base.formula, players, picks,
-    rookie_draft: null, next_draft: null, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
+    rookie_draft: null, next_draft: null, future_classes: base.future_classes || {}, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
   };
 }
 
@@ -1429,6 +1431,74 @@ function renderPickProj() {
     ${Array.from({ length: rounds }, (_, r) => `<h3>${year} round ${r + 1}${snake ? (r % 2 ? " · snake, order reverses" : "") : ""}</h3>
       <div class="pick-board">${Array.from({ length: n }, (_, i) => card(r + 1, i)).join("")}</div>`).join("")}`;
   el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { pickProj.year = Number(b.dataset.year); renderPickProj(); }));
+}
+
+// ---------- future rookie classes ----------
+// The 2028 and 2029 superflex classes: our research (site/devy.json, scouting notes,
+// stats and a superflex rank) joined with KTC's devy values on this league's scale.
+const devyView = { year: null, sort: "ours", pos: "ALL" };
+const devyKey = (s) => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z]/g, "");
+let devyNotes;
+
+async function renderDevy() {
+  const el = $("#devy");
+  if (!el || !state.data) return;
+  if (devyNotes === undefined) {
+    devyNotes = null;
+    try { devyNotes = await getJSON("devy.json"); } catch (e) { console.error(`devy notes: ${e.message || e}`); }
+  }
+  const market = state.data.future_classes || {};
+  const research = (devyNotes && devyNotes.classes) || {};
+  const years = [...new Set([...Object.keys(market), ...Object.keys(research)])].sort();
+  if (!years.length) { el.innerHTML = `<p class="muted">No future class data for this league yet.</p>`; return; }
+  if (!years.includes(devyView.year)) devyView.year = years[0];
+  const year = devyView.year;
+  const byKey = new Map();
+  (research[year] || []).forEach((r) => byKey.set(devyKey(r.name), { r }));
+  (market[year] || []).forEach((m) => { const k = devyKey(m.name); byKey.set(k, { ...(byKey.get(k) || {}), m }); });
+  const ktcOrder = (market[year] || []).map((m) => devyKey(m.name));
+  let rows = [...byKey.values()].map((x) => ({ ...x, name: (x.r || x.m).name, pos: (x.r || x.m).pos, value: x.m ? x.m.value : null,
+    ours: x.r ? x.r.rank : null, ktcRank: x.m ? ktcOrder.indexOf(devyKey(x.m.name)) + 1 : null }));
+  const counts = rows.reduce((c, x) => ((c[x.pos] = (c[x.pos] || 0) + 1), c), {});
+  if (devyView.pos !== "ALL") rows = rows.filter((x) => x.pos === devyView.pos);
+  const big = 1e9;
+  rows.sort(devyView.sort === "ours" ? (a, b) => (a.ours ?? big) - (b.ours ?? big) || (b.value || 0) - (a.value || 0)
+    : (a, b) => (b.value || 0) - (a.value || 0) || (a.ours ?? big) - (b.ours ?? big));
+  const tierName = ["", "Cornerstone", "Future starter", "High upside", "Developmental", "Long shot"];
+  const src = (devyNotes && devyNotes.sources) || [];
+  const card = (x, i) => {
+    const r = x.r || {}, m = x.m || {};
+    const meta = [r.school || m.school, r.class_year, r.height && r.weight ? `${r.height}, ${r.weight}` : r.height, r.hs_rank].filter(Boolean).map(esc).join(" · ");
+    const links = (r.sources || []).map((k) => src[k]).filter((s) => s && s.url).slice(0, 3)
+      .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || "source")}</a>`).join(" · ");
+    return `<article class="devy-card" style="animation-delay:${Math.min(i, 20) * 0.03}s">
+      <div class="devy-rank">${i + 1}</div>
+      <div class="devy-main">
+        <div class="devy-name"><span class="pos pos-${esc(x.pos)}">${esc(x.pos)}</span> <b>${esc(x.name)}</b>${r.tier ? ` <span class="devy-tier t${r.tier}">${tierName[r.tier] || "Tier " + r.tier}</span>` : ""}</div>
+        <p class="muted">${meta}</p>
+        ${r.stats_2026 ? `<p class="devy-stats"><b>2026</b> ${esc(r.stats_2026)}${r.stats_2025 ? ` <span class="muted">· 2025 ${esc(r.stats_2025)}</span>` : ""}</p>` : ""}
+        ${r.notes ? `<p>${esc(r.notes)}</p>` : ""}
+        ${r.nfl_comp || r.class_note || links ? `<p class="muted small">${r.nfl_comp ? `Comp: ${esc(r.nfl_comp)}. ` : ""}${r.class_note ? `${esc(r.class_note)} ` : ""}${links}</p>` : ""}
+      </div>
+      <div class="devy-nums">
+        <div><label>Our SF rank</label><b>${x.ours ?? "–"}</b></div>
+        <div><label>KTC SF rank</label><b>${x.ktcRank || "–"}</b></div>
+        <div><label>League value</label><b>${x.value ? fmt(x.value) : "–"}</b></div>
+      </div>
+    </article>`;
+  };
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">Superflex · future rookies</p><h2>The ${year} class</h2></div>
+      <div class="chips">${years.map((y) => `<button class="chip ${y === year ? "active" : ""}" data-year="${y}">${y}</button>`).join("")}</div></div>
+    <div class="toolbar">
+      <div class="chips">${["ALL", "QB", "RB", "WR", "TE"].map((p) => `<button class="chip ${devyView.pos === p ? "active" : ""}" data-pos="${p}">${p === "ALL" ? "All" : p}${p !== "ALL" && counts[p] ? ` <span class="muted">${counts[p]}</span>` : ""}</button>`).join("")}</div>
+      <div class="chips">${[["ours", "Our rank"], ["value", "League value"]].map(([k, v]) => `<button class="chip ${devyView.sort === k ? "active" : ""}" data-sort="${k}">Sort: ${v}</button>`).join("")}</div>
+    </div>
+    <details class="muted"><summary>How these are ranked (research as of ${esc((devyNotes && devyNotes.as_of) || "–")})</summary>${devyNotes && devyNotes.method ? `${esc(devyNotes.method)} ` : ""} League value is KTC's ${state.data.league.format && state.data.league.format.superflex === false ? "1QB" : "superflex"} devy value mapped onto this league's scale and adjusted for how this league scores each position; it refreshes every build. Class years follow NFL draft eligibility (three years out of high school), so a player can slide a year if he stays in school.</details>
+    <div class="devy-list">${rows.map(card).join("") || '<p class="muted">Nobody at this position yet.</p>'}</div>`;
+  el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { devyView.year = b.dataset.year; renderDevy(); }));
+  el.querySelectorAll("[data-pos]").forEach((b) => (b.onclick = () => { devyView.pos = b.dataset.pos; renderDevy(); }));
+  el.querySelectorAll("[data-sort]").forEach((b) => (b.onclick = () => { devyView.sort = b.dataset.sort; renderDevy(); }));
 }
 
 // ---------- team direction (mirrors engine/builds.py assign) ----------
