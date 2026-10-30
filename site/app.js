@@ -1434,7 +1434,7 @@ function renderPickProj() {
 }
 
 // ---------- future rookie classes ----------
-// The 2028 and 2029 superflex classes: our research (site/devy.json, scouting notes,
+// The 2027, 2028 and 2029 superflex classes: our research (site/devy.json, scouting notes,
 // stats and a superflex rank) joined with KTC's devy values on this league's scale.
 const devyView = { year: null, sort: "ours", pos: "ALL" };
 const devyKey = (s) => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z]/g, "");
@@ -1494,7 +1494,7 @@ async function renderDevy() {
       <div class="chips">${["ALL", "QB", "RB", "WR", "TE"].map((p) => `<button class="chip ${devyView.pos === p ? "active" : ""}" data-pos="${p}">${p === "ALL" ? "All" : p}${p !== "ALL" && counts[p] ? ` <span class="muted">${counts[p]}</span>` : ""}</button>`).join("")}</div>
       <div class="chips">${[["ours", "Our rank"], ["value", "League value"]].map(([k, v]) => `<button class="chip ${devyView.sort === k ? "active" : ""}" data-sort="${k}">Sort: ${v}</button>`).join("")}</div>
     </div>
-    <details class="muted"><summary>How these are ranked (research as of ${esc((devyNotes && devyNotes.as_of) || "–")})</summary>${devyNotes && devyNotes.method ? `${esc(devyNotes.method)} ` : ""} League value is KTC's ${state.data.league.format && state.data.league.format.superflex === false ? "1QB" : "superflex"} devy value mapped onto this league's scale and adjusted for how this league scores each position; it refreshes every build. Class years follow NFL draft eligibility (three years out of high school), so a player can slide a year if he stays in school.</details>
+    <details class="muted"><summary>How these are ranked (research as of ${esc((devyNotes && devyNotes.as_of) || "–")})</summary>${devyNotes && devyNotes.method_by_year && devyNotes.method_by_year[year] ? `${esc(devyNotes.method_by_year[year])} ` : devyNotes && devyNotes.method ? `${esc(devyNotes.method)} ` : ""} League value is KTC's ${state.data.league.format && state.data.league.format.superflex === false ? "1QB" : "superflex"} devy value mapped onto this league's scale and adjusted for how this league scores each position; it refreshes every build. Class years follow NFL draft eligibility (three years out of high school), so a player can slide a year if he stays in school.</details>
     <div class="devy-list">${rows.map(card).join("") || '<p class="muted">Nobody at this position yet.</p>'}</div>`;
   el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { devyView.year = b.dataset.year; renderDevy(); }));
   el.querySelectorAll("[data-pos]").forEach((b) => (b.onclick = () => { devyView.pos = b.dataset.pos; renderDevy(); }));

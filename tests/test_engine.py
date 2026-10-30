@@ -653,4 +653,4 @@ def test_future_classes_are_priced_on_the_league_scale(offline):
     rows = fc["2028"]
     assert all(r["name"] and r["pos"] and r["value"] > 0 for r in rows)
     assert [r["value"] for r in rows] == sorted((r["value"] for r in rows), reverse=True)
-    assert "2027" not in fc  # the coming class stays on the Rookie Mock
+    assert "2027" in fc  # the coming class too, beside the Rookie Mock

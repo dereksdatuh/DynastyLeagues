@@ -117,12 +117,12 @@ for (const [id, liteRun] of runs) {
     if (!lab || !labRows) errors.push(`${id}: lineups after the trade missing`);
     await page.click('button[data-tab="trade"]');
   }
-  // The 2028 and 2029 classes draw from the research file plus KTC devy values.
+  // The 2027, 2028 and 2029 classes draw from the research file plus KTC devy values.
   await page.click('button[data-tab="devy"]');
   await page.waitForFunction(() => document.querySelector("#devy .devy-card, #devy p"), null, { timeout: 15000 });
   const devyCards = await page.$$eval("#devy .devy-card", (r) => r.length);
   console.log(`  future rookies: ${devyCards} prospects, top ${await page.$$eval("#devy .devy-name b", (bs) => bs.slice(0, 3).map((b) => b.textContent).join(", "))}`);
-  if (!devyCards) errors.push(`${id}: 2028/2029 rookie classes missing`);
+  if (!devyCards) errors.push(`${id}: 2027-2029 rookie classes missing`);
   // Pick projections draw a board for every year with tradable picks.
   await page.click('button[data-tab="picks"]');
   const pickCards = await page.$$eval("#pickproj .pick-card", (r) => r.length);
