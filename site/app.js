@@ -17,7 +17,8 @@ const fmt = (n) => (n == null ? "" : Math.round(n).toLocaleString());
 function face(id, cls = "") {
   const sid = String(id ?? "");
   const m = sid.match(/^pick:(\d+):(\d+)/);
-  if (m) return `<span class="face pick-face ${cls}" aria-hidden="true">${["", "1st", "2nd", "3rd"][m[2]] || m[2] + "th"}</span>`;
+  // The round goes in a CSS label, so the badge adds no text to the row it sits in.
+  if (m) return `<span class="face pick-face ${cls}" data-round="${["", "1st", "2nd", "3rd"][m[2]] || m[2] + "th"}" aria-hidden="true"></span>`;
   const src = /^\d+$/.test(sid) ? `https://sleepercdn.com/content/nfl/players/thumb/${sid}.jpg`
     : /^[A-Z]{2,3}$/.test(sid) ? `https://sleepercdn.com/images/team_logos/nfl/${sid.toLowerCase()}.png` : "";
   return src ? `<img class="face ${cls}" src="${src}" alt="" loading="lazy" onerror="this.remove()">` : "";
@@ -222,6 +223,8 @@ async function loadLeague(key) {
   safely("finder", renderFinder);
   safely("rookie", renderRookieMock);
   safely("formula", renderFormula);
+  resetLab();
+  safely("lineups", renderLab);
 }
 
 // ---------- any Sleeper league, valued in the browser ----------
@@ -493,6 +496,7 @@ document.querySelectorAll(".tabs button").forEach((btn) =>
     // Coming back to Matchups after a while: refresh scores now rather than at the next poll.
     const L = state.live;
     if (btn.dataset.tab === "trades") refreshTrades();
+    if (btn.dataset.tab === "lineups") safely("lineups", renderLab);
     if (btn.dataset.tab === "matchups" && L && L.week && (!L.at || Date.now() - L.at > LIVE_MS)) refreshLive();
   })
 );
@@ -970,7 +974,14 @@ function renderTrade() {
   const recBefore = projectRecords(), recAfter = projectRecords(overrides);
   const ctx = { s, rows, gets, before: base, after, recBefore, recAfter };
   out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${adjustmentHtml(s, adj, gets, gives, loser.i)}${detail}${suggest}`
+    + `<p><button id="to-lab" class="chip active">See the lineups after this trade</button></p>`
     + tradeImpact(s, overrides, ctx.before, after, recBefore, recAfter) + renderPitches(ctx);
+  $("#to-lab").onclick = () => {
+    const mine = myTeam(), inDeal = s.map((_, i) => teamOfSide(i)).filter((x) => x != null);
+    lab.team = mine && inDeal.includes(mine.roster_id) ? mine.roster_id : inDeal[0] ?? lab.team;
+    lab.trade = true; lab.adds = []; lab.drops = [];
+    document.querySelector('.tabs button[data-tab="lineups"]').click();
+  };
   out.querySelectorAll(".suggest button").forEach((b) =>
     b.addEventListener("click", () => { s[Number(b.dataset.i)].assets.push(b.dataset.id); renderTrade(); })
   );
@@ -1182,6 +1193,162 @@ function tradeOverrides(s) {
     });
   });
   return overrides;
+}
+
+// ---------- lineup lab ----------
+// Any team's best lineup now and after the trade built in the calculator, plus what-ifs:
+// add anyone, drop anyone, and tap two players to swap them by hand.
+const lab = { team: null, key: "ros_ppg", trade: true, adds: [], drops: [], manual: null, sig: "", pick: null };
+const SLOT_SHORT = { SUPER_FLEX: "SF", WRRB_FLEX: "W/R", REC_FLEX: "W/T", IDP_FLEX: "IDP" };
+const LAB_KEYS = { ros_ppg: "Rest of season", proj_week: "This week" };
+
+function resetLab() {
+  Object.assign(lab, { team: myTeam()?.roster_id ?? state.data.teams[0]?.roster_id ?? null, adds: [], drops: [], manual: null, sig: "", pick: null });
+}
+
+// Players and picks each team gains and loses in the calculator's trade.
+function labTradeMoves() {
+  const s = sides(), moves = {};
+  const at = (rid) => (moves[rid] = moves[rid] || { in: [], out: [] });
+  s.forEach((side, i) => {
+    const to = teamOfSide(i);
+    side.assets.map(assetById).filter(Boolean).forEach((a) => {
+      const j = senderOf(a, i);
+      const from = j >= 0 ? teamOfSide(j) : a.roster_id ?? null;
+      if (to != null) at(to).in.push(a);
+      if (from != null) at(from).out.push(a);
+    });
+  });
+  return moves;
+}
+
+function labRoster(rid, moves, edits) {
+  const m = moves[rid] || { in: [], out: [] };
+  const outIds = new Set(m.out.map((a) => a.id));
+  let ps = rosterOf(rid).filter((p) => !outIds.has(p.id));
+  m.in.filter((a) => a.kind === "player").forEach((a) => { if (!ps.some((p) => p.id === a.id)) ps.push(a); });
+  if (edits) {
+    ps = ps.filter((p) => !lab.drops.includes(p.id));
+    lab.adds.map(assetById).filter((a) => a && a.kind === "player" && !ps.some((p) => p.id === a.id)).forEach((a) => ps.push(a));
+  }
+  return ps;
+}
+
+const labPts = (p) => Number(p[lab.key]) || 0;
+const lineupPts = (lu) => lu.reduce((t, x) => t + labPts(x.p), 0);
+const slotOrder = () => state.data.league.format.starting_slots;
+
+// bestLineup fills the pickiest slots first; show it in Sleeper's slot order.
+function inSlotOrder(lu) {
+  const left = lu.slice();
+  return slotOrder().map((slot) => {
+    const k = left.findIndex((x) => x.slot === slot);
+    return k >= 0 ? left.splice(k, 1)[0] : { slot, p: null };
+  });
+}
+const labBest = (ps) => inSlotOrder(bestLineup(ps.map((p) => ({ ...p, _k: labPts(p) })), "_k").map(({ slot, p }) => ({ slot, p: ps.find((x) => x.id === p.id) })));
+
+function renderLab() {
+  const el = $("#lab");
+  if (!el || !state.data) return;
+  if (lab.team == null || !teamOf(lab.team)) resetLab();
+  const rid = lab.team;
+  const moves = lab.trade ? labTradeMoves() : {};
+  const before = rosterOf(rid), after = labRoster(rid, moves, true);
+  const sig = after.map((p) => p.id).sort().join(",") + lab.key;
+  if (sig !== lab.sig) { lab.manual = null; lab.pick = null; lab.sig = sig; }
+  const luB = labBest(before);
+  const luA = lab.manual ? lab.manual.map(({ slot, id }) => ({ slot, p: after.find((p) => p.id === id) || null })) : labBest(after);
+  const ptsB = lineupPts(luB.filter((x) => x.p)), ptsA = lineupPts(luA.filter((x) => x.p));
+  // League rank before and after: every team in the trade moves, this team also gets the edits.
+  const rankOf = (after) => {
+    const tot = state.data.teams.map((t) => ({ rid: t.roster_id, v: t.roster_id === rid ? (after ? ptsA : ptsB)
+      : lineupPts(labBest(after ? labRoster(t.roster_id, moves, false) : rosterOf(t.roster_id)).filter((x) => x.p)) }));
+    tot.sort((a, b) => b.v - a.v);
+    return tot.findIndex((x) => x.rid === rid) + 1;
+  };
+  const rB = rankOf(false), rA = rankOf(true), diff = ptsA - ptsB;
+  const beforeIds = new Set(before.map((p) => p.id)), afterIds = new Set(after.map((p) => p.id));
+  const t = teamOf(rid);
+  const tagOf = (p, col) => (col === "b" && !afterIds.has(p.id) ? `<span class="tag out">OUT</span>` : col === "a" && !beforeIds.has(p.id) ? `<span class="tag new">NEW</span>` : "");
+  const status = (p) => (t.taxi || []).includes(p.id) ? ' <span class="tag dim">TAXI</span>' : (t.reserve || []).includes(p.id) ? ' <span class="tag dim">IR</span>' : "";
+  const row = (x, col) => {
+    const p = x.p, slot = SLOT_SHORT[x.slot] || x.slot;
+    if (!p) return `<div class="lab-row empty"><span class="slot slot-${esc(x.slot)}">${esc(slot)}</span><span class="who muted">Empty</span><span class="pts">0.0</span></div>`;
+    const cls = [col === "a" && !beforeIds.has(p.id) ? "new" : "", col === "b" && !afterIds.has(p.id) ? "out" : "", col === "a" && lab.pick === p.id ? "picked" : ""].join(" ");
+    return `<div class="lab-row ${cls}" ${col === "a" ? `data-swap="${esc(p.id)}"` : ""}><span class="slot slot-${esc(x.slot)}">${esc(slot)}</span>${face(p.id)}
+      <span class="who"><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.team ? " · " + esc(p.team) : ""}</span> ${tagOf(p, col)}${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</span>
+      <span class="pts">${labPts(p).toFixed(1)}</span></div>`;
+  };
+  const startersA = new Set(luA.filter((x) => x.p).map((x) => x.p.id));
+  const bench = after.filter((p) => !startersA.has(p.id)).sort((a, b) => labPts(b) - labPts(a));
+  const benchRow = (p) => `<div class="lab-row bench ${!beforeIds.has(p.id) ? "new" : ""} ${lab.pick === p.id ? "picked" : ""}" data-swap="${esc(p.id)}"><span class="slot slot-BN">BN</span>${face(p.id)}
+      <span class="who"><b>${esc(p.name)}</b> <span class="muted">${p.pos}${p.team ? " · " + esc(p.team) : ""}</span> ${tagOf(p, "a")}${status(p)}</span>
+      <span class="pts">${labPts(p).toFixed(1)}</span><button class="drop" data-drop="${esc(p.id)}" aria-label="Drop ${esc(p.name)}" title="Drop">×</button></div>`;
+  const m = moves[rid] || { in: [], out: [] };
+  const pickLine = (xs) => xs.filter((a) => a.kind === "pick").map((a) => esc(a.label)).join(", ");
+  const pin = pickLine(m.in), pout = pickLine(m.out);
+  const tradeTxt = m.in.length || m.out.length
+    ? `Players in: ${m.in.filter((a) => a.kind === "player").map((a) => esc(a.name)).join(", ") || "none"}. Players out: ${m.out.filter((a) => a.kind === "player").map((a) => esc(a.name)).join(", ") || "none"}.`
+    : sides().some((x) => x.assets.length) ? `${esc(t.name)} isn't in the calculator's trade.` : "The calculator is empty. Build a trade there and it shows up here.";
+  const roster = after.length, limit = state.data.league.format.roster_size || null;
+  const edits = lab.adds.length || lab.drops.length || lab.manual;
+  el.innerHTML = `
+    <div class="toolbar">
+      <select id="lab-team" aria-label="Team">${state.data.teams.map((x) => `<option value="${x.roster_id}" ${x.roster_id === rid ? "selected" : ""}>${esc(teamName(x.roster_id))}</option>`).join("")}</select>
+      <div class="chips">${Object.entries(LAB_KEYS).map(([k, v]) => `<button class="chip ${lab.key === k ? "active" : ""}" data-key="${k}">${v}</button>`).join("")}</div>
+      <label class="chip ${lab.trade ? "active" : ""}"><input type="checkbox" id="lab-trade" ${lab.trade ? "checked" : ""} hidden>Apply the calculator's trade</label>
+      <input id="lab-add" type="search" list="lab-add-list" placeholder="Add a player (what if)" /><datalist id="lab-add-list"></datalist>
+      ${edits ? `<button id="lab-reset" class="chip">Reset edits</button>` : ""}
+    </div>
+    <p class="muted lab-trade">${lab.trade ? tradeTxt : "Showing the roster without the calculator's trade."}${pin ? ` Picks in: ${pin}.` : ""}${pout ? ` Picks out: ${pout}.` : ""}
+      <button id="lab-edit" class="link">Edit the trade</button></p>
+    <div class="lab-head">
+      <div><p class="kicker">${esc(t.name)}${managerOf(t) ? " · " + esc(managerOf(t)) : ""}</p><h2>Lineup, before and after</h2></div>
+      <div class="lab-score"><b class="${diff > 0.05 ? "up" : diff < -0.05 ? "down" : ""}">${ptsB.toFixed(1)} → ${ptsA.toFixed(1)}</b>
+        <span>${diff >= 0 ? "+" : ""}${diff.toFixed(1)} a week · ${ordinal(rB)} → ${ordinal(rA)} in the league</span></div>
+    </div>
+    <div class="lab-cols">
+      <div class="lab-col"><div class="lab-colhead"><span>BEFORE</span><b>${ptsB.toFixed(1)}</b></div>${luB.map((x) => row(x, "b")).join("")}</div>
+      <div class="lab-col after"><div class="lab-colhead"><span>AFTER</span><b>${ptsA.toFixed(1)}</b></div>${luA.map((x) => row(x, "a")).join("")}
+        <div class="lab-colhead bench"><span>BENCH</span><span class="muted">${roster}${limit ? ` of ${limit}` : ""} on the roster</span></div>${bench.map(benchRow).join("") || '<p class="muted">Nobody</p>'}
+        ${lab.drops.length ? `<p class="muted">Dropped: ${lab.drops.map(assetById).filter(Boolean).map((a) => `${esc(a.name)} <button class="link" data-undrop="${esc(a.id)}">undo</button>`).join(", ")}</p>` : ""}
+      </div>
+    </div>
+    <p class="muted">${lab.manual ? "Your hand-set lineup. " : "Best lineup by projected points. "}Tap a player in the After column, then another, to swap them. Points are ${lab.key === "ros_ppg" ? "rest-of-season points a week (mostly Sleeper's projections for the next three weeks)" : "Sleeper's projection for this week"} in this league's scoring. League rank counts every team's best lineup, with the trade applied to everyone in it.</p>`;
+
+  $("#lab-team").onchange = (e) => { lab.team = Number(e.target.value); lab.adds = []; lab.drops = []; renderLab(); };
+  el.querySelectorAll("[data-key]").forEach((b) => (b.onclick = () => { lab.key = b.dataset.key; renderLab(); }));
+  $("#lab-trade").onchange = (e) => { lab.trade = e.target.checked; renderLab(); };
+  $("#lab-edit").onclick = () => document.querySelector('.tabs button[data-tab="trade"]').click();
+  if ($("#lab-reset")) $("#lab-reset").onclick = () => { lab.adds = []; lab.drops = []; lab.manual = null; lab.sig = ""; renderLab(); };
+  const dl = $("#lab-add-list"), taken = new Set(after.map((p) => p.id));
+  dl.innerHTML = state.data.players.filter((p) => !taken.has(p.id) && (p.ros_ppg || p.proj_week || p.value)).slice(0, 600)
+    .map((p) => `<option value="${esc(p.name)} (${p.pos}${p.team ? ", " + esc(p.team) : ""})${p.roster_id ? " · " + esc(teamOf(p.roster_id)?.name || "") : " · FA"}"></option>`).join("");
+  $("#lab-add").onchange = (e) => {
+    const name = e.target.value.split(" (")[0];
+    const p = state.data.players.find((x) => x.name === name && !taken.has(x.id));
+    if (p) { lab.adds.push(p.id); lab.drops = lab.drops.filter((d) => d !== p.id); renderLab(); }
+  };
+  el.querySelectorAll("[data-drop]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); lab.drops.push(b.dataset.drop); lab.adds = lab.adds.filter((a) => a !== b.dataset.drop); renderLab(); }));
+  el.querySelectorAll("[data-undrop]").forEach((b) => (b.onclick = () => { lab.drops = lab.drops.filter((d) => d !== b.dataset.undrop); renderLab(); }));
+  el.querySelectorAll("[data-swap]").forEach((r) => (r.onclick = (e) => {
+    if (e.target.closest("button")) return;
+    e.stopPropagation();
+    const id = r.dataset.swap;
+    if (lab.pick == null || lab.pick === id) { lab.pick = lab.pick === id ? null : id; renderLab(); return; }
+    const cur = luA.map((x) => ({ slot: x.slot, id: x.p ? x.p.id : null }));
+    const i = cur.findIndex((x) => x.id === lab.pick), j = cur.findIndex((x) => x.id === id);
+    const ok = (k, pid) => SLOT_ELIGIBILITY[cur[k].slot].includes(after.find((p) => p.id === pid).pos);
+    let done = false;
+    if (i >= 0 && j >= 0 && ok(i, id) && ok(j, lab.pick)) { cur[i].id = id; cur[j].id = lab.pick; done = true; }
+    else if (i >= 0 && j < 0 && ok(i, id)) { cur[i].id = id; done = true; }
+    else if (i < 0 && j >= 0 && ok(j, lab.pick)) { cur[j].id = lab.pick; done = true; }
+    lab.pick = null;
+    if (done) lab.manual = cur;
+    renderLab();
+    if (!done) $("#lab .lab-trade").insertAdjacentHTML("beforeend", ` <span class="error">Those two can't swap: a slot can only take the positions it allows.</span>`);
+  }));
 }
 
 // ---------- team direction (mirrors engine/builds.py assign) ----------
