@@ -5,7 +5,8 @@ from . import sleeper
 MAX_TRADES = 60
 
 
-def recent(league_id: str, legs: range, db: dict, optional) -> list[dict]:
+def recent(league_id: str, legs: range, db: dict, optional, ttl: int = sleeper.HOUR,
+           limit: int | None = MAX_TRADES, keep: bool = False) -> list[dict]:
     """Newest completed trades first. Each move is one asset going from one roster to another.
 
     Players carry their name and position from Sleeper's database so a player who has
@@ -13,7 +14,9 @@ def recent(league_id: str, legs: range, db: dict, optional) -> list[dict]:
     """
     rows = []
     for leg in legs:
-        got = optional(lambda leg=leg: sleeper.transactions(league_id, leg)) or []
+        got = optional(lambda leg=leg: sleeper.transactions(league_id, leg, ttl, keep)) or []
+        if not isinstance(got, list):
+            continue
         rows += [t for t in got if t.get("type") == "trade" and t.get("status") == "complete"]
     seen, out = set(), []
     for t in sorted(rows, key=lambda t: t.get("status_updated") or t.get("created") or 0, reverse=True):
@@ -36,6 +39,6 @@ def recent(league_id: str, legs: range, db: dict, optional) -> list[dict]:
                           "from": w.get("sender"), "to": w.get("receiver")})
         out.append({"id": t.get("transaction_id"), "at": t.get("status_updated") or t.get("created"),
                     "leg": t.get("leg"), "rosters": t.get("roster_ids") or [], "moves": moves})
-        if len(out) >= MAX_TRADES:
+        if limit and len(out) >= limit:
             break
     return out

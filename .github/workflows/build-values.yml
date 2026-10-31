@@ -24,6 +24,14 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt pytest
+      # Finished weeks' stats, earlier seasons' trades and nflverse summaries don't
+      # change hour to hour; carry them between runs (only data/cache/keep_*, so live
+      # rosters, matchups and this week's stats are always fetched fresh).
+      - uses: actions/cache@v4
+        with:
+          path: data/cache/keep_*
+          key: engine-keep-${{ github.run_id }}
+          restore-keys: engine-keep-
       - name: Unit tests
         run: python -m pytest -q
       - name: Build values for every league

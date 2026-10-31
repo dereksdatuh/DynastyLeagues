@@ -56,6 +56,20 @@ def rank(players: list[dict]) -> None:
             p["pos_tier"] = t["tier"]
 
 
+FA_REPLACEMENT_WEIGHT = 0.5  # replacement level: share from this league's real free agents
+
+
+def free_agent_levels(rows: dict, rostered: set, groups) -> dict:
+    """Points per game of the best few free agents at each position in this league."""
+    out = {}
+    for g in groups:
+        fa = sorted((r["est"]["ppg"] for pid, r in rows.items()
+                     if r["group"] == g and r["est"] and pid not in rostered and r.get("active")), reverse=True)[:3]
+        if fa:
+            out[g] = round(sum(fa) / len(fa), 2)
+    return out
+
+
 def value_players(
     fmt: LeagueFormat,
     players_db: dict,
@@ -65,8 +79,11 @@ def value_players(
     cur: dict,
     last: dict,
     rostered: set,
+    two_ago: dict | None = None,
+    situations=None,
 ):
     candidates = set(market) | set(proj) | set(cur) | set(last) | set(rostered)
+    team_games = situations.team_games(cur) if situations else {}
     rows = {}
     for pid in candidates:
         info = players_db.get(pid)
@@ -75,7 +92,10 @@ def value_players(
         group = position_group(info)
         if group not in fmt.positions and pid not in rostered:
             continue
-        rows[pid] = {"info": info, "group": group, "est": model.estimate_ppg(pid, group, fmt, proj, cur, last)}
+        sit = situations.of(pid, group, info, cur, last, team_games) if situations else None
+        rows[pid] = {"info": info, "group": group, "sit": sit, "active": pid in proj or pid in cur,
+                     "est": model.estimate_ppg(pid, group, fmt, proj, cur, last, two_ago,
+                                               (sit or {}).get("role", 1.0))}
 
     # Replacement levels from players with a meaningful sample or a projection.
     ppg_by_group: dict[str, list[float]] = {g: [] for g in fmt.positions}
@@ -83,7 +103,13 @@ def value_players(
         est = r["est"]
         if est and r["group"] in ppg_by_group and (pid in proj or pid in cur):
             ppg_by_group[r["group"]].append(est["ppg"])
-    repl, starters = model.replacement_levels(ppg_by_group, fmt)
+    lineup_repl, starters = model.replacement_levels(ppg_by_group, fmt)
+    # Replacement is what you'd actually start instead: half the theoretical level
+    # (the best player left once every lineup is full) and half the best free agents
+    # in this league as rostered today, so deep benches and thin waivers count.
+    fa = free_agent_levels(rows, rostered, lineup_repl) if len(rostered) >= fmt.num_teams * 5 else {}
+    repl = {g: round((1 - FA_REPLACEMENT_WEIGHT) * v + FA_REPLACEMENT_WEIGHT * min(fa[g], v), 2) if g in fa else v
+            for g, v in lineup_repl.items()}
 
     # Scoring-fit premium relative to the typical starter at the same position.
     pos_median = {}
@@ -98,7 +124,9 @@ def value_players(
     for pid, r in rows.items():
         est, g = r["est"], r["group"]
         age = r["info"].get("age")
-        r["score"] = model.dynasty_score(est["ppg"], g, age, repl.get(g, 0)) if est and g in repl else 0.0
+        sit = r["sit"] or {}
+        r["score"] = model.dynasty_score(est["ppg"], g, age, repl.get(g, 0), sit.get("archetype"),
+                                         sit.get("later", 1.0)) if est and g in repl else 0.0
         rel = 1.0
         if est and g in OFFENSE and pos_median.get(g):
             rel = (est["premium"] / pos_median[g]) ** PLAYER_PREMIUM_EXPONENT
@@ -147,6 +175,9 @@ def value_players(
             "model": round(model_val),
             "premium": round(r["rel_premium"], 3),
             "ppg": est["ppg"] if est else None,
+            # Points per game over what this league's replacement starter scores.
+            "vor": round(est["ppg"] - repl[g], 2) if est and g in repl else None,
+            "situation": _situation_out(r["sit"]),
             "proj_week": round(fantasy_points((wk or {}).get("stats"), fmt.scoring, g), 2) if wk else None,
             "proj_season": round(fantasy_points((sp or {}).get("stats"), fmt.scoring, g), 1) if sp else None,
             "sources": {k: mkt[k] for k in ("fantasycalc", "ktc", "dynastyprocess") if k in mkt},
@@ -159,4 +190,15 @@ def value_players(
         })
     out = [p for p in out if p["value"] > 0 or p["id"] in rostered]
     rank(out)
-    return out, {"replacement_ppg": repl, "starters_per_position": starters, "premium_baseline": pos_median}
+    return out, {"replacement_ppg": repl, "replacement_lineup_ppg": lineup_repl, "replacement_fa_ppg": fa,
+                 "starters_per_position": starters, "premium_baseline": pos_median,
+                 "stability": model.STABILITY, "discount": model.DISCOUNT,
+                 "archetype_curves": {k: list(v) for k, v in model.ARCHETYPE_CURVES.items()}}
+
+
+def _situation_out(sit: dict | None) -> dict | None:
+    """The parts of a player's situation worth showing (and only those that are set)."""
+    if not sit:
+        return None
+    keep = {k: v for k, v in sit.items() if v not in (None, False, [], 1.0)}
+    return keep or None

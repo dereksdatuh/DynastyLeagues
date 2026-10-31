@@ -75,12 +75,17 @@ def matchups(league_id: str, week: int) -> list:
     return get_json(f"sleeper_matchups_{league_id}_w{week}", f"{V1}/league/{league_id}/matchups/{week}", ttl=HOUR)
 
 
-def week_stats(season: str | int, week: int, include_idp: bool) -> dict:
+def week_stats(season: str | int, week: int, include_idp: bool, ttl: int = HOUR, keep: bool = False) -> dict:
+    """One week's stat lines. Finished weeks pass `keep` and a long `ttl`: they go in the
+    "keep_" cache the build carries between runs, apart from the live week's copy."""
     params = {"season_type": "regular", "position[]": _positions(include_idp), "order_by": "pts_ppr"}
-    rows = get_json(f"sleeper_stats_{season}_w{week}_{int(include_idp)}", f"{STATS}/{season}/{week}", params, ttl=HOUR)
+    key = f"{'keep_' if keep else ''}sleeper_stats_{season}_w{week}_{int(include_idp)}"
+    rows = get_json(key, f"{STATS}/{season}/{week}", params, ttl=ttl)
     return _by_player(rows)
 
 
-def transactions(league_id: str, leg: int) -> list:
-    """Every transaction in one leg (week) of the season: trades, waivers, free agents."""
-    return get_json(f"sleeper_tx_{league_id}_{leg}", f"{V1}/league/{league_id}/transactions/{leg}", ttl=HOUR)
+def transactions(league_id: str, leg: int, ttl: int = HOUR, keep: bool = False) -> list:
+    """Every transaction in one leg (week) of the season: trades, waivers, free agents.
+    Past seasons' legs pass `keep` so the build carries them between runs."""
+    key = f"{'keep_' if keep else ''}sleeper_tx_{league_id}_{leg}"
+    return get_json(key, f"{V1}/league/{league_id}/transactions/{leg}", ttl=ttl)
