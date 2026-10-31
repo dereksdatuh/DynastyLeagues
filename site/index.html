@@ -74,6 +74,11 @@
     <section id="tab-formula" class="tab hidden"><div id="formula"></div></section>
 
     <section id="tab-trade" class="tab hidden">
+      <details id="offer-box" class="card"><summary>Grade an offer: paste Sleeper's Trade Summary</summary>
+        <textarea id="offer-text" rows="6" placeholder="In Sleeper, open the offer, select the Trade Summary text, copy it and paste it here."></textarea>
+        <p><button id="offer-grade" class="chip active">Grade it</button></p>
+        <div id="offer-out"></div>
+      </details>
       <div class="toolbar"><span class="muted">Teams in trade</span><div id="team-count" class="chips"></div></div>
       <div id="trade-sides" class="trade-grid"></div>
       <div id="trade-result"></div>

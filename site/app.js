@@ -1001,6 +1001,111 @@ function renderTrade() {
   );
 }
 
+// ---------- offer grader ----------
+// Reads the text of Sleeper's Trade Summary (each manager's RECEIVES / SENDS list,
+// every piece followed by "From X" or "To X"), loads the deal into the calculator,
+// and grades it for each team: market value, its own needs and weekly points.
+const normName = (s) => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, "").replace(/[^a-z]/g, "");
+const ROUND_WORD = { "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7 };
+
+function parseOffer(text) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const moves = [];   // { item: [lines], to, from }
+  let owner = null, buf = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^trade summary$/i.test(l)) continue;
+    if (lines[i + 1] && /^receives$/i.test(lines[i + 1])) { owner = l; buf = []; i++; continue; }
+    if (/^(receives|sends)$/i.test(l)) { buf = []; continue; }
+    const m = l.match(/^(from|to)\s+(.+)$/i);
+    if (m && buf.length && owner) {
+      const other = m[2];
+      moves.push(m[1].toLowerCase() === "from" ? { item: buf, to: owner, from: other } : { item: buf, to: other, from: owner });
+      buf = [];
+      continue;
+    }
+    buf.push(l);
+  }
+  // Each piece shows up twice (once per manager); keep one.
+  const seen = new Set();
+  return moves.filter((x) => { const k = `${x.item.join("|")}>${x.to}`.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+function teamByOwner(name) {
+  const n = normName(name);
+  return state.data.teams.find((t) => normName(t.owner) === n) || state.data.teams.find((t) => normName(t.name) === n) || null;
+}
+
+function resolveOfferItem(item, fromRid) {
+  if (item.some((l) => /^draft pick$/i.test(l))) {
+    const year = Number((item.find((l) => /^\d{4}$/.test(l)) || (item.join(" ").match(/\b(20\d\d)\b/) || [])[1]));
+    const rw = (item.join(" ").match(/\b(1st|2nd|3rd|4th|5th|6th|7th)\b/i) || [])[1];
+    const round = rw ? ROUND_WORD[rw.toLowerCase()] : null;
+    const cands = state.data.picks.filter((p) => p.year === year && p.round === round && p.roster_id === fromRid);
+    // Sleeper's summary doesn't say whose pick it is when a team owns two; take its own first.
+    const pick = cands.find((p) => p.original_roster_id === fromRid) || cands[0];
+    return pick ? { id: pick.id, guess: cands.length > 1 } : null;
+  }
+  const name = normName(item[0]);
+  const pos = ((item[1] || "").split(/[•·]/)[0] || "").trim().toUpperCase();
+  const hits = state.data.players.filter((p) => normName(p.name) === name);
+  const p = hits.find((x) => x.roster_id === fromRid) || hits.find((x) => !pos || x.pos === pos) || hits[0];
+  return p ? { id: p.id } : null;
+}
+
+function offerGrade(pct) {
+  return pct >= 0.1 ? "A+" : pct >= 0.05 ? "A" : pct >= 0 ? "B+" : pct >= -FAIR_MARGIN ? "B" : pct >= -0.1 ? "C" : pct >= -0.2 ? "D" : "F";
+}
+
+function gradeOffer() {
+  const out = $("#offer-out");
+  const moves = parseOffer($("#offer-text").value);
+  if (!moves.length) { out.innerHTML = `<p class="error">I couldn't find any pieces. Paste the whole Trade Summary, from the first manager's name through the last "From" or "To" line.</p>`; return; }
+  const missing = [], guessed = [], byTeam = new Map();
+  for (const mv of moves) {
+    const to = teamByOwner(mv.to), from = teamByOwner(mv.from);
+    if (!to || !from) { missing.push(`${mv.item[0]} (${!to ? mv.to : mv.from} isn't in this league)`); continue; }
+    const r = resolveOfferItem(mv.item, from.roster_id);
+    if (!r) { missing.push(`${mv.item.slice(0, 3).join(" ")} from ${mv.from}`); continue; }
+    if (r.guess) guessed.push(assetById(r.id)?.label || r.id);
+    if (!byTeam.has(to.roster_id)) byTeam.set(to.roster_id, []);
+    byTeam.get(to.roster_id).push(r.id);
+    if (!byTeam.has(from.roster_id)) byTeam.set(from.roster_id, []);
+  }
+  if (byTeam.size < 2) { out.innerHTML = `<p class="error">That doesn't look like a trade in ${esc(state.data.league.name)}. Switch to the league the offer is in and try again.</p>`; return; }
+  if (byTeam.size > 4) { out.innerHTML = `<p class="error">The calculator handles up to 4 teams.</p>`; return; }
+  const mine = myTeam();
+  const order = [...byTeam.keys()].sort((a, b) => (mine && b === mine.roster_id) - (mine && a === mine.roster_id));
+  state.trade = { sides: order.map((rid) => ({ team: rid, assets: byTeam.get(rid) })) };
+  setupTrade();
+  renderTrade();
+  const s = sides();
+  const overrides = tradeOverrides(s);
+  const rows = s.map((side, i) => {
+    const gets = side.assets.map(assetById).filter(Boolean);
+    const gives = s.flatMap((x, j) => (j === i ? [] : x.assets.map(assetById).filter((a) => a && senderOf(a, j) === i)));
+    const mkt = netOf(gets, gives), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id));
+    const p0 = teamPPG(rosterOf(side.team)), p1 = teamPPG(overrides[side.team] || rosterOf(side.team));
+    return { i, rid: side.team, mkt, lens, p0, p1 };
+  });
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`;
+  const me = rows.find((r) => mine && r.rid === mine.roster_id);
+  const best = rows.reduce((a, b) => (b.mkt > a.mkt ? b : a));
+  let call = "";
+  if (me) {
+    if (me.mkt >= 0.05) call = `You win this one by ${Math.round(me.mkt * 100)}% at market. Accept it if the lineup change works for you.`;
+    else if (me.mkt >= -FAIR_MARGIN) call = me.lens >= 0 ? "It's fair, and by your own needs you come out even or ahead. Fine to accept." : "It's fair at market, but by your own needs you give up a little. Accept only if you like the fit.";
+    else call = `You're short by ${Math.round(-me.mkt * 100)}% at market. Counter by asking ${esc(teamName(best.rid))} for one more piece: the closest fits are listed under the verdict below.`;
+  }
+  out.innerHTML = `${call ? `<p class="offer-call ${me && me.mkt >= -FAIR_MARGIN ? "up" : "down"}">Your grade: ${offerGrade(me.mkt)}. ${call}</p>` : ""}
+    <table class="net"><thead><tr><th>Team</th><th>Grade</th><th class="num">Market</th><th class="num">Own needs</th><th class="num">Points a week</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${teamHtml(r.rid)}</td><td><b>${offerGrade(r.mkt)}</b></td>
+      <td class="num ${r.mkt > FAIR_MARGIN ? "up" : r.mkt < -FAIR_MARGIN ? "down" : ""}">${pct(r.mkt)}</td><td class="num">${pct(r.lens)}</td><td class="num">${r.p0.toFixed(1)} → ${r.p1.toFixed(1)}</td></tr>`).join("")}</tbody></table>
+    ${guessed.length ? `<p class="muted">The summary doesn't say whose pick it is, and the sender owns more than one in that round, so I used: ${guessed.map(esc).join(", ")}. Swap it in the calculator below if that's wrong.</p>` : ""}
+    ${missing.length ? `<p class="error">Couldn't match: ${missing.map(esc).join("; ")}.</p>` : ""}
+    <p class="muted">Grades are by market value with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
+}
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "offer-grade") gradeOffer(); });
+
 // The value adjustment, KTC style: how far the adjusted totals move from the raw
 // ones, and the one player the short side needs added to even it (reverse
 // engineered, so it changes as pieces go on either side).
