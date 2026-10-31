@@ -56,7 +56,8 @@ def rank(players: list[dict]) -> None:
             p["pos_tier"] = t["tier"]
 
 
-FA_REPLACEMENT_WEIGHT = 0.5  # replacement level: share from this league's real free agents
+import os
+FA_REPLACEMENT_WEIGHT = float(os.environ.get('FA_W', '0.5'))  # replacement level: share from this league's real free agents
 
 
 def free_agent_levels(rows: dict, rostered: set, groups) -> dict:

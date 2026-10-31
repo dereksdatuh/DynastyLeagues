@@ -18,6 +18,10 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Build with the new engine
         run: python -m engine.build --out site/data 2> after.err | tee after.out
+      - name: Variants
+        run: |
+          FA_W=0 python -m engine.build --out /tmp/fa0 > /dev/null 2>&1 || true
+          FA_W=0.25 python -m engine.build --out /tmp/fa25 > /dev/null 2>&1 || true
       - name: Build with the engine on the default branch
         run: |
           git worktree add /tmp/base origin/claude/dazzling-shannon-p64vdd
@@ -33,8 +37,9 @@ jobs:
           { grep -nE "Error|error|Timeout|waiting for|at .*site_smoke|^[a-z0-9-]+:|exit" smoke.out | cut -c1-300; echo ---; tail -25 smoke.out | cut -c1-300; } > scratch/smoke.log
       - name: Save both builds on this scratch branch
         run: |
-          mkdir -p scratch/before
+          mkdir -p scratch/before scratch/fa0 scratch/fa25
           cp site/data/*.json scratch/; cp /tmp/before/*.json scratch/before/
+          cp /tmp/fa0/*.json scratch/fa0/ || true; cp /tmp/fa25/*.json scratch/fa25/ || true
           grep -vE "^note:" after.err | sort | uniq -c | sort -rn | head -60 > scratch/after.err
           cp after.out scratch/after.out; tail -40 /tmp/before.out > scratch/before.out
           git config user.name "github-actions" && git config user.email "actions@github.com"
