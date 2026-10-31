@@ -225,6 +225,7 @@ async function loadLeague(key) {
   safely("formula", renderFormula);
   resetLab();
   safely("lineups", renderLab);
+  safely("odds", renderOdds);
   pickProj.year = null;
   safely("picks", renderPickProj);
   devyView.year = null;
@@ -1382,6 +1383,150 @@ function pickYearOrder(year) {
     return y ? y.ppg : f.now ? f.now.ppg : t.ros_ppg || 0;
   };
   return { how: "lineup", order: state.data.teams.slice().sort((a, b) => ppg(a) - ppg(b)).map((t) => ({ rid: t.roster_id, exp: null, ppg: ppg(t) })) };
+}
+
+// ---------- playoff and draft-slot odds ----------
+// Simulates the rest of the regular season thousands of times: each week every team
+// scores around its rest-of-season lineup points (spread = the league's weekly sigma),
+// against its real opponent and the median when the league plays one. Seeds follow
+// the league's way (division winners first, ties to points for), then the bracket
+// plays out the same way, with placement games for teams knocked out in the same
+// round. The coming rookie draft's first round is ordered by this league's rule:
+// non-playoff teams by max PF or record, playoff teams by finish (or the league's
+// fixed slots for each finish).
+const ODDS_SIMS = 10000;
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// Standard bracket order for a power-of-two field: 1v8, 4v5, 3v6, 2v7 and so on.
+function bracketOrder(size) {
+  let order = [1];
+  while (order.length < size) { const n = order.length * 2; order = order.flatMap((s) => [s, n + 1 - s]); }
+  return order;
+}
+function simulateOdds(sims = ODDS_SIMS) {
+  const teams = state.data.teams, n = teams.length;
+  const sch = state.data.schedule || { weeks: {}, median_game: false };
+  const ppg = {};
+  teams.forEach((t) => (ppg[t.roster_id] = teamPPG(rosterOf(t.roster_id))));
+  const vals = Object.values(ppg).filter((v) => v > 0);
+  const sigma = sch.sigma || 0.21 * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const P = Math.min(state.data.league.playoff_teams || 0, n);
+  const rd = state.data.rookie_draft || {};
+  const rule = (rd.rule && rd.rule.rule) || "record";
+  const fixed = !!(rd.rule && rd.rule.fixed);
+  const slotsFor = rd.rule && Array.isArray(rd.rule.playoff_slots) && rd.rule.playoff_slots.length === P ? rd.rule.playoff_slots : null;
+  const rand = seededRandom(20261031 + n);
+  let spare = null;
+  const gauss = () => { if (spare != null) { const g = spare; spare = null; return g; } let u = 0, v = 0; while (u === 0) u = rand(); v = rand(); const r = Math.sqrt(-2 * Math.log(u)); spare = r * Math.sin(2 * Math.PI * v); return r * Math.cos(2 * Math.PI * v); };
+  const score = (rid) => ppg[rid] + sigma * gauss();
+  const ids = teams.map((t) => t.roster_id);
+  const acc = {};
+  ids.forEach((r) => (acc[r] = { wins: 0, playoff: 0, bye: 0, title: 0, final: 0, slot: new Array(n + 1).fill(0), slotSum: 0 }));
+  const weeks = Object.values(sch.weeks || {});
+  const size = P > 1 ? 2 ** Math.ceil(Math.log2(P)) : 0;
+  const bOrder = size ? bracketOrder(size) : [];
+  for (let s = 0; s < sims; s++) {
+    const st = {};
+    teams.forEach((t) => (st[t.roster_id] = { wins: t.record.wins || 0, ties: t.record.ties || 0, pf: t.record.fpts || 0, maxPF: t.record.max_pf || 0 }));
+    for (const pairs of weeks) {
+      const pts = {};
+      ids.forEach((r) => { pts[r] = score(r); st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
+      for (const [a, b] of pairs) { if (pts[a] > pts[b]) st[a].wins++; else st[b].wins++; }
+      if (sch.median_game) {
+        const sorted = ids.map((r) => pts[r]).sort((x, y) => x - y), h = Math.floor(n / 2);
+        const med = n % 2 ? sorted[h] : (sorted[h - 1] + sorted[h]) / 2;
+        ids.forEach((r) => { if (pts[r] > med) st[r].wins++; });
+      }
+    }
+    const seeds = seedOrder(st).map(Number);
+    ids.forEach((r) => (acc[r].wins += st[r].wins - (teams.find((t) => t.roster_id === r).record.wins || 0)));
+    // Playoffs: finish places 1..P (1 = champion).
+    const place = {};
+    if (P > 1) {
+      seeds.slice(0, P).forEach((r, i) => { acc[r].playoff++; if (size > P && i < size - P) acc[r].bye++; });
+      let alive = bOrder.map((sd) => (sd <= P ? seeds[sd - 1] : null));
+      const outByRound = [];
+      while (alive.length > 1) {
+        const next = [], out = [];
+        for (let i = 0; i < alive.length; i += 2) {
+          const a = alive[i], b = alive[i + 1];
+          if (a == null || b == null) { next.push(a ?? b); continue; }
+          const w = score(a) >= score(b) ? a : b;
+          next.push(w); out.push(w === a ? b : a);
+        }
+        outByRound.push(out);
+        alive = next;
+      }
+      place[alive[0]] = 1;
+      let nextPlace = 2;
+      for (const out of outByRound.reverse()) {
+        // Teams knocked out in the same round play for place, two at a time, best seed first.
+        const grp = out.slice().sort((a, b) => seeds.indexOf(a) - seeds.indexOf(b));
+        const ordered = [];
+        for (let i = 0; i < grp.length; i += 2) {
+          if (i + 1 >= grp.length) { ordered.push(grp[i]); continue; }
+          const a = grp[i], b = grp[i + 1];
+          const aw = score(a) >= score(b);
+          ordered.push(aw ? a : b, aw ? b : a);
+        }
+        ordered.forEach((r) => (place[r] = nextPlace++));
+      }
+      acc[alive[0]].title++;
+      Object.keys(place).forEach((r) => { if (place[r] === 2) acc[r].final++; });
+      acc[alive[0]].final++;
+    }
+    // First-round draft order.
+    if (!fixed) {
+      const playoff = seeds.slice(0, P), rest = seeds.slice(P);
+      rest.sort(rule === "max_pf" ? (a, b) => st[a].maxPF - st[b].maxPF : (a, b) => st[a].wins - st[b].wins || st[a].maxPF - st[b].maxPF);
+      const order = new Array(n).fill(null);
+      if (slotsFor) {
+        playoff.forEach((r) => (order[slotsFor[place[r] - 1] - 1] = r));
+        let k = 0;
+        for (let i = 0; i < n; i++) if (order[i] == null) order[i] = rest[k++];
+      } else {
+        const po = playoff.slice().sort((a, b) => (place[b] || 0) - (place[a] || 0));
+        [...rest, ...po].forEach((r, i) => (order[i] = r));
+      }
+      order.forEach((r, i) => { if (r != null) { acc[r].slot[i + 1]++; acc[r].slotSum += i + 1; } });
+    }
+  }
+  return { acc, sims, P, sigma, fixed, rule, slotsFor, size, year: rd.year, weeksLeft: weeks.length };
+}
+
+function renderOdds() {
+  const el = $("#odds");
+  if (!el || !state.data) return;
+  const teams = state.data.teams, n = teams.length;
+  if (!teams.some((t) => t.players && t.players.length)) { el.innerHTML = `<p class="muted">Odds start once the league has drafted.</p>`; return; }
+  const r = simulateOdds();
+  const pct = (x) => { const v = (100 * x) / r.sims; return v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`; };
+  const mine = myTeam();
+  const rows = teams.map((t) => ({ t, a: r.acc[t.roster_id] })).sort((x, y) => y.a.playoff - x.a.playoff || y.a.title - x.a.title || x.a.slotSum - y.a.slotSum);
+  const heat = (x) => `style="background:rgba(111,227,164,${Math.min(0.55, x / r.sims * 0.9).toFixed(2)})"`;
+  const year = r.year || (state.data.picks || []).reduce((m, p) => Math.min(m, p.year), 9999);
+  const firstOf = (rid) => (state.data.picks || []).find((p) => p.year === year && p.round === 1 && p.original_roster_id === rid);
+  const holder = (rid) => { const pk = firstOf(rid); return pk ? teamOf(pk.roster_id) : null; };
+  const top = Math.min(3, n);
+  const ruleText = r.fixed ? `The ${year} draft order is fixed by the league, so there are no draft-slot odds here.`
+    : `${year} first-round order: non-playoff teams ${r.rule === "max_pf" ? "by max PF, lowest first" : "by record, worst first (max PF breaks ties)"}, then playoff teams ${r.slotsFor ? `in the league's slots for each finish (champion ${r.slotsFor[0]}, runner-up ${r.slotsFor[1]})` : "by finish, champion last"}.`;
+  const myFirsts = mine ? (state.data.picks || []).filter((p) => p.year === year && p.round === 1 && p.roster_id === mine.roster_id) : [];
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">${fmt(r.sims)} simulated seasons</p><h2>Playoff and draft odds</h2></div></div>
+    <p class="muted">${r.weeksLeft} regular-season weeks left. Each sim plays every remaining game from each team's rest-of-season lineup points (weekly swing of ±${r.sigma.toFixed(1)}), seeds the ${r.P}-team playoff the league's way${r.size > r.P ? ` with byes for the top ${r.size - r.P}` : ""}, and plays it out. ${ruleText}</p>
+    ${myFirsts.length && !r.fixed ? `<div class="my-picks">${myFirsts.map((p) => { const a = r.acc[p.original_roster_id]; return `<div class="my-pick on">${face(p.id)}<div><b>${year} 1st${p.original_roster_id !== p.roster_id ? ` via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " (your own)"}</b><span class="muted">avg slot ${(a.slotSum / r.sims).toFixed(1)} · top ${top}: ${pct(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}</span></div></div>`; }).join("")}</div>` : ""}
+    <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th>Record</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Final</th><th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${year} slot</th><th class="num">Top ${top} pick</th><th>Their 1st belongs to</th>`}</tr></thead><tbody>
+    ${rows.map(({ t, a }) => { const h = holder(t.roster_id); return `<tr class="${mine && t.roster_id === mine.roster_id ? "me" : ""}"><td>${teamHtml(t.roster_id)}</td><td>${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
+      <td class="num">${((t.record.wins || 0) + a.wins / r.sims).toFixed(1)}</td><td class="num" ${heat(a.playoff)}>${pct(a.playoff)}</td>${r.size > r.P ? `<td class="num" ${heat(a.bye)}>${pct(a.bye)}</td>` : ""}<td class="num" ${heat(a.final)}>${pct(a.final)}</td><td class="num" ${heat(a.title)}>${pct(a.title)}</td>
+      ${r.fixed ? "" : `<td class="num">${(a.slotSum / r.sims).toFixed(1)}</td><td class="num" ${heat(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}>${pct(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}</td><td>${h ? (mine && h.roster_id === mine.roster_id ? "<b>You</b>" : esc(h.name)) : ""}</td>`}</tr>`; }).join("")}
+    </tbody></table></div>
+    ${r.fixed ? "" : `<h3>${year} first-round slot odds</h3><p class="muted">Each row is a team's own 1st; each column is the slot it lands in. Rows you own are marked.</p>
+    <div class="table-wrap"><table class="odds-table slots"><thead><tr><th>Pick</th>${Array.from({ length: n }, (_, i) => `<th class="num">1.${String(i + 1).padStart(2, "0")}</th>`).join("")}</tr></thead><tbody>
+    ${teams.slice().sort((x, y) => r.acc[x.roster_id].slotSum - r.acc[y.roster_id].slotSum).map((t) => { const a = r.acc[t.roster_id], h = holder(t.roster_id); const own = mine && h && h.roster_id === mine.roster_id;
+      return `<tr class="${own ? "me" : ""}"><td>${esc(t.name)}${own ? ' <span class="tag new">YOURS</span>' : ""}</td>${a.slot.slice(1).map((c) => `<td class="num" ${heat(c)}>${c ? pct(c) : ""}</td>`).join("")}</tr>`; }).join("")}
+    </tbody></table></div>`}`;
 }
 
 function renderPickProj() {
