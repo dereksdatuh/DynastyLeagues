@@ -117,6 +117,26 @@ for (const [id, liteRun] of runs) {
     if (!lab || !labRows) errors.push(`${id}: lineups after the trade missing`);
     await page.click('button[data-tab="trade"]');
   }
+  // The offer grader reads a Sleeper Trade Summary: one top player each way.
+  if (drafted) {
+    const summary = await page.evaluate(() => {
+      const ts = state.data.teams.filter((t) => t.owner && t.players.length).slice(0, 2);
+      if (ts.length < 2) return "";
+      const top = (t) => state.data.players.filter((p) => p.roster_id === t.roster_id).sort((a, b) => b.value - a.value)[0];
+      const [a, b] = ts, pa = top(a), pb = top(b);
+      const item = (p) => `${p.name}\n${p.pos} • ${p.team || "FA"}`;
+      return `Trade Summary\n${a.owner}\nRECEIVES\nSENDS\n${item(pb)}\nFrom ${b.owner}\n${item(pa)}\nTo ${b.owner}\n${b.owner}\nRECEIVES\nSENDS\n${item(pa)}\nFrom ${a.owner}\n${item(pb)}\nTo ${a.owner}`;
+    });
+    if (summary) {
+      if (!(await page.$eval("#offer-box", (d) => d.open))) await page.click("#offer-box summary");
+      await page.fill("#offer-text", summary);
+      await page.click("#offer-grade");
+      const graded = await page.$$eval("#offer-out table.net tbody tr", (r) => r.length);
+      const loaded = await page.evaluate(() => state.trade.sides.map((x) => x.assets.length).join("+"));
+      console.log(`  offer grader: ${graded} teams graded, calculator loaded ${loaded}`);
+      if (graded !== 2 || loaded !== "1+1") errors.push(`${id}: offer grader didn't read the trade summary (${graded} rows, ${loaded})`);
+    }
+  }
   // The 2027, 2028 and 2029 classes draw from the research file plus KTC devy values.
   await page.click('button[data-tab="devy"]');
   await page.waitForFunction(() => document.querySelector("#devy .devy-card, #devy p"), null, { timeout: 15000 });
