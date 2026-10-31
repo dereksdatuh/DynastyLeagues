@@ -1,0 +1,413 @@
+{
+ "generated_at": "2026-10-31T19:23:47+00:00",
+ "build": "ae4d33c",
+ "leagues": [
+  {
+   "id": "league-1",
+   "name": "IDPs Most Wanted",
+   "season": "2026",
+   "format": {
+    "num_teams": 14,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 1.0,
+    "te_premium": 1.0,
+    "pass_td": 6.0,
+    "idp": true,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX",
+     "DL",
+     "DL",
+     "LB",
+     "LB",
+     "DB",
+     "DB",
+     "IDP_FLEX",
+     "IDP_FLEX",
+     "IDP_FLEX",
+     "IDP_FLEX"
+    ],
+    "roster_size": 40,
+    "taxi_slots": 4,
+    "draft_rounds": 5
+   },
+   "sleeper_league_id": "1367263576678473728",
+   "buy_in": 50,
+   "payouts": {
+    "1st": 500,
+    "2nd": 150,
+    "most_points_for": 50,
+    "notes": "Champion: $500, Runner-up: $150, Most points scored (regular season): $50"
+   },
+   "teams": 14,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:29+00:00"
+  },
+  {
+   "id": "league-2",
+   "name": "Gold Star Dynasty",
+   "season": "2026",
+   "format": {
+    "num_teams": 14,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 0.0,
+    "te_premium": 1.75,
+    "pass_td": 6.0,
+    "idp": false,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX"
+    ],
+    "roster_size": 25,
+    "taxi_slots": 3,
+    "draft_rounds": 4
+   },
+   "sleeper_league_id": "1358966325422092288",
+   "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
+   "teams": 14,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:33+00:00"
+  },
+  {
+   "id": "league-3",
+   "name": "Centurion",
+   "season": "2026",
+   "format": {
+    "num_teams": 12,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 1.0,
+    "te_premium": 0.5,
+    "pass_td": 6.0,
+    "idp": false,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX"
+    ],
+    "roster_size": 26,
+    "taxi_slots": 4,
+    "draft_rounds": 3
+   },
+   "sleeper_league_id": "1354113258109280256",
+   "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
+   "teams": 12,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:36+00:00"
+  },
+  {
+   "id": "league-4",
+   "name": "Ultimate Dynasty",
+   "season": "2026",
+   "format": {
+    "num_teams": 12,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 0.0,
+    "te_premium": 1.75,
+    "pass_td": 6.0,
+    "idp": false,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX"
+    ],
+    "roster_size": 26,
+    "taxi_slots": 3,
+    "draft_rounds": 4
+   },
+   "sleeper_league_id": "1313291882029158400",
+   "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
+   "teams": 12,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:40+00:00"
+  },
+  {
+   "id": "league-5",
+   "name": "The Boneyard",
+   "season": "2026",
+   "format": {
+    "num_teams": 12,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 1.0,
+    "te_premium": 0.75,
+    "pass_td": 4.0,
+    "idp": false,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX"
+    ],
+    "roster_size": 26,
+    "taxi_slots": 4,
+    "draft_rounds": 4
+   },
+   "sleeper_league_id": "1304536310471467008",
+   "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
+   "teams": 12,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:44+00:00"
+  },
+  {
+   "id": "league-6",
+   "name": "Dynasty Villains",
+   "season": "2026",
+   "format": {
+    "num_teams": 14,
+    "superflex": true,
+    "num_qbs": 2,
+    "ppr": 1.0,
+    "te_premium": 1.0,
+    "pass_td": 6.0,
+    "idp": false,
+    "starting_slots": [
+     "QB",
+     "RB",
+     "RB",
+     "WR",
+     "WR",
+     "WR",
+     "TE",
+     "FLEX",
+     "FLEX",
+     "FLEX",
+     "SUPER_FLEX"
+    ],
+    "roster_size": 28,
+    "taxi_slots": 4,
+    "draft_rounds": 4
+   },
+   "sleeper_league_id": "1372064212313985024",
+   "buy_in": 0,
+   "payouts": {
+    "notes": "TBD"
+   },
+   "teams": 14,
+   "sources": [
+    {
+     "source": "fantasycalc",
+     "ok": true,
+     "players": 397,
+     "matched": 397,
+     "picks": 24,
+     "shared_with_reference": 397,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "ktc",
+     "ok": true,
+     "players": 463,
+     "matched": 463,
+     "picks": 36,
+     "shared_with_reference": 384,
+     "reference": "fantasycalc"
+    },
+    {
+     "source": "dynastyprocess",
+     "ok": true,
+     "players": 532,
+     "matched": 532,
+     "picks": 85,
+     "shared_with_reference": 391,
+     "reference": "fantasycalc"
+    }
+   ],
+   "generated_at": "2026-10-31T19:23:47+00:00"
+  }
+ ]
+}
