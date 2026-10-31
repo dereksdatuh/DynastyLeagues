@@ -391,3 +391,9 @@ details.muted { margin: 0 0 12px; } details.muted summary { cursor: pointer; col
 .three-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
 .three-pick select { flex: 1; min-width: 160px; }
 .aim-now { color: var(--orange); }
+
+/* offer grader */
+#offer-box { margin-bottom: 14px; }
+#offer-box summary { cursor: pointer; font-weight: 600; }
+#offer-text { width: 100%; box-sizing: border-box; margin-top: 10px; background: var(--surface-2, #1C2537); color: inherit; border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; }
+#offer-out .offer-call { font-size: 1.15rem; font-weight: 700; margin: 12px 0; }
