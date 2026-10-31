@@ -22,6 +22,7 @@ PRIOR_TRADES = 25.0
 MIN_TRADES = 5
 CLAMP = (0.95, 1.05)
 HALF_LIFE_DAYS = 180
+HUBER = 0.15
 GROUP = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "DL": "IDP", "LB": "IDP", "DB": "IDP", "PICK": "PICK"}
 GROUPS = ("QB", "RB", "WR", "TE", "IDP", "PICK")
 
@@ -96,7 +97,10 @@ def fit(rows: list) -> dict:
             a = sum(math.exp(x[g]) * v for g, v in r["got"]) + r.get("got_c", 0)
             b = sum(math.exp(x[g]) * v for g, v in r["gave"]) + r.get("gave_c", 0)
             if a > 0 and b > 0:
-                tot += r["w"] * math.log(a / b) ** 2
+                # Huber: a lopsided trade (or one today's values describe badly) counts
+                # linearly past HUBER, so one fleecing can't set a position's price.
+                d = abs(math.log(a / b))
+                tot += r["w"] * (d * d if d <= HUBER else 2 * HUBER * d - HUBER * HUBER)
         # A position that is about half of one side moves that trade's log balance by
         # about half its log multiplier, so PRIOR_TRADES such trades cost 0.25 x^2 each.
         return tot + PRIOR_TRADES * 0.25 * sum(x[g] ** 2 for g in free)
