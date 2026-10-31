@@ -19,8 +19,21 @@ breakdowns and a trade calculator.
   lineup in your league (flex slots last), then points over replacement are projected
   five years with positional age curves and year-to-year stability, and calibrated onto
   the market scale. Positions no market prices (IDP, K, DEF) are valued from this.
+- **Backtested model** (`python -m engine.backtest` -> `data/model_tuning.json`): on
+  2010-2025 seasons it measures how much of a player's points over replacement he keeps
+  the next year (missed games included), how much missed time carries over, how to
+  weight the last three seasons, how much a recent role change lasts, and fits age
+  curves by player type (a fitted curve is used only where it beat the old one on
+  held-out 2020-2025 seasons; so far, rushing QBs).
+- **Situation**: target, carry and snap shares, depth chart, contract years and coaching
+  changes from nflverse; every game this season and last scored by league rules
+  (floor, ceiling, recent form); replacement level blends in the league's real free agents.
 - **Final value** = 60% scoring-adjusted market + 40% model (tunable in
-  `engine/valuation.py`).
+  `engine/valuation.py`), then a cautious multiplier per position from the league's own
+  trades (`engine/market_learn.py`).
+- **Pick values**: in season, the coming draft's picks are priced over every slot they
+  can land at (the rest of the season and the playoffs played out thousands of times);
+  picks two drafts out carry that class's strength.
 - **Rankings**: overall and positional, with tiers, market vs. model, scoring fit,
   points per game, this week's projected points (Sleeper) and owner.
 - **Trade calculator**: pick two teams, add players and picks, get a verdict with a

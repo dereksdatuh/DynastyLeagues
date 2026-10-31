@@ -56,6 +56,20 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
 - `engine/draft.py` and `site/app.js` (`runMock`): next year's draft order rule
   (`infer_rule`), projected order and board, KTC devy class valued by slot, and the
   mock itself (`NEED_BONUS`, `MOCK_LOOKAHEAD`).
+- `engine/backtest.py` -> `data/model_tuning.json`: run `python -m engine.backtest` to refit
+  age curves (by player type), STABILITY, availability carry-over, season weights and
+  in-season role weights on nflverse history. `engine/model.py` loads the file; its own
+  constants are the fallback. Commit the regenerated JSON.
+- `engine/role.py` + `engine/nflverse.py`: usage shares, depth charts, contracts, coaching
+  changes (nflverse releases, summaries cached as `data/cache/keep_nflv_*`).
+- `engine/gamelog.py`: every game this season and last, scored by league rules (floor,
+  ceiling, recent form).
+- `engine/market_learn.py`: per-league position multipliers from that league's own trades
+  (cautious: prior, decay, Huber loss, clamp). Shown as `league_market` in the league JSON.
+- `engine/landing.py`: in-season Monte Carlo of the rest of the season and playoffs; the
+  coming draft's picks are priced over every slot they land at (`picks[].landing`).
+- The build workflow caches only `data/cache/keep_*` between runs (finished weeks, old
+  trades, nflverse summaries); everything live is fetched fresh.
 - New market source: add `engine/sources/<name>.py` with `fetch(fmt, index)` returning
   the entry shape documented in `engine/sources/__init__.py`, register it in `SOURCES`
   and `market.SOURCE_WEIGHTS`, and add a fake response in `tests/conftest.py`.

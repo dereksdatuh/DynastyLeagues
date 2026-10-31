@@ -99,13 +99,15 @@ def _order(strength: dict, rule: str, playoff_teams: int, playoff_slots, divisio
 
 
 def expected_slots(strength: dict, rule: str, playoff_teams: int, playoff_slots, snake: bool,
-                   rounds: int, value_of, seed: int = 7, divisions: dict | None = None) -> dict:
-    """For every (round, original team): average slot and average value over many seasons."""
+                   rounds: int, value_of, seed: int = 7, divisions: dict | None = None,
+                   spread: float = SPREAD) -> dict:
+    """For every (round, original team): average slot and average value over many seasons.
+    `spread` widens for drafts further out (two seasons ahead is twice as uncertain)."""
     rng = random.Random(seed)
     n = len(strength)
     acc = {}
     for _ in range(DRAWS):
-        drawn = {r: s * (1 + rng.gauss(0, SPREAD)) for r, s in strength.items()}
+        drawn = {r: s * (1 + rng.gauss(0, spread)) for r, s in strength.items()}
         order = _order(drawn, rule, playoff_teams, playoff_slots, divisions)
         for rnd in range(1, rounds + 1):
             for orig in order:

@@ -642,8 +642,10 @@ async function openPlayer(id) {
       <tr><td>× scoring fit</td><td class="num">${p.premium ? p.premium.toFixed(2) : "–"}</td><td class="muted">this league's scoring vs generic</td></tr>
       <tr><td>= adjusted market</td><td class="num">${p.market_adj ? fmt(p.market_adj) : "–"}</td><td></td></tr>
       <tr><td>Points model</td><td class="num">${p.model ? fmt(p.model) : "–"}</td><td class="muted">points over replacement here, aged forward</td></tr>
-      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model</td></tr>
+      ${p.value_before_league_market ? `<tr><td>× this league's trade market</td><td class="num">${(p.value / p.value_before_league_market).toFixed(2)}</td><td class="muted">what this league's own trades pay for ${esc(p.pos)}s against the values</td></tr>` : ""}
+      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model${p.value_before_league_market ? ", then the league's market" : ""}</td></tr>
     </tbody></table>
+    ${situationHtml(p)}
     ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Site's own number</th><th class="num">On our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
     <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
     ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
@@ -670,6 +672,27 @@ async function openPlayer(id) {
   const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
   const el = $("#player-history");
   if (el) el.innerHTML = pts.length >= 2 ? sparkline(pts) : `<p class="muted">Not enough daily snapshots yet${pts.length ? ` (one on ${esc(pts[0][0])})` : ""}.</p>`;
+}
+// What the points model knows beyond the stat line (engine/role.py, engine/gamelog.py).
+const ARCHETYPE = { QB_rush: "Rushing QB", QB_pocket: "Pocket QB", RB_rec: "Receiving back", RB_early: "Early-down back",
+  WR_deep: "Deep threat", WR_short: "Short-area receiver" };
+function situationHtml(p) {
+  const s = p.situation || {}, g = p.games || {};
+  const pc = (x) => `${Math.round(x * 100)}%`;
+  const rows = [];
+  if (p.vor != null) rows.push(["Points over replacement", `${p.vor > 0 ? "+" : ""}${p.vor} a game`, "against what you'd start in his place in this league: mostly the best player left once every lineup is full, a quarter weight on the best free agents"]);
+  if (s.archetype) rows.push(["Player type", ARCHETYPE[s.archetype] || s.archetype, s.archetype === "QB_rush" ? "ages on the rushing-QB curve the backtest fitted (peak to 28, then about 9% a year)" : "same age curve as his position"]);
+  if (s.tgt_share != null || s.car_share != null) rows.push(["Role", [s.tgt_share ? `${pc(s.tgt_share)} of targets` : "", s.car_share ? `${pc(s.car_share)} of carries` : "", s.snap ? `${pc(s.snap)} of snaps lately` : ""].filter(Boolean).join(", "),
+    s.role_trend ? `share ${s.role_trend > 1 ? "up" : "down"} ${pc(Math.abs(s.role_trend - 1))} over the last four games; this season's line counts ×${s.role ?? 1} (role swings mostly fade, per the backtest)` : ""]);
+  if (s.depth) rows.push(["Depth chart", s.depth, ""]);
+  if (s.contract_years_left != null) rows.push(["Contract", s.contract_years_left ? `${s.contract_years_left} more year${s.contract_years_left > 1 ? "s" : ""}` : "ends after this season", ""]);
+  if (s.availability) rows.push(["Availability", `×${s.availability} next year`, "games he's missed, marked down by how much missed time carries over (backtested)"]);
+  if (s.new_coach) rows.push(["Coaching", "new head coach this season", "shown, not priced"]);
+  if (s.later) rows.push(["Later years", `×${s.later}`, (s.notes || []).join("; ")]);
+  if (g.games || g.games_last) rows.push(["Game log", `${g.games || 0} games this season${g.ppg != null ? `, ${g.ppg} a game` : ""}${g.games_last ? `; ${g.games_last} last season${g.ppg_last != null ? ` at ${g.ppg_last}` : ""}` : ""}`,
+    g.floor != null ? `every game scored with this league's rules: floor ${g.floor}, ceiling ${g.ceiling}, last four ${g.recent}` : ""]);
+  if (!rows.length) return "";
+  return `<h3>Situation and history</h3><table class="net"><tbody>${rows.map(([a, b, c]) => `<tr><td>${esc(a)}</td><td class="num">${esc(String(b))}</td><td class="muted">${esc(c || "")}</td></tr>`).join("")}</tbody></table>`;
 }
 document.addEventListener("click", (e) => {
   const a = e.target.closest("[data-pid]");
@@ -1654,7 +1677,9 @@ function renderPickProj() {
     const holder = pk ? teamOf(pk.roster_id) : orig;
     const isMine = mine && holder && holder.roster_id === mine.roster_id;
     const moved = pk && pk.roster_id !== pk.original_roster_id;
-    const range = how === "sim" && r === 1 ? `<span class="muted">avg ${Number(o.exp).toFixed(1)}</span>` : "";
+    const land = pk && pk.landing;
+    const range = how === "sim" && r === 1 ? `<span class="muted">avg ${Number(o.exp).toFixed(1)}</span>`
+      : land && land.range ? `<span class="muted" title="Where this pick lands across simulated finishes to the season (10th to 90th percentile); its value is the average over all of them">${[...new Set(land.range.map((x) => (snake && r % 2 === 0 ? n + 1 - x : x)))].sort((a, b) => a - b).map((x) => `${r}.${String(x).padStart(2, "0")}`).join("-")}${r === 1 && land.top3 >= 0.01 ? ` · top 3 ${Math.round(land.top3 * 100)}%` : ""}</span>` : "";
     return `<div class="pick-card ${isMine ? "yours" : ""}" style="animation-delay:${(i * 0.025).toFixed(3)}s">
       <div class="pick-slot">${r}.${String(slot).padStart(2, "0")}</div>
       <div class="pick-team">${teamAvatar(orig)}<span><b>${esc(orig ? orig.name : "")}</b>${moved ? `<span class="muted">owned by ${esc(holder.name)}</span>` : managerOf(orig) ? `<span class="muted">${esc(managerOf(orig))}</span>` : ""}</span></div>
@@ -1670,7 +1695,7 @@ function renderPickProj() {
     return { label: `${p.round}.${String(slot).padStart(2, "0")}`, third, how: yo.how };
   };
   const howText = {
-    exact: `${year} slots are where each pick lands if the season ends the way it's projected now, under this league's draft rule${rd.rule && rd.rule.rule === "max_pf" ? " (non-playoff teams ordered by max PF, playoff teams by finish)" : ""}.`,
+    exact: `${year} slots are where each pick lands if the season ends the way it's projected now, under this league's draft rule${rd.rule && rd.rule.rule === "max_pf" ? " (non-playoff teams ordered by max PF, playoff teams by finish)" : ""}.${picks.some((p) => p.year === year && p.landing) ? " Each pick's value is the average over every slot it lands at when the rest of the season is played out thousands of times (the range under it), so a pick that could slide into the top three carries that chance." : ""}`,
     sim: `${year} slots come from thousands of simulated ${year - 1} seasons: every roster a year older, plus the rookies its ${year - 1} picks bring. "avg" is the average first-round slot across those runs; the farther out, the wider the real range.`,
     lineup: `${year} slots order teams by their projected ${year - 1} lineup (players aged a year, no rookies added yet), weakest picking first. This far out it's a rough guide.`,
   }[how];
@@ -2153,6 +2178,7 @@ function renderFormula() {
       <div class="toolbar"><button id="ideas-run" class="chip active">Find my trade ideas</button></div>
       <div id="ideas-out">${ideas.list && ideas.league === state.data.league.id ? ideasHtml(ideas.list) : ""}</div>` : ""}
     ${buyBlock}
+    ${modelTuningHtml()}
     <h3>Full formula rankings</h3>
     <div class="toolbar">
       <div id="formula-pos" class="chips">${positions.map((x) => `<button class="chip ${x === formulaView.pos ? "active" : ""}" data-pos="${x}">${x === "ALL" ? "Overall" : x}</button>`).join("")}</div>
@@ -2166,6 +2192,21 @@ function renderFormula() {
   $("#formula-signal").addEventListener("change", (e) => { formulaView.signal = e.target.value; drawFormulaTable(); });
   $("#formula-who").addEventListener("change", (e) => { formulaView.who = e.target.value; drawFormulaTable(); });
   $("#formula-search").addEventListener("input", (e) => { formulaView.q = e.target.value; drawFormulaTable(); });
+}
+
+// What the backtest tuned and what this league's own trades taught the values.
+function modelTuningHtml() {
+  const m = state.data.model || {}, bt = m.backtest || {}, lm = state.data.league_market;
+  if (!bt.stability && !lm) return "";
+  const pc = (x) => `${Math.round(x * 100)}%`;
+  const parts = [];
+  if (bt.stability) parts.push(`<p><b>Backtested on ${esc((bt.seasons || []).join("-"))}.</b> Share of a player's points over replacement he kept the next season, after aging and counting missed games: ${Object.entries(bt.stability).map(([k, v]) => `${esc(k)} ${pc(v.stability)}`).join(", ")}. Weighting the last three seasons ${bt.season_weights ? `(1, ${bt.season_weights.two_ago}, ${bt.season_weights.three_ago})` : ""} cut next-season error from ${bt.season_weights?.mae_last_season_only} to ${bt.season_weights?.mae_tuned} points a game. Recent role swings mostly faded${bt.in_season ? ` (role trend ${bt.in_season.role_trend})` : ""}. ${Object.keys(m.archetype_curves || {}).length ? `Fitted age curves that beat the old ones on 2020-2025 seasons: ${Object.keys(m.archetype_curves).map((k) => esc(ARCHETYPE[k] || k)).join(", ")}; the rest kept their curves.` : ""}</p>`);
+  if (m.replacement_fa_ppg && Object.keys(m.replacement_fa_ppg).length) parts.push(`<p>Replacement level here (points a game): ${Object.entries(m.replacement_ppg || {}).map(([k, v]) => `${esc(k)} ${v}`).join(", ")}: three parts the best player left once every lineup is full, one part the best free agents.</p>`);
+  if (lm) {
+    const moved = Object.entries(lm.multipliers || {}).filter(([, v]) => v !== 1);
+    parts.push(`<p>This league's trade market (${lm.rows} trade sides from ${lm.trades} trades, this season and the two before, valued at today's numbers): ${moved.length ? moved.map(([k, v]) => `${esc(k)} ×${v}`).join(", ") : "not enough trades to move any position yet"}.</p>`);
+  }
+  return `<h3>How the values are tuned</h3>${parts.join("")}`;
 }
 
 function drawFormulaTable() {

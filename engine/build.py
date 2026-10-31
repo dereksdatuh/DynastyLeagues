@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import builds, draft, fetch, formula, future, ids, outlook, record, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, future, gamelog, ids, landing, market_learn, model, outlook, record, role, sleeper, team_value, valuation, weekly
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -54,8 +54,17 @@ class Shared:
             print(f"warning: id crosswalk unavailable: {exc}", file=sys.stderr)
             crosswalk = []
         self.index = ids.PlayerIndex(self.players, crosswalk)
+        self.crosswalk = crosswalk
+        self._situations = None
         self._stats: dict = {}
         self._espn: dict = {}
+
+    def situations(self):
+        """Usage, depth charts, contracts and coaches from nflverse, built once per run."""
+        if self._situations is None:
+            season = int(self.state.get("league_season") or self.state.get("season"))
+            self._situations = role.Situations(season, self.players, self.crosswalk, self.optional)
+        return self._situations
 
     def optional(self, fn):
         """Run a fetch the build can do without; None (with a warning) when it fails."""
@@ -119,7 +128,11 @@ class Shared:
             if in_season and week else [],
             "cur": safe(sleeper.season_stats, season, idp) if in_season else {},
             "last": safe(sleeper.season_stats, season - 1, idp),
+            "two_ago": safe(sleeper.season_stats, season - 2, idp),
         }
+        # Game by game, this season's finished weeks and all of last season's.
+        done = (week - 1) if in_season and week else (record.LAST_REGULAR_WEEK if self.state.get("season_type") == "off" else 0)
+        tables["games"] = gamelog.collect(season, max(done, 0), idp, self.optional)
         self._stats[idp] = tables
         return tables
 
@@ -178,6 +191,27 @@ def load_history(league_id: str) -> dict:
         return {}
 
 
+def learn_league_market(league: dict, lid: str, season_trades: list, players: list, pick_values, shared) -> dict:
+    """Position multipliers from this league's trades; earlier seasons' logs are cached for a week."""
+    trades = list(season_trades)
+    chain = shared.optional(lambda: draft.league_chain({**league, "league_id": lid})) or [league]
+    for old in chain[1:]:
+        oid = old.get("league_id")
+        if oid:
+            trades += trade_log.recent(oid, range(0, 19), shared.players, shared.optional, ttl=7 * 24 * 3600, limit=None,
+                                    keep=True)
+    by_id = {p["id"]: p for p in players}
+
+    def pick_value(move):
+        # Only picks still to be made have a value today.
+        if int(move["season"]) < int(league.get("season") or 0) + (0 if league.get("status") in ("pre_draft", "drafting") else 1):
+            return None
+        return pick_values.value(int(move["season"]), int(move["round"]))
+    scale = max((p["value"] for p in players), default=10_000)
+    now_ms = datetime.now(timezone.utc).timestamp() * 1000
+    return market_learn.learn(trades, by_id, pick_value, now_ms, scale)
+
+
 def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     lid = config["sleeper_league_id"]
     me = (me or "").lower()
@@ -207,10 +241,31 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         for pid in r.get("players") or []:
             owner_of[pid] = r["roster_id"]
 
+    situations = shared.situations()
     players, model_info = valuation.value_players(
-        fmt, shared.players, market, tables["proj"], tables["week_proj"], tables["cur"], tables["last"], set(owner_of)
+        fmt, shared.players, market, tables["proj"], tables["week_proj"], tables["cur"], tables["last"], set(owner_of),
+        tables["two_ago"], situations,
     )
+    model_info["situation_sources"] = situations.status
+    model_info["backtest"] = {k: model.TUNING.get(k) for k in ("generated", "seasons", "scoring", "season_weights",
+                                                                "in_season", "stability", "availability", "aging_holdout")}
+    # What this league's own trades say it pays by position (this season and the two
+    # before), applied before anything else reads the values.
+    pick_values = PickValues(pick_entries)
+    season_trades = trade_log.recent(lid, range(0, min(int(shared.state.get("week") or 0) + 1, 18) + 1),
+                                     shared.players, shared.optional)
+    league_market = learn_league_market(league, lid, season_trades, players, pick_values, shared)
+    mult = league_market["multipliers"]
     for p in players:
+        m = mult.get(market_learn.GROUP.get(p["pos"]) or "", 1.0)
+        if m != 1.0:
+            p["value_before_league_market"] = p["value"]
+            p["value"] = round(p["value"] * m)
+    valuation.rank(players)
+    for p in players:
+        g = gamelog.summarize(tables["games"], p["id"], p["pos"], fmt.scoring, tables["season"])
+        if g:
+            p["games"] = g
         p["roster_id"] = owner_of.get(p["id"])
         p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
         p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
@@ -291,7 +346,6 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     finish_tier = {}
     for i, rid in enumerate(order):
         finish_tier[rid] = "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late"
-    pick_values = PickValues(pick_entries)
     # Team name plus manager, so "via" picks name the person too.
     name_of = {t["roster_id"]: t["name"] + (f", {t['owner']}" if t.get("owner") and t["owner"] != t["name"] else "")
                for t in teams}
@@ -316,6 +370,12 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         order = order_now = round_orders[1]
         rule = {**rule, "basis": "league_rule", "fixed": True}
         finish_tier = {rid: "early" if i < n / 3 else "mid" if i < 2 * n / 3 else "late" for i, rid in enumerate(order)}
+    # In season, the coming draft's order is still being decided: play the rest of the
+    # season out many times and price each pick over every slot it can land at.
+    landing_counts = None
+    if first_year and not round_orders and league.get("status") == "in_season" and len(teams) == n:
+        landing_counts = shared.optional(lambda: landing.simulate(
+            teams, schedule, median_game, sigma, rule["rule"], playoff_teams, playoff_slots, divisions))
     for pk in owned:
         first = pk["year"] == first_year
         tier = finish_tier.get(pk["original_roster_id"]) if first else None
@@ -327,6 +387,12 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         if pk["original_roster_id"] != pk["owner_roster_id"]:
             label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
         value = slot_fn(overall) if overall else pick_values.value(pk["year"], pk["round"], tier)
+        land = None
+        if first and landing_counts and pk["original_roster_id"] in landing_counts:
+            c = landing_counts[pk["original_roster_id"]]
+            value, avg_slot = landing.pick_value(c, pk["round"], n, snake, slot_fn)
+            land = {**landing.odds(c), "avg_slot": round(avg_slot, 2), "single_slot_value": round(slot_fn(overall)) if overall else None}
+        value *= mult.get("PICK", 1.0)
         picks.append({
             "id": f"pick:{pk['year']}:{pk['round']}:{pk['original_roster_id']}",
             "label": label, "year": pk["year"], "round": pk["round"], "tier": tier,
@@ -335,6 +401,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "slot_now": draft.slot_in_round(order_now, pk["round"], pk["original_roster_id"], snake, round_orders)
             if first else None,
             "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
+            **({"landing": land} if land else {}),
         })
     # The draft after: each team projected a season ahead (aging plus the rookies its
     # coming picks bring), ordered by the same rule, priced over a spread of finishes.
@@ -358,11 +425,30 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
                 s_ = e["slot"]
                 pk["tier"] = "early" if s_ <= n / 3 else "mid" if s_ <= 2 * n / 3 else "late"
                 pk["proj_slot"] = s_
-                pk["value"] = round(e["value"])
+                pk["value"] = round(e["value"] * mult.get("PICK", 1.0))
                 label = pick_label(pk["year"], pk["round"], pk["tier"])
                 if pk["original_roster_id"] != pk["roster_id"]:
                     label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
                 pk["label"] = label
+            # Two drafts out: the class's strength (KTC devy values for that class)
+            # shapes the slot values, and landing spots spread twice as wide.
+            year3 = first_year + 2
+            later3 = [pk for pk in picks if pk["year"] == year3]
+            class3 = draft.rookie_class(devy["players"], year3, players, pick_values, n, rounds, scale,
+                                        prospect_overrides()) \
+                if later3 and any(p["class"] == year3 for p in devy["players"]) else []
+            if class3:
+                value3 = outlook.slot_curve(pick_values, slot_fn, first_year, year3, n, class3)
+                exp3 = outlook.expected_slots({r: s["ppg"] for r, s in strength.items()}, rule["rule"], playoff_teams,
+                                              playoff_slots, snake, rounds, value3, divisions=divisions,
+                                              spread=2 * outlook.SPREAD)
+                for pk in later3:
+                    e = exp3.get((pk["round"], pk["original_roster_id"]))
+                    if e:
+                        pk["class_value"] = round(e["value"] * mult.get("PICK", 1.0))
+                        # Half the market's round price, half the class-and-landing price:
+                        # this far out the market's view still counts for a lot.
+                        pk["value"] = round(0.5 * pk["value"] + 0.5 * pk["class_value"])
             ranked = sorted(strength, key=lambda r: strength[r]["ppg"])
             next_draft = {
                 "year": year2, "spread": outlook.SPREAD, "rookie_year": outlook.ROOKIE_YEAR,
@@ -446,8 +532,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "teams": teams,
         "team_values": tv,
         # Completed trades this season, newest first; the site values them with today's numbers.
-        "trades": trade_log.recent(lid, range(0, min(int(shared.state.get("week") or 0) + 1, 18) + 1),
-                                   shared.players, shared.optional),
+        "trades": season_trades,
+        "league_market": league_market,
     }
 
 
