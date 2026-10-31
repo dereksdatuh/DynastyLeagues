@@ -205,7 +205,7 @@ async function loadLeague(key) {
   if (data.lite) finishLite(data);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
   state.adjScale = null;
-  state.trade = { sides: [newSide(), newSide()] };
+  state.trade = freshTrade();
   state.teamOpen = null;
   const when = new Date(state.data.generated_at);
   $("#updated").textContent = `Values updated ${when.toLocaleString()}${state.data.league.week ? ` · Week ${state.data.league.week}` : ""}`;
@@ -732,6 +732,8 @@ function evenOut(gets, gives) {
 const netOf = (gets, gives, f = () => 1) => adjustTrade(gets.map((a) => ({ value: a.value * f(a), kind: a.kind })), gives.map((a) => ({ value: a.value * f(a), kind: a.kind }))).pct;
 
 const newSide = () => ({ team: null, assets: [] });
+// A new trade starts with the logged-in user's team as Team A, when they have one here.
+const freshTrade = () => ({ sides: [{ ...newSide(), team: myTeam()?.roster_id ?? null }, newSide()] });
 const sides = () => state.trade.sides;
 const sideName = (i) => (sides()[i].team ? teamName(sides()[i].team) : `Team ${LETTERS[i]}`);
 
@@ -785,7 +787,7 @@ function senderOf(asset, i) {
 }
 
 function setupTrade() {
-  if (!state.trade || !state.trade.sides) state.trade = { sides: [newSide(), newSide()] };
+  if (!state.trade || !state.trade.sides) state.trade = freshTrade();
   renderTeamCount();
   renderSides();
 }
