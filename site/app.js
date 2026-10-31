@@ -1679,7 +1679,7 @@ function renderPickProj() {
     const moved = pk && pk.roster_id !== pk.original_roster_id;
     const land = pk && pk.landing;
     const range = how === "sim" && r === 1 ? `<span class="muted">avg ${Number(o.exp).toFixed(1)}</span>`
-      : land && land.range ? `<span class="muted" title="Where this pick lands across simulated finishes to the season (10th to 90th percentile); its value is the average over all of them">${land.range[0] === land.range[1] ? `${r}.${String(land.range[0]).padStart(2, "0")}` : `${land.range[0]}-${land.range[1]}`}${r === 1 && land.top3 >= 0.01 ? ` · top 3 ${Math.round(land.top3 * 100)}%` : ""}</span>` : "";
+      : land && land.range ? `<span class="muted" title="Where this pick lands across simulated finishes to the season (10th to 90th percentile); its value is the average over all of them">${[...new Set(land.range.map((x) => (snake && r % 2 === 0 ? n + 1 - x : x)))].sort((a, b) => a - b).map((x) => `${r}.${String(x).padStart(2, "0")}`).join("-")}${r === 1 && land.top3 >= 0.01 ? ` · top 3 ${Math.round(land.top3 * 100)}%` : ""}</span>` : "";
     return `<div class="pick-card ${isMine ? "yours" : ""}" style="animation-delay:${(i * 0.025).toFixed(3)}s">
       <div class="pick-slot">${r}.${String(slot).padStart(2, "0")}</div>
       <div class="pick-team">${teamAvatar(orig)}<span><b>${esc(orig ? orig.name : "")}</b>${moved ? `<span class="muted">owned by ${esc(holder.name)}</span>` : managerOf(orig) ? `<span class="muted">${esc(managerOf(orig))}</span>` : ""}</span></div>

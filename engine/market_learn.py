@@ -6,7 +6,9 @@ league's managers keep paying more for RBs than the values say, RBs here get a
 multiplier above 1, and so on for QB, WR, TE, IDP and picks.
 
 The fit is deliberately cautious:
-* each trade counts less the older it is (today's values describe old trades worse);
+* each trade counts less the older it is (half as much every HALF_LIFE_DAYS): it is
+  priced with today's values, and a player traded a year ago has aged since, which
+  reads as if the league had underpaid for picks;
 * a ridge pull toward 1 worth PRIOR_TRADES trades, so a handful of deals moves little;
 * a position needs MIN_TRADES trades it appeared in, or it stays at 1;
 * the result is clamped to CLAMP.
@@ -16,10 +18,10 @@ import math
 
 from . import trade as trade_eval
 
-PRIOR_TRADES = 12.0
+PRIOR_TRADES = 25.0
 MIN_TRADES = 5
-CLAMP = (0.92, 1.08)
-HALF_LIFE_DAYS = 365
+CLAMP = (0.95, 1.05)
+HALF_LIFE_DAYS = 180
 GROUP = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "DL": "IDP", "LB": "IDP", "DB": "IDP", "PICK": "PICK"}
 GROUPS = ("QB", "RB", "WR", "TE", "IDP", "PICK")
 
