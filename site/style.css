@@ -96,6 +96,15 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--tier
 .card ul.plan li { display: list-item; border: none; padding: 2px 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+/* manager profiles */
+details.managers { margin: 12px 0; }
+details.managers summary { cursor: pointer; font-weight: 600; }
+.mgr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.mgr-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.mgr-row.blocked { opacity: 0.6; }
+.mgr-row .mgr-head { display: flex; align-items: center; gap: 6px; }
+.mgr-row .chip input { margin-right: 4px; }
+.mgr-row .mgr-keep { width: 100%; box-sizing: border-box; margin-top: 6px; }
 .card ul { list-style: none; margin: 0; padding: 0; }
 .card li.starter span:first-child { font-weight: 700; }
 .stats { display: flex; flex-wrap: wrap; gap: 10px; }

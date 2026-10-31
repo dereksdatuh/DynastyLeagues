@@ -2325,6 +2325,112 @@ function lockedIds(rid = finder.me ?? myTeam()?.roster_id) {
 function untouchable(id, rid) { return lockedIds(rid).has(id); }
 function setLocked(rid, ids) { localStorageSet(lockKey(rid), JSON.stringify([...ids])); }
 
+// ---------- manager profiles ----------
+// Two halves. Their trade history comes from the league's public Sleeper trades and
+// is worked out here in the browser. Your notes on each manager (won't trade with
+// you, picks only, players they won't move) live only in this browser, like the
+// untouchable list; the "won't move" list is that manager's untouchable list.
+const profileKey = (rid) => `profile.${state.data.league.id}.${rid}`;
+function managerNotes(rid) {
+  try { return { block: false, picksOnly: false, ...JSON.parse(localStorageGet(profileKey(rid)) || "{}") }; } catch { return { block: false, picksOnly: false }; }
+}
+function setManagerNotes(rid, notes) { localStorageSet(profileKey(rid), JSON.stringify(notes)); }
+const blockedPartner = (rid) => rid !== finder.me && managerNotes(rid).block;
+
+function managerHistory(rid) {
+  const me = myTeam()?.roster_id;
+  const ageOf = (id) => { const p = state.data.players.find((x) => x.id === id); return p && p.age ? p.age : null; };
+  const h = { trades: 0, withMe: 0, picksIn: 0, picksOut: 0, agesIn: [], agesOut: [], posIn: {}, last: null, partners: {} };
+  for (const t of state.data.trades || []) {
+    if (!t.rosters || !t.rosters.includes(rid)) continue;
+    h.trades++;
+    if (me != null && me !== rid && t.rosters.includes(me)) h.withMe++;
+    if (!h.last || t.at > h.last) h.last = t.at;
+    t.rosters.filter((r) => r !== rid).forEach((r) => (h.partners[r] = (h.partners[r] || 0) + 1));
+    for (const m of t.moves || []) {
+      if (m.to === rid) {
+        if (m.kind === "pick") h.picksIn++;
+        else { const a = ageOf(m.id); if (a) h.agesIn.push(a); if (m.pos) h.posIn[m.pos] = (h.posIn[m.pos] || 0) + 1; }
+      } else if (m.from === rid) {
+        if (m.kind === "pick") h.picksOut++;
+        else { const a = ageOf(m.id); if (a) h.agesOut.push(a); }
+      }
+    }
+  }
+  const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  h.ageIn = avg(h.agesIn); h.ageOut = avg(h.agesOut);
+  h.buysPicks = h.picksIn - h.picksOut >= 2;
+  h.sellsPicks = h.picksOut - h.picksIn >= 2;
+  h.younger = h.ageIn != null && h.ageOut != null && h.ageOut - h.ageIn >= 1.5;
+  h.older = h.ageIn != null && h.ageOut != null && h.ageIn - h.ageOut >= 1.5;
+  const top = Object.entries(h.posIn).sort((a, b) => b[1] - a[1])[0];
+  h.topPos = top && top[1] >= 2 ? top[0] : null;
+  return h;
+}
+function historyText(h) {
+  if (!h.trades) return "No trades this season.";
+  const bits = [`${h.trades} trade${h.trades > 1 ? "s" : ""} this season`];
+  if (h.buysPicks) bits.push(`buys picks (got ${h.picksIn}, sent ${h.picksOut})`);
+  else if (h.sellsPicks) bits.push(`sells picks (sent ${h.picksOut}, got ${h.picksIn})`);
+  if (h.younger) bits.push(`gets younger (adds ${h.ageIn.toFixed(1)}, sends ${h.ageOut.toFixed(1)} avg age)`);
+  else if (h.older) bits.push(`buys veterans (adds ${h.ageIn.toFixed(1)}, sends ${h.ageOut.toFixed(1)} avg age)`);
+  if (h.topPos) bits.push(`adds ${h.topPos} most`);
+  if (myTeam()) bits.push(h.withMe ? `${h.withMe} with you` : "never with you");
+  if (h.last) bits.push(`last ${new Date(h.last).toLocaleDateString()}`);
+  return bits.join(" · ");
+}
+// How well a deal fits what a manager has done before: one point per habit it matches.
+function historyFits(rid, theyGet, theySend) {
+  const h = managerHistory(rid), fits = [];
+  const ages = (xs) => xs.filter((a) => a.kind === "player" && a.age).map((a) => a.age);
+  const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  if (h.buysPicks && theyGet.some((a) => a.kind === "pick")) fits.push("they buy picks");
+  if (h.sellsPicks && theySend.some((a) => a.kind === "pick")) fits.push("they sell picks");
+  const gi = avg(ages(theyGet)), so = avg(ages(theySend));
+  if (h.younger && gi != null && so != null && gi < so) fits.push("they like getting younger");
+  if (h.older && gi != null && so != null && gi > so) fits.push("they buy veterans");
+  if (h.topPos && theyGet.some((a) => a.pos === h.topPos)) fits.push(`they add ${h.topPos}s`);
+  return fits;
+}
+
+// The Manager profiles panel in the Trade Finder: each other manager's trade history,
+// plus your own notes, which the finder obeys.
+function managersHtml() {
+  const others = state.data.teams.filter((t) => t.roster_id !== finder.me);
+  const rows = others.map((t) => {
+    const rid = t.roster_id, n = managerNotes(rid), keeps = [...lockedIds(rid)].map(assetById).filter(Boolean);
+    const theirs = [...state.assetMap.values()].filter((a) => a.roster_id === rid && a.value > 0).sort((a, b) => b.value - a.value);
+    return `<div class="mgr-row ${n.block ? "blocked" : ""}" data-rid="${rid}">
+      <div class="mgr-head">${teamAvatar(t)}<b>${esc(t.name)}</b>${managerOf(t) ? ` <span class="muted">${esc(managerOf(t))}</span>` : ""}</div>
+      <p class="muted small">${esc(historyText(managerHistory(rid)))}</p>
+      <div class="chips"><label class="chip"><input type="checkbox" data-note="block" ${n.block ? "checked" : ""}> Won't trade with me</label>
+        <label class="chip"><input type="checkbox" data-note="picksOnly" ${n.picksOnly ? "checked" : ""}> Picks only from me</label></div>
+      <input class="mgr-keep" type="search" placeholder="Won't move: add a piece" list="mgr-list-${rid}" />
+      <datalist id="mgr-list-${rid}">${theirs.map((a) => `<option value="${esc(a.label)}"></option>`).join("")}</datalist>
+      ${keeps.length ? `<ul class="assets">${keeps.map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-keep-off="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
+    </div>`;
+  }).join("");
+  const noted = others.filter((t) => { const n = managerNotes(t.roster_id); return n.block || n.picksOnly || lockedIds(t.roster_id).size; }).length;
+  return `<details class="card managers" ${finder.mgrOpen ? "open" : ""}><summary>Manager profiles <span class="muted">(${noted ? `${noted} with your notes` : "add notes the finder will follow"})</span></summary>
+    <p class="muted">Trade history comes from this season's trades in this league on Sleeper. Your notes stay in this browser only. The finder skips managers who won't trade with you, sends only picks to "picks only" managers, never asks for a piece they won't move, and ranks deals that match a manager's habits a little higher.</p>
+    <div class="mgr-grid">${rows}</div></details>`;
+}
+function bindManagers(el) {
+  const box = el.querySelector("details.managers");
+  if (!box) return;
+  box.addEventListener("toggle", () => (finder.mgrOpen = box.open));
+  box.querySelectorAll(".mgr-row").forEach((row) => {
+    const rid = Number(row.dataset.rid);
+    row.querySelectorAll("[data-note]").forEach((c) => (c.onchange = () => { const n = managerNotes(rid); n[c.dataset.note] = c.checked; setManagerNotes(rid, n); finder.last = null; renderFinder(); }));
+    row.querySelector(".mgr-keep").onchange = (e) => {
+      const a = [...state.assetMap.values()].find((x) => x.roster_id === rid && (x.label === e.target.value || x.name === e.target.value));
+      if (a) { const ids = lockedIds(rid); ids.add(a.id); setLocked(rid, ids); finder.get = finder.get.filter((id) => id !== a.id); finder.last = null; }
+      renderFinder();
+    };
+    row.querySelectorAll("[data-keep-off]").forEach((b) => (b.onclick = () => { const ids = lockedIds(rid); ids.delete(b.dataset.keepOff); setLocked(rid, ids); finder.last = null; renderFinder(); }));
+  });
+}
+
 function renderFinder() {
   const el = $("#finder");
   if (!el) return;
@@ -2378,6 +2484,7 @@ function renderFinder() {
     <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(can't be added to "OK to add")</span></h3>
       <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
       <ul class="assets">${[...locked].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
+    ${managersHtml()}
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
       .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div></div>
     <div class="toolbar"><span class="muted">Aim for <span class="aim-now">(you're ${esc(buildsNow[finder.me]?.name || "")} now)</span></span><div class="chips" id="finder-aim"><button class="chip ${finder.target ? "" : "active"}" data-aim="">Any build</button>${Object.keys(BUILD_INFO)
@@ -2422,6 +2529,7 @@ function renderFinder() {
   el.querySelectorAll("[data-unlock]").forEach((b) => b.addEventListener("click", () => {
     const ids = lockedIds(finder.me); ids.delete(b.dataset.unlock); setLocked(finder.me, ids); renderFinder();
   }));
+  bindManagers(el);
   pick($("#finder-send"), mine, "send");
   pick($("#finder-offer"), mine, "offer");
   pick($("#finder-get"), theirs, "get");
@@ -2493,7 +2601,10 @@ function findTrades() {
   if (getRoom < 0) return { error: `You named ${get.length} pieces to get but set ${finder.getMax} back.` };
   const posOk = (a) => !finder.positions.length || finder.positions.includes(a.kind === "pick" ? "PICK" : a.pos);
   const crack = (p) => p.kind === "player" && p.ros_ppg > 0 && teamPPG([...myRoster, p]) - myPPG > 0.3;
-  const partners = get.length ? [get[0].roster_id] : finder.partners.length ? finder.partners.filter((r) => r !== me) : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me);
+  if (get.length && blockedPartner(get[0].roster_id)) return { error: `You noted that ${teamName(get[0].roster_id)} won't trade with you. Clear that in Manager profiles to look anyway.` };
+  const partners = (get.length ? [get[0].roster_id] : finder.partners.length ? finder.partners.filter((r) => r !== me) : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me))
+    .filter((r) => !blockedPartner(r));
+  if (!partners.length) return { error: "Every team you picked is marked \"won't trade with me\" in Manager profiles." };
   const dirs = assignBuilds();
   const extrasMine = combosUpTo(myExtra, Math.min(sendRoom, myExtra.length > 8 ? 2 : 3));
   const recBefore = projectRecords();
@@ -2501,9 +2612,12 @@ function findTrades() {
   for (const B of partners) {
     const getIds = new Set(get.map((a) => a.id));
     const theirTone = dirs[B] && dirs[B].tone;
+    const theirLocked = lockedIds(B), picksOnly = managerNotes(B).picksOnly;
+    // A manager you noted takes only picks from you: no players of yours in the deal.
+    if (picksOnly && send.some((a) => a.kind !== "pick")) continue;
     // What the partner could add: the positions you asked for, best fits for your goal first.
     const fitScore = (a) => a.value * goalFactor(a, goal, me, crack(a) ? new Set([a.id]) : new Set()) * (goal === "contend" && crack(a) ? 1.3 : 1);
-    const pool = [...state.assetMap.values()].filter((a) => a.roster_id === B && a.value >= 150 && !getIds.has(a.id) && posOk(a)
+    const pool = [...state.assetMap.values()].filter((a) => a.roster_id === B && a.value >= 150 && !getIds.has(a.id) && !theirLocked.has(a.id) && posOk(a)
       && !(goal === "rebuild" && OLD_FOR_REBUILD(a)))
       .sort((a, b) => fitScore(b) - fitScore(a)).slice(0, FINDER_POOL);
     const adds = combosUpTo(pool, Math.min(getRoom, FINDER_MAX_ADD));
@@ -2517,6 +2631,7 @@ function findTrades() {
         if (!gives.length) continue;
         // A rebuilding partner doesn't want your old veterans as throw-ins.
         if (theirTone === "rebuilding" && mx.some(OLD_FOR_REBUILD)) continue;
+        if (picksOnly && mx.some((a) => a.kind !== "pick")) continue;
         const mkt = netOf(gets, gives);
         if (!myMarketFits(mkt)) continue;
         const them = netOf(gives, gets, (a) => teamFactor(B, a.id));
@@ -2547,6 +2662,9 @@ function findTrades() {
     d.score = goal === "contend" ? d.dMe + 20 * d.mine + 5 * d.them - 0.4 * pieces
       : goal === "rebuild" ? 100 * d.mine + 10 * d.them - 0.15 * Math.max(0, -d.dMe) - 0.8 * pieces
       : 60 * d.mine + 0.5 * d.dMe + 15 * d.them - 0.6 * pieces;
+    // Deals that look like what this manager has done before rank a little higher.
+    d.fits = historyFits(d.B, d.gives, d.gets);
+    d.score += 0.6 * d.fits.length;
     top.push(d);
   }
   top.sort((a, b) => b.score - a.score);
@@ -2603,6 +2721,8 @@ const goalLabel = (g) => (g && g.startsWith("aim:") ? `aiming for ${BUILD_INFO[g
 function findTrades3() {
   const me = finder.me, [B, C] = finder.three.teams;
   if (B == null || C == null || B === C) return { error: "Pick two different teams to trade with." };
+  const blocked = [B, C].filter(blockedPartner);
+  if (blocked.length) return { error: `You noted that ${blocked.map(teamName).join(" and ")} won't trade with you. Clear that in Manager profiles to look anyway.` };
   const send = finder.send.map(assetById).filter(Boolean), get = finder.get.map(assetById).filter(Boolean);
   const locked = lockedIds(me), sendIds = new Set(send.map((a) => a.id));
   const myExtra = finder.offer.map(assetById).filter(Boolean)
@@ -2622,7 +2742,7 @@ function findTrades3() {
   const getIds = new Set(get.map((a) => a.id));
   // Pool of what team `from` could send to team `to`, best fits for `to` first.
   const pool = (from, to, mineToo) => [...state.assetMap.values()]
-    .filter((a) => a.roster_id === from && a.value >= 150 && !getIds.has(a.id) && (!mineToo || posOk(a))
+    .filter((a) => a.roster_id === from && a.value >= 150 && !getIds.has(a.id) && !lockedIds(from).has(a.id) && (!mineToo || posOk(a))
       && !(specs[to].tone === "rebuild" && OLD_FOR_REBUILD(a)))
     .sort((a, b) => b.value * factor(to)(b) - a.value * factor(to)(a)).slice(0, 9);
   const mine = combosUpTo(myExtra, Math.min(sendRoom, 2)).map((mx) => [...send, ...mx]).filter((g) => g.length);
@@ -2643,6 +2763,7 @@ function findTrades3() {
       const gy = ok(toY, toMe, Y, false);
       if (gy == null) continue;
       for (const toX of mine) {
+        if (managerNotes(X).picksOnly && toX.some((a) => a.kind !== "pick")) continue;
         const gx = ok(toX, toY, X, false);
         if (gx == null) continue;
         const gm = ok(toMe, toX, me, get.length > 0);
@@ -2742,6 +2863,7 @@ function finderResults(r) {
     const picks = d.gives.filter((a) => a.kind === "pick");
     if (picks.length && c && (c.label === "rebuilding" || c.label === "tanking")) bits.push(`They add ${picks.length > 1 ? "picks" : "a pick"} for their rebuild.`);
     if (d.why.themOpen.length) bits.push(`It opens a need at ${d.why.themOpen.join(", ")} for them.`);
+    if (d.fits && d.fits.length) bits.push(`Fits their trade history: ${d.fits.join(", ")}.`);
     return bits.join(" ");
   };
   return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} ${finder.winBy ? "winning" : "fair"} deals found, ranked for ${goalName}.
