@@ -117,6 +117,48 @@ for (const [id, liteRun] of runs) {
     if (!lab || !labRows) errors.push(`${id}: lineups after the trade missing`);
     await page.click('button[data-tab="trade"]');
   }
+  // The offer grader reads a Sleeper Trade Summary: one top player each way.
+  if (drafted) {
+    const summary = await page.evaluate(() => {
+      const ts = state.data.teams.filter((t) => t.owner && t.players.length).slice(0, 2);
+      if (ts.length < 2) return "";
+      const top = (t) => state.data.players.filter((p) => p.roster_id === t.roster_id).sort((a, b) => b.value - a.value)[0];
+      const [a, b] = ts, pa = top(a), pb = top(b);
+      const item = (p) => `${p.name}\n${p.pos} • ${p.team || "FA"}`;
+      return `Trade Summary\n${a.owner}\nRECEIVES\nSENDS\n${item(pb)}\nFrom ${b.owner}\n${item(pa)}\nTo ${b.owner}\n${b.owner}\nRECEIVES\nSENDS\n${item(pa)}\nFrom ${a.owner}\n${item(pb)}\nTo ${a.owner}`;
+    });
+    if (summary) {
+      if (!(await page.$eval("#offer-box", (d) => d.open))) await page.click("#offer-box summary");
+      await page.fill("#offer-text", summary);
+      await page.click("#offer-grade");
+      const graded = await page.$$eval("#offer-out table.net tbody tr", (r) => r.length);
+      const loaded = await page.evaluate(() => state.trade.sides.map((x) => x.assets.length).join("+"));
+      console.log(`  offer grader: ${graded} teams graded, calculator loaded ${loaded}`);
+      if (graded !== 2 || loaded !== "1+1") errors.push(`${id}: offer grader didn't read the trade summary (${graded} rows, ${loaded})`);
+    }
+  }
+  // The 2027, 2028 and 2029 classes draw from the research file plus KTC devy values.
+  await page.click('button[data-tab="devy"]');
+  await page.waitForFunction(() => document.querySelector("#devy .devy-card, #devy p"), null, { timeout: 15000 });
+  const devyCards = await page.$$eval("#devy .devy-card", (r) => r.length);
+  console.log(`  future rookies: ${devyCards} prospects, top ${await page.$$eval("#devy .devy-name b", (bs) => bs.slice(0, 3).map((b) => b.textContent).join(", "))}`);
+  if (!devyCards) errors.push(`${id}: 2027-2029 rookie classes missing`);
+  // Playoff and draft-slot odds from simulated seasons.
+  if (drafted) {
+    await page.click('button[data-tab="odds"]');
+    const oddsRows = await page.$$eval("#odds table.odds-table:not(.slots) tbody tr", (r) => r.length);
+    const oddsTop = await page.$eval("#odds table.odds-table tbody tr", (r) => r.textContent.replace(/\s+/g, " ").trim().slice(0, 120)).catch(() => "");
+    console.log(`  playoff odds: ${oddsRows} teams, top ${oddsTop}`);
+    const nTeams = await page.evaluate(() => state.data.teams.length);
+    if (oddsRows !== nTeams) errors.push(`${id}: playoff odds show ${oddsRows} teams, expected ${nTeams}`);
+  }
+  // Pick projections draw a board for every year with tradable picks.
+  await page.click('button[data-tab="picks"]');
+  const pickCards = await page.$$eval("#pickproj .pick-card", (r) => r.length);
+  const hasPicks = await page.evaluate(() => (state.data.picks || []).length > 0);
+  console.log(`  pick projections: ${pickCards} cards, yours: ${await page.$$eval("#pickproj .my-pick b", (bs) => bs.slice(0, 4).map((b) => b.textContent).join(", "))}`);
+  if (hasPicks && !pickCards) errors.push(`${id}: pick projections missing`);
+  await page.click('button[data-tab="trade"]');
   // This week's tabs.
   await page.click('button[data-tab="matchups"]');
   const matchups = await page.$$eval("#matchups .matchup", (ms) => ms.map((m) => [...m.querySelectorAll(".side")].map((s) => s.querySelector(".team").textContent.trim() + " " + s.querySelector(".score").textContent + " (" + s.querySelector(".muted").textContent + ")").join("  vs  ")));
@@ -165,6 +207,26 @@ for (const [id, liteRun] of runs) {
     await page.click("#finder-out .finder-open").catch(() => {});
     await page.click('button[data-tab="finder"]');
     for (let i = 0; i < 6 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
+  }
+  // Three-team finder: you plus two teams, still only offering what you picked.
+  if (drafted && (await page.evaluate(() => state.data.teams.length >= 3))) {
+    await page.click('button[data-tab="finder"]');
+    await page.click('#finder-mode [data-mode="3"]');
+    const opts = await page.$$eval('.three-team[data-k="0"] option', (os) => os.map((o) => o.value).filter(Boolean));
+    await page.selectOption('.three-team[data-k="0"]', opts[0]);
+    await page.selectOption('.three-team[data-k="1"]', opts[1]);
+    await page.click("#offer-picks"); await page.click("#offer-bench");
+    const allowed3 = await page.$$eval("#finder .finder-grid .trade-side:first-child .assets li span:first-child", (ss) => ss.map((x) => x.textContent.trim()));
+    const t3 = Date.now();
+    await page.click("#finder-run");
+    await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 60000 });
+    const gives3 = await page.$$eval("#finder-out .finder-deal .trade-grid > .trade-side:first-child ul:nth-of-type(2) li span:first-child", (ss) => ss.map((x) => x.textContent.trim()));
+    const stray3 = gives3.filter((x) => !allowed3.includes(x));
+    if (stray3.length) errors.push(`${id}: three-team finder offered pieces not picked: ${[...new Set(stray3)].slice(0, 3).join(", ")}`);
+    const n3 = await page.$$eval("#finder-out .finder-deal", (r) => r.length);
+    const err3 = await page.$eval("#finder-out .error", (e) => e.textContent).catch(() => "");
+    console.log(`  three-team finder: ${n3} deals in ${Date.now() - t3} ms${err3 ? " (" + err3 + ")" : ""}`);
+    await page.click('#finder-mode [data-mode="2"]');
   }
   await page.click('button[data-tab="trades"]');
   await page.waitForTimeout(1500); // the tab also asks Sleeper for trades since the build

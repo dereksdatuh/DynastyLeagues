@@ -205,7 +205,7 @@ async function loadLeague(key) {
   if (data.lite) finishLite(data);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
   state.adjScale = null;
-  state.trade = { sides: [newSide(), newSide()] };
+  state.trade = freshTrade();
   state.teamOpen = null;
   const when = new Date(state.data.generated_at);
   $("#updated").textContent = `Values updated ${when.toLocaleString()}${state.data.league.week ? ` · Week ${state.data.league.week}` : ""}`;
@@ -219,12 +219,17 @@ async function loadLeague(key) {
   state.liveTrades = [];
   safely("trades", renderTrades);
   safely("schedule", renderSchedule);
-  finder.me = null; finder.goal = null; finder.last = null;
+  finder.me = null; finder.goal = null; finder.target = null; finder.last = null; finder.three = { teams: [null, null], goals: ["auto", "auto"] };
   safely("finder", renderFinder);
   safely("rookie", renderRookieMock);
   safely("formula", renderFormula);
   resetLab();
   safely("lineups", renderLab);
+  safely("odds", renderOdds);
+  pickProj.year = null;
+  safely("picks", renderPickProj);
+  devyView.year = null;
+  renderDevy().catch((e) => console.error(`devy failed: ${e.stack || e}`));
 }
 
 // ---------- any Sleeper league, valued in the browser ----------
@@ -347,7 +352,7 @@ async function buildLite(entry) {
       starters: r.starters, players_points: r.players_points })), potw: potw(base.week?.potw), potw_last: potw(base.week?.potw_last) },
     schedule: { weeks: schedule, median_game: !!st.league_average_match, sigma: 0, sigma_share: 0.21, strength: {} },
     sources: base.sources, model: base.model, formula: base.formula, players, picks,
-    rookie_draft: null, next_draft: null, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
+    rookie_draft: null, next_draft: null, future_classes: base.future_classes || {}, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
   };
 }
 
@@ -637,8 +642,10 @@ async function openPlayer(id) {
       <tr><td>× scoring fit</td><td class="num">${p.premium ? p.premium.toFixed(2) : "–"}</td><td class="muted">this league's scoring vs generic</td></tr>
       <tr><td>= adjusted market</td><td class="num">${p.market_adj ? fmt(p.market_adj) : "–"}</td><td></td></tr>
       <tr><td>Points model</td><td class="num">${p.model ? fmt(p.model) : "–"}</td><td class="muted">points over replacement here, aged forward</td></tr>
-      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model</td></tr>
+      ${p.value_before_league_market ? `<tr><td>× this league's trade market</td><td class="num">${(p.value / p.value_before_league_market).toFixed(2)}</td><td class="muted">what this league's own trades pay for ${esc(p.pos)}s against the values</td></tr>` : ""}
+      <tr><td><b>Final value</b></td><td class="num"><b>${fmt(p.value)}</b></td><td class="muted">60% adjusted market, 40% model${p.value_before_league_market ? ", then the league's market" : ""}</td></tr>
     </tbody></table>
+    ${situationHtml(p)}
     ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Site's own number</th><th class="num">On our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
     <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
     ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
@@ -665,6 +672,27 @@ async function openPlayer(id) {
   const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
   const el = $("#player-history");
   if (el) el.innerHTML = pts.length >= 2 ? sparkline(pts) : `<p class="muted">Not enough daily snapshots yet${pts.length ? ` (one on ${esc(pts[0][0])})` : ""}.</p>`;
+}
+// What the points model knows beyond the stat line (engine/role.py, engine/gamelog.py).
+const ARCHETYPE = { QB_rush: "Rushing QB", QB_pocket: "Pocket QB", RB_rec: "Receiving back", RB_early: "Early-down back",
+  WR_deep: "Deep threat", WR_short: "Short-area receiver" };
+function situationHtml(p) {
+  const s = p.situation || {}, g = p.games || {};
+  const pc = (x) => `${Math.round(x * 100)}%`;
+  const rows = [];
+  if (p.vor != null) rows.push(["Points over replacement", `${p.vor > 0 ? "+" : ""}${p.vor} a game`, "against what you'd start in his place in this league (half the theoretical level, half the best free agents)"]);
+  if (s.archetype) rows.push(["Player type", ARCHETYPE[s.archetype] || s.archetype, s.archetype === "QB_rush" ? "ages on the rushing-QB curve the backtest fitted (peak to 28, then about 9% a year)" : "same age curve as his position"]);
+  if (s.tgt_share != null || s.car_share != null) rows.push(["Role", [s.tgt_share ? `${pc(s.tgt_share)} of targets` : "", s.car_share ? `${pc(s.car_share)} of carries` : "", s.snap ? `${pc(s.snap)} of snaps lately` : ""].filter(Boolean).join(", "),
+    s.role_trend ? `share ${s.role_trend > 1 ? "up" : "down"} ${pc(Math.abs(s.role_trend - 1))} over the last four games; this season's line counts ×${s.role ?? 1} (role swings mostly fade, per the backtest)` : ""]);
+  if (s.depth) rows.push(["Depth chart", s.depth, ""]);
+  if (s.contract_years_left != null) rows.push(["Contract", s.contract_years_left ? `${s.contract_years_left} more year${s.contract_years_left > 1 ? "s" : ""}` : "ends after this season", ""]);
+  if (s.availability) rows.push(["Availability", `×${s.availability} next year`, "games he's missed, marked down by how much missed time carries over (backtested)"]);
+  if (s.new_coach) rows.push(["Coaching", "new head coach this season", "shown, not priced"]);
+  if (s.later) rows.push(["Later years", `×${s.later}`, (s.notes || []).join("; ")]);
+  if (g.games || g.games_last) rows.push(["Game log", `${g.games || 0} games this season${g.ppg != null ? `, ${g.ppg} a game` : ""}${g.games_last ? `; ${g.games_last} last season${g.ppg_last != null ? ` at ${g.ppg_last}` : ""}` : ""}`,
+    g.floor != null ? `every game scored with this league's rules: floor ${g.floor}, ceiling ${g.ceiling}, last four ${g.recent}` : ""]);
+  if (!rows.length) return "";
+  return `<h3>Situation and history</h3><table class="net"><tbody>${rows.map(([a, b, c]) => `<tr><td>${esc(a)}</td><td class="num">${esc(String(b))}</td><td class="muted">${esc(c || "")}</td></tr>`).join("")}</tbody></table>`;
 }
 document.addEventListener("click", (e) => {
   const a = e.target.closest("[data-pid]");
@@ -728,6 +756,8 @@ function evenOut(gets, gives) {
 const netOf = (gets, gives, f = () => 1) => adjustTrade(gets.map((a) => ({ value: a.value * f(a), kind: a.kind })), gives.map((a) => ({ value: a.value * f(a), kind: a.kind }))).pct;
 
 const newSide = () => ({ team: null, assets: [] });
+// A new trade starts with the logged-in user's team as Team A, when they have one here.
+const freshTrade = () => ({ sides: [{ ...newSide(), team: myTeam()?.roster_id ?? null }, newSide()] });
 const sides = () => state.trade.sides;
 const sideName = (i) => (sides()[i].team ? teamName(sides()[i].team) : `Team ${LETTERS[i]}`);
 
@@ -781,7 +811,7 @@ function senderOf(asset, i) {
 }
 
 function setupTrade() {
-  if (!state.trade || !state.trade.sides) state.trade = { sides: [newSide(), newSide()] };
+  if (!state.trade || !state.trade.sides) state.trade = freshTrade();
   renderTeamCount();
   renderSides();
 }
@@ -994,6 +1024,111 @@ function renderTrade() {
     })
   );
 }
+
+// ---------- offer grader ----------
+// Reads the text of Sleeper's Trade Summary (each manager's RECEIVES / SENDS list,
+// every piece followed by "From X" or "To X"), loads the deal into the calculator,
+// and grades it for each team: market value, its own needs and weekly points.
+const normName = (s) => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, "").replace(/[^a-z]/g, "");
+const ROUND_WORD = { "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7 };
+
+function parseOffer(text) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const moves = [];   // { item: [lines], to, from }
+  let owner = null, buf = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^trade summary$/i.test(l)) continue;
+    if (lines[i + 1] && /^receives$/i.test(lines[i + 1])) { owner = l; buf = []; i++; continue; }
+    if (/^(receives|sends)$/i.test(l)) { buf = []; continue; }
+    const m = l.match(/^(from|to)\s+(.+)$/i);
+    if (m && buf.length && owner) {
+      const other = m[2];
+      moves.push(m[1].toLowerCase() === "from" ? { item: buf, to: owner, from: other } : { item: buf, to: other, from: owner });
+      buf = [];
+      continue;
+    }
+    buf.push(l);
+  }
+  // Each piece shows up twice (once per manager); keep one.
+  const seen = new Set();
+  return moves.filter((x) => { const k = `${x.item.join("|")}>${x.to}`.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+function teamByOwner(name) {
+  const n = normName(name);
+  return state.data.teams.find((t) => normName(t.owner) === n) || state.data.teams.find((t) => normName(t.name) === n) || null;
+}
+
+function resolveOfferItem(item, fromRid) {
+  if (item.some((l) => /^draft pick$/i.test(l))) {
+    const year = Number((item.find((l) => /^\d{4}$/.test(l)) || (item.join(" ").match(/\b(20\d\d)\b/) || [])[1]));
+    const rw = (item.join(" ").match(/\b(1st|2nd|3rd|4th|5th|6th|7th)\b/i) || [])[1];
+    const round = rw ? ROUND_WORD[rw.toLowerCase()] : null;
+    const cands = state.data.picks.filter((p) => p.year === year && p.round === round && p.roster_id === fromRid);
+    // Sleeper's summary doesn't say whose pick it is when a team owns two; take its own first.
+    const pick = cands.find((p) => p.original_roster_id === fromRid) || cands[0];
+    return pick ? { id: pick.id, guess: cands.length > 1 } : null;
+  }
+  const name = normName(item[0]);
+  const pos = ((item[1] || "").split(/[•·]/)[0] || "").trim().toUpperCase();
+  const hits = state.data.players.filter((p) => normName(p.name) === name);
+  const p = hits.find((x) => x.roster_id === fromRid) || hits.find((x) => !pos || x.pos === pos) || hits[0];
+  return p ? { id: p.id } : null;
+}
+
+function offerGrade(pct) {
+  return pct >= 0.1 ? "A+" : pct >= 0.05 ? "A" : pct >= 0 ? "B+" : pct >= -FAIR_MARGIN ? "B" : pct >= -0.1 ? "C" : pct >= -0.2 ? "D" : "F";
+}
+
+function gradeOffer() {
+  const out = $("#offer-out");
+  const moves = parseOffer($("#offer-text").value);
+  if (!moves.length) { out.innerHTML = `<p class="error">I couldn't find any pieces. Paste the whole Trade Summary, from the first manager's name through the last "From" or "To" line.</p>`; return; }
+  const missing = [], guessed = [], byTeam = new Map();
+  for (const mv of moves) {
+    const to = teamByOwner(mv.to), from = teamByOwner(mv.from);
+    if (!to || !from) { missing.push(`${mv.item[0]} (${!to ? mv.to : mv.from} isn't in this league)`); continue; }
+    const r = resolveOfferItem(mv.item, from.roster_id);
+    if (!r) { missing.push(`${mv.item.slice(0, 3).join(" ")} from ${mv.from}`); continue; }
+    if (r.guess) guessed.push(assetById(r.id)?.label || r.id);
+    if (!byTeam.has(to.roster_id)) byTeam.set(to.roster_id, []);
+    byTeam.get(to.roster_id).push(r.id);
+    if (!byTeam.has(from.roster_id)) byTeam.set(from.roster_id, []);
+  }
+  if (byTeam.size < 2) { out.innerHTML = `<p class="error">That doesn't look like a trade in ${esc(state.data.league.name)}. Switch to the league the offer is in and try again.</p>`; return; }
+  if (byTeam.size > 4) { out.innerHTML = `<p class="error">The calculator handles up to 4 teams.</p>`; return; }
+  const mine = myTeam();
+  const order = [...byTeam.keys()].sort((a, b) => (mine && b === mine.roster_id) - (mine && a === mine.roster_id));
+  state.trade = { sides: order.map((rid) => ({ team: rid, assets: byTeam.get(rid) })) };
+  setupTrade();
+  renderTrade();
+  const s = sides();
+  const overrides = tradeOverrides(s);
+  const rows = s.map((side, i) => {
+    const gets = side.assets.map(assetById).filter(Boolean);
+    const gives = s.flatMap((x, j) => (j === i ? [] : x.assets.map(assetById).filter((a) => a && senderOf(a, j) === i)));
+    const mkt = netOf(gets, gives), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id));
+    const p0 = teamPPG(rosterOf(side.team)), p1 = teamPPG(overrides[side.team] || rosterOf(side.team));
+    return { i, rid: side.team, mkt, lens, p0, p1 };
+  });
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`;
+  const me = rows.find((r) => mine && r.rid === mine.roster_id);
+  const best = rows.reduce((a, b) => (b.mkt > a.mkt ? b : a));
+  let call = "";
+  if (me) {
+    if (me.mkt >= 0.05) call = `You win this one by ${Math.round(me.mkt * 100)}% at market. Accept it if the lineup change works for you.`;
+    else if (me.mkt >= -FAIR_MARGIN) call = me.lens >= 0 ? "It's fair, and by your own needs you come out even or ahead. Fine to accept." : "It's fair at market, but by your own needs you give up a little. Accept only if you like the fit.";
+    else call = `You're short by ${Math.round(-me.mkt * 100)}% at market. Counter by asking ${esc(teamName(best.rid))} for one more piece: the closest fits are listed under the verdict below.`;
+  }
+  out.innerHTML = `${call ? `<p class="offer-call ${me && me.mkt >= -FAIR_MARGIN ? "up" : "down"}">Your grade: ${offerGrade(me.mkt)}. ${call}</p>` : ""}
+    <table class="net"><thead><tr><th>Team</th><th>Grade</th><th class="num">Market</th><th class="num">Own needs</th><th class="num">Points a week</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${teamHtml(r.rid)}</td><td><b>${offerGrade(r.mkt)}</b></td>
+      <td class="num ${r.mkt > FAIR_MARGIN ? "up" : r.mkt < -FAIR_MARGIN ? "down" : ""}">${pct(r.mkt)}</td><td class="num">${pct(r.lens)}</td><td class="num">${r.p0.toFixed(1)} → ${r.p1.toFixed(1)}</td></tr>`).join("")}</tbody></table>
+    ${guessed.length ? `<p class="muted">The summary doesn't say whose pick it is, and the sender owns more than one in that round, so I used: ${guessed.map(esc).join(", ")}. Swap it in the calculator below if that's wrong.</p>` : ""}
+    ${missing.length ? `<p class="error">Couldn't match: ${missing.map(esc).join("; ")}.</p>` : ""}
+    <p class="muted">Grades are by market value with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
+}
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "offer-grade") gradeOffer(); });
 
 // The value adjustment, KTC style: how far the adjusted totals move from the raw
 // ones, and the one player the short side needs added to even it (reverse
@@ -1351,6 +1486,298 @@ function renderLab() {
   }));
 }
 
+// ---------- pick projections ----------
+// Where every team's picks should land, year by year. Next year's slots come from the
+// projected standings under this league's draft rule; the year after from the engine's
+// simulated finishes (rosters a year older plus the rookies each team's picks bring);
+// the third year from each team's projected lineup that season, weakest picking first.
+const pickProj = { year: null };
+const teamAvatar = (t) => (t && t.avatar ? `<img class="face" src="https://sleepercdn.com/avatars/thumbs/${esc(t.avatar)}" alt="" loading="lazy" onerror="this.remove()">` : "");
+const roundWord = (r) => ["", "1st", "2nd", "3rd"][r] || `${r}th`;
+
+function pickYearOrder(year) {
+  const n = state.data.teams.length;
+  const firsts = state.data.picks.filter((p) => p.year === year && p.round === 1);
+  if (firsts.length === n && firsts.every((p) => p.slot)) {
+    return { how: "exact", order: firsts.slice().sort((a, b) => a.slot - b.slot).map((p) => ({ rid: p.original_roster_id, exp: p.slot })) };
+  }
+  if (firsts.length === n && firsts.every((p) => p.proj_slot != null)) {
+    return { how: "sim", order: firsts.slice().sort((a, b) => a.proj_slot - b.proj_slot).map((p) => ({ rid: p.original_roster_id, exp: p.proj_slot })) };
+  }
+  const ppg = (t) => {
+    const f = t.future || {};
+    // The draft follows the season before it.
+    const y = (f.years || []).find((x) => x.year === year - 1);
+    return y ? y.ppg : f.now ? f.now.ppg : t.ros_ppg || 0;
+  };
+  return { how: "lineup", order: state.data.teams.slice().sort((a, b) => ppg(a) - ppg(b)).map((t) => ({ rid: t.roster_id, exp: null, ppg: ppg(t) })) };
+}
+
+// ---------- playoff and draft-slot odds ----------
+// Simulates the rest of the regular season thousands of times: each week every team
+// scores around its rest-of-season lineup points (spread = the league's weekly sigma),
+// against its real opponent and the median when the league plays one. Seeds follow
+// the league's way (division winners first, ties to points for), then the bracket
+// plays out the same way, with placement games for teams knocked out in the same
+// round. The coming rookie draft's first round is ordered by this league's rule:
+// non-playoff teams by max PF or record, playoff teams by finish (or the league's
+// fixed slots for each finish).
+const ODDS_SIMS = 10000;
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// Standard bracket order for a power-of-two field: 1v8, 4v5, 3v6, 2v7 and so on.
+function bracketOrder(size) {
+  let order = [1];
+  while (order.length < size) { const n = order.length * 2; order = order.flatMap((s) => [s, n + 1 - s]); }
+  return order;
+}
+function simulateOdds(sims = ODDS_SIMS) {
+  const teams = state.data.teams, n = teams.length;
+  const sch = state.data.schedule || { weeks: {}, median_game: false };
+  const ppg = {};
+  teams.forEach((t) => (ppg[t.roster_id] = teamPPG(rosterOf(t.roster_id))));
+  const vals = Object.values(ppg).filter((v) => v > 0);
+  const sigma = sch.sigma || 0.21 * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const P = Math.min(state.data.league.playoff_teams || 0, n);
+  const rd = state.data.rookie_draft || {};
+  const rule = (rd.rule && rd.rule.rule) || "record";
+  const fixed = !!(rd.rule && rd.rule.fixed);
+  const slotsFor = rd.rule && Array.isArray(rd.rule.playoff_slots) && rd.rule.playoff_slots.length === P ? rd.rule.playoff_slots : null;
+  const rand = seededRandom(20261031 + n);
+  let spare = null;
+  const gauss = () => { if (spare != null) { const g = spare; spare = null; return g; } let u = 0, v = 0; while (u === 0) u = rand(); v = rand(); const r = Math.sqrt(-2 * Math.log(u)); spare = r * Math.sin(2 * Math.PI * v); return r * Math.cos(2 * Math.PI * v); };
+  const score = (rid) => ppg[rid] + sigma * gauss();
+  const ids = teams.map((t) => t.roster_id);
+  const acc = {};
+  ids.forEach((r) => (acc[r] = { wins: 0, playoff: 0, bye: 0, title: 0, final: 0, slot: new Array(n + 1).fill(0), slotSum: 0 }));
+  const weeks = Object.values(sch.weeks || {});
+  const size = P > 1 ? 2 ** Math.ceil(Math.log2(P)) : 0;
+  const bOrder = size ? bracketOrder(size) : [];
+  for (let s = 0; s < sims; s++) {
+    const st = {};
+    teams.forEach((t) => (st[t.roster_id] = { wins: t.record.wins || 0, ties: t.record.ties || 0, pf: t.record.fpts || 0, maxPF: t.record.max_pf || 0 }));
+    for (const pairs of weeks) {
+      const pts = {};
+      ids.forEach((r) => { pts[r] = score(r); st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
+      for (const [a, b] of pairs) { if (pts[a] > pts[b]) st[a].wins++; else st[b].wins++; }
+      if (sch.median_game) {
+        const sorted = ids.map((r) => pts[r]).sort((x, y) => x - y), h = Math.floor(n / 2);
+        const med = n % 2 ? sorted[h] : (sorted[h - 1] + sorted[h]) / 2;
+        ids.forEach((r) => { if (pts[r] > med) st[r].wins++; });
+      }
+    }
+    const seeds = seedOrder(st).map(Number);
+    ids.forEach((r) => (acc[r].wins += st[r].wins - (teams.find((t) => t.roster_id === r).record.wins || 0)));
+    // Playoffs: finish places 1..P (1 = champion).
+    const place = {};
+    if (P > 1) {
+      seeds.slice(0, P).forEach((r, i) => { acc[r].playoff++; if (size > P && i < size - P) acc[r].bye++; });
+      let alive = bOrder.map((sd) => (sd <= P ? seeds[sd - 1] : null));
+      const outByRound = [];
+      while (alive.length > 1) {
+        const next = [], out = [];
+        for (let i = 0; i < alive.length; i += 2) {
+          const a = alive[i], b = alive[i + 1];
+          if (a == null || b == null) { next.push(a ?? b); continue; }
+          const w = score(a) >= score(b) ? a : b;
+          next.push(w); out.push(w === a ? b : a);
+        }
+        outByRound.push(out);
+        alive = next;
+      }
+      place[alive[0]] = 1;
+      let nextPlace = 2;
+      for (const out of outByRound.reverse()) {
+        // Teams knocked out in the same round play for place, two at a time, best seed first.
+        const grp = out.slice().sort((a, b) => seeds.indexOf(a) - seeds.indexOf(b));
+        const ordered = [];
+        for (let i = 0; i < grp.length; i += 2) {
+          if (i + 1 >= grp.length) { ordered.push(grp[i]); continue; }
+          const a = grp[i], b = grp[i + 1];
+          const aw = score(a) >= score(b);
+          ordered.push(aw ? a : b, aw ? b : a);
+        }
+        ordered.forEach((r) => (place[r] = nextPlace++));
+      }
+      acc[alive[0]].title++;
+      Object.keys(place).forEach((r) => { if (place[r] === 2) acc[r].final++; });
+      acc[alive[0]].final++;
+    }
+    // First-round draft order.
+    if (!fixed) {
+      const playoff = seeds.slice(0, P), rest = seeds.slice(P);
+      rest.sort(rule === "max_pf" ? (a, b) => st[a].maxPF - st[b].maxPF : (a, b) => st[a].wins - st[b].wins || st[a].maxPF - st[b].maxPF);
+      const order = new Array(n).fill(null);
+      if (slotsFor) {
+        playoff.forEach((r) => (order[slotsFor[place[r] - 1] - 1] = r));
+        let k = 0;
+        for (let i = 0; i < n; i++) if (order[i] == null) order[i] = rest[k++];
+      } else {
+        const po = playoff.slice().sort((a, b) => (place[b] || 0) - (place[a] || 0));
+        [...rest, ...po].forEach((r, i) => (order[i] = r));
+      }
+      order.forEach((r, i) => { if (r != null) { acc[r].slot[i + 1]++; acc[r].slotSum += i + 1; } });
+    }
+  }
+  return { acc, sims, P, sigma, fixed, rule, slotsFor, size, year: rd.year, weeksLeft: weeks.length };
+}
+
+function renderOdds() {
+  const el = $("#odds");
+  if (!el || !state.data) return;
+  const teams = state.data.teams, n = teams.length;
+  if (!teams.some((t) => t.players && t.players.length)) { el.innerHTML = `<p class="muted">Odds start once the league has drafted.</p>`; return; }
+  const r = simulateOdds();
+  const pct = (x) => { const v = (100 * x) / r.sims; return v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`; };
+  const mine = myTeam();
+  const rows = teams.map((t) => ({ t, a: r.acc[t.roster_id] })).sort((x, y) => y.a.playoff - x.a.playoff || y.a.title - x.a.title || x.a.slotSum - y.a.slotSum);
+  const heat = (x) => `style="background:rgba(111,227,164,${Math.min(0.55, x / r.sims * 0.9).toFixed(2)})"`;
+  const year = r.year || (state.data.picks || []).reduce((m, p) => Math.min(m, p.year), 9999);
+  const firstOf = (rid) => (state.data.picks || []).find((p) => p.year === year && p.round === 1 && p.original_roster_id === rid);
+  const holder = (rid) => { const pk = firstOf(rid); return pk ? teamOf(pk.roster_id) : null; };
+  const top = Math.min(3, n);
+  const ruleText = r.fixed ? `The ${year} draft order is fixed by the league, so there are no draft-slot odds here.`
+    : `${year} first-round order: non-playoff teams ${r.rule === "max_pf" ? "by max PF, lowest first" : "by record, worst first (max PF breaks ties)"}, then playoff teams ${r.slotsFor ? `in the league's slots for each finish (champion ${r.slotsFor[0]}, runner-up ${r.slotsFor[1]})` : "by finish, champion last"}.`;
+  const myFirsts = mine ? (state.data.picks || []).filter((p) => p.year === year && p.round === 1 && p.roster_id === mine.roster_id) : [];
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">${fmt(r.sims)} simulated seasons</p><h2>Playoff and draft odds</h2></div></div>
+    <p class="muted">${r.weeksLeft} regular-season weeks left. Each sim plays every remaining game from each team's rest-of-season lineup points (weekly swing of ±${r.sigma.toFixed(1)}), seeds the ${r.P}-team playoff the league's way${r.size > r.P ? ` with byes for the top ${r.size - r.P}` : ""}, and plays it out. ${ruleText}</p>
+    ${myFirsts.length && !r.fixed ? `<div class="my-picks">${myFirsts.map((p) => { const a = r.acc[p.original_roster_id]; return `<div class="my-pick on">${face(p.id)}<div><b>${year} 1st${p.original_roster_id !== p.roster_id ? ` via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " (your own)"}</b><span class="muted">avg slot ${(a.slotSum / r.sims).toFixed(1)} · top ${top}: ${pct(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}</span></div></div>`; }).join("")}</div>` : ""}
+    <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th>Record</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Final</th><th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${year} slot</th><th class="num">Top ${top} pick</th><th>Their 1st belongs to</th>`}</tr></thead><tbody>
+    ${rows.map(({ t, a }) => { const h = holder(t.roster_id); return `<tr class="${mine && t.roster_id === mine.roster_id ? "me" : ""}"><td>${teamHtml(t.roster_id)}</td><td>${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
+      <td class="num">${((t.record.wins || 0) + a.wins / r.sims).toFixed(1)}</td><td class="num" ${heat(a.playoff)}>${pct(a.playoff)}</td>${r.size > r.P ? `<td class="num" ${heat(a.bye)}>${pct(a.bye)}</td>` : ""}<td class="num" ${heat(a.final)}>${pct(a.final)}</td><td class="num" ${heat(a.title)}>${pct(a.title)}</td>
+      ${r.fixed ? "" : `<td class="num">${(a.slotSum / r.sims).toFixed(1)}</td><td class="num" ${heat(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}>${pct(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}</td><td>${h ? (mine && h.roster_id === mine.roster_id ? "<b>You</b>" : esc(h.name)) : ""}</td>`}</tr>`; }).join("")}
+    </tbody></table></div>
+    ${r.fixed ? "" : `<h3>${year} first-round slot odds</h3><p class="muted">Each row is a team's own 1st; each column is the slot it lands in. Rows you own are marked.</p>
+    <div class="table-wrap"><table class="odds-table slots"><thead><tr><th>Pick</th>${Array.from({ length: n }, (_, i) => `<th class="num">1.${String(i + 1).padStart(2, "0")}</th>`).join("")}</tr></thead><tbody>
+    ${teams.slice().sort((x, y) => r.acc[x.roster_id].slotSum - r.acc[y.roster_id].slotSum).map((t) => { const a = r.acc[t.roster_id], h = holder(t.roster_id); const own = mine && h && h.roster_id === mine.roster_id;
+      return `<tr class="${own ? "me" : ""}"><td>${esc(t.name)}${own ? ' <span class="tag new">YOURS</span>' : ""}</td>${a.slot.slice(1).map((c) => `<td class="num" ${heat(c)}>${c ? pct(c) : ""}</td>`).join("")}</tr>`; }).join("")}
+    </tbody></table></div>`}`;
+}
+
+function renderPickProj() {
+  const el = $("#pickproj");
+  if (!el || !state.data) return;
+  const picks = state.data.picks || [];
+  const years = [...new Set(picks.map((p) => p.year))].sort();
+  if (!years.length) { el.innerHTML = `<p class="muted">No tradable picks in this league.</p>`; return; }
+  if (!years.includes(pickProj.year)) pickProj.year = years[0];
+  const year = pickProj.year, n = state.data.teams.length;
+  const rd = state.data.rookie_draft || {};
+  const rounds = Math.max(...picks.filter((p) => p.year === year).map((p) => p.round));
+  const snake = rd.type === "snake";
+  const { how, order } = pickYearOrder(year);
+  const mine = myTeam();
+  const pickOf = (r, rid) => picks.find((p) => p.year === year && p.round === r && p.original_roster_id === rid);
+  const card = (r, i) => {
+    const k = snake && r % 2 === 0 ? n - 1 - i : i;
+    const o = order[k], slot = i + 1, pk = pickOf(r, o.rid), orig = teamOf(o.rid);
+    const holder = pk ? teamOf(pk.roster_id) : orig;
+    const isMine = mine && holder && holder.roster_id === mine.roster_id;
+    const moved = pk && pk.roster_id !== pk.original_roster_id;
+    const land = pk && pk.landing;
+    const range = how === "sim" && r === 1 ? `<span class="muted">avg ${Number(o.exp).toFixed(1)}</span>`
+      : land && land.range ? `<span class="muted" title="Where this pick lands across simulated finishes to the season (10th to 90th percentile); its value is the average over all of them">${land.range[0] === land.range[1] ? `${r}.${String(land.range[0]).padStart(2, "0")}` : `${land.range[0]}-${land.range[1]}`}${r === 1 && land.top3 >= 0.01 ? ` · top 3 ${Math.round(land.top3 * 100)}%` : ""}</span>` : "";
+    return `<div class="pick-card ${isMine ? "yours" : ""}" style="animation-delay:${(i * 0.025).toFixed(3)}s">
+      <div class="pick-slot">${r}.${String(slot).padStart(2, "0")}</div>
+      <div class="pick-team">${teamAvatar(orig)}<span><b>${esc(orig ? orig.name : "")}</b>${moved ? `<span class="muted">owned by ${esc(holder.name)}</span>` : managerOf(orig) ? `<span class="muted">${esc(managerOf(orig))}</span>` : ""}</span></div>
+      <div class="pick-foot"><span class="num strong">${pk ? fmt(pk.value) : ""}</span>${range}${isMine ? '<span class="tag new">YOURS</span>' : ""}</div>
+    </div>`;
+  };
+  const myRows = mine ? picks.filter((p) => p.roster_id === mine.roster_id).sort((a, b) => a.year - b.year || a.round - b.round) : [];
+  const where = (p) => {
+    const yo = pickYearOrder(p.year), i = yo.order.findIndex((o) => o.rid === p.original_roster_id);
+    if (i < 0) return "";
+    const slot = snake && p.round % 2 === 0 ? n - i : i + 1;
+    const third = slot <= n / 3 ? "Early" : slot > (2 * n) / 3 ? "Late" : "Mid";
+    return { label: `${p.round}.${String(slot).padStart(2, "0")}`, third, how: yo.how };
+  };
+  const howText = {
+    exact: `${year} slots are where each pick lands if the season ends the way it's projected now, under this league's draft rule${rd.rule && rd.rule.rule === "max_pf" ? " (non-playoff teams ordered by max PF, playoff teams by finish)" : ""}.${picks.some((p) => p.year === year && p.landing) ? " Each pick's value is the average over every slot it lands at when the rest of the season is played out thousands of times (the range under it), so a pick that could slide into the top three carries that chance." : ""}`,
+    sim: `${year} slots come from thousands of simulated ${year - 1} seasons: every roster a year older, plus the rookies its ${year - 1} picks bring. "avg" is the average first-round slot across those runs; the farther out, the wider the real range.`,
+    lineup: `${year} slots order teams by their projected ${year - 1} lineup (players aged a year, no rookies added yet), weakest picking first. This far out it's a rough guide.`,
+  }[how];
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">Pick projections</p><h2>Where every pick lands</h2></div>
+      <div class="chips">${years.map((y) => `<button class="chip ${y === year ? "active" : ""}" data-year="${y}">${y}</button>`).join("")}</div></div>
+    ${myRows.length ? `<div class="my-picks">${myRows.map((p) => { const w = where(p); return `<div class="my-pick ${p.year === year ? "on" : ""}">
+      ${face(p.id)}<div><b>${p.year} ${w ? w.label : roundWord(p.round)}</b><span class="muted">${w ? `${w.third} ${roundWord(p.round)}` : ""}${p.original_roster_id !== p.roster_id ? ` · via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " · your own"}</span></div><span class="num strong">${fmt(p.value)}</span></div>`; }).join("")}</div>` : ""}
+    <p class="muted">${howText} ${picks.some((p) => p.year === year && p.tier) ? "Values are this league's pick values, which already price in the projected slot." : `${year} picks are still valued as a plain round, the same for every team.`}</p>
+    ${Array.from({ length: rounds }, (_, r) => `<h3>${year} round ${r + 1}${snake ? (r % 2 ? " · snake, order reverses" : "") : ""}</h3>
+      <div class="pick-board">${Array.from({ length: n }, (_, i) => card(r + 1, i)).join("")}</div>`).join("")}`;
+  el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { pickProj.year = Number(b.dataset.year); renderPickProj(); }));
+}
+
+// ---------- future rookie classes ----------
+// The 2027, 2028 and 2029 superflex classes: our research (site/devy.json, scouting notes,
+// stats and a superflex rank) joined with KTC's devy values on this league's scale.
+const devyView = { year: null, sort: "ours", pos: "ALL" };
+const devyKey = (s) => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z]/g, "");
+let devyNotes;
+
+async function renderDevy() {
+  const el = $("#devy");
+  if (!el || !state.data) return;
+  if (devyNotes === undefined) {
+    devyNotes = null;
+    try { devyNotes = await getJSON("devy.json"); } catch (e) { console.error(`devy notes: ${e.message || e}`); }
+  }
+  const market = state.data.future_classes || {};
+  const research = (devyNotes && devyNotes.classes) || {};
+  const years = [...new Set([...Object.keys(market), ...Object.keys(research)])].sort();
+  if (!years.length) { el.innerHTML = `<p class="muted">No future class data for this league yet.</p>`; return; }
+  if (!years.includes(devyView.year)) devyView.year = years[0];
+  const year = devyView.year;
+  const byKey = new Map();
+  (research[year] || []).forEach((r) => byKey.set(devyKey(r.name), { r }));
+  (market[year] || []).forEach((m) => { const k = devyKey(m.name); byKey.set(k, { ...(byKey.get(k) || {}), m }); });
+  const ktcOrder = (market[year] || []).map((m) => devyKey(m.name));
+  let rows = [...byKey.values()].map((x) => ({ ...x, name: (x.r || x.m).name, pos: (x.r || x.m).pos, value: x.m ? x.m.value : null,
+    ours: x.r ? x.r.rank : null, ktcRank: x.m ? ktcOrder.indexOf(devyKey(x.m.name)) + 1 : null }));
+  const counts = rows.reduce((c, x) => ((c[x.pos] = (c[x.pos] || 0) + 1), c), {});
+  if (devyView.pos !== "ALL") rows = rows.filter((x) => x.pos === devyView.pos);
+  const big = 1e9;
+  rows.sort(devyView.sort === "ours" ? (a, b) => (a.ours ?? big) - (b.ours ?? big) || (b.value || 0) - (a.value || 0)
+    : (a, b) => (b.value || 0) - (a.value || 0) || (a.ours ?? big) - (b.ours ?? big));
+  const tierName = ["", "Cornerstone", "Future starter", "High upside", "Developmental", "Long shot"];
+  const src = (devyNotes && devyNotes.sources) || [];
+  const card = (x, i) => {
+    const r = x.r || {}, m = x.m || {};
+    const meta = [r.school || m.school, r.class_year, r.height && r.weight ? `${r.height}, ${r.weight}` : r.height, r.hs_rank].filter(Boolean).map(esc).join(" · ");
+    const links = (r.sources || []).map((k) => src[k]).filter((s) => s && s.url).slice(0, 3)
+      .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || "source")}</a>`).join(" · ");
+    return `<article class="devy-card" style="animation-delay:${Math.min(i, 20) * 0.03}s">
+      <div class="devy-rank">${i + 1}</div>
+      <div class="devy-main">
+        <div class="devy-name"><span class="pos pos-${esc(x.pos)}">${esc(x.pos)}</span> <b>${esc(x.name)}</b>${r.tier ? ` <span class="devy-tier t${r.tier}">${tierName[r.tier] || "Tier " + r.tier}</span>` : ""}</div>
+        <p class="muted">${meta}</p>
+        ${r.stats_2026 ? `<p class="devy-stats"><b>2026</b> ${esc(r.stats_2026)}${r.stats_2025 ? ` <span class="muted">· 2025 ${esc(r.stats_2025)}</span>` : ""}</p>` : ""}
+        ${r.notes ? `<p>${esc(r.notes)}</p>` : ""}
+        ${r.nfl_comp || r.class_note || links ? `<p class="muted small">${r.nfl_comp ? `Comp: ${esc(r.nfl_comp)}. ` : ""}${r.class_note ? `${esc(r.class_note)} ` : ""}${links}</p>` : ""}
+      </div>
+      <div class="devy-nums">
+        <div><label>Our SF rank</label><b>${x.ours ?? "–"}</b></div>
+        <div><label>KTC SF rank</label><b>${x.ktcRank || "–"}</b></div>
+        <div><label>League value</label><b>${x.value ? fmt(x.value) : "–"}</b></div>
+      </div>
+    </article>`;
+  };
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">Superflex · future rookies</p><h2>The ${year} class</h2></div>
+      <div class="chips">${years.map((y) => `<button class="chip ${y === year ? "active" : ""}" data-year="${y}">${y}</button>`).join("")}</div></div>
+    <div class="toolbar">
+      <div class="chips">${["ALL", "QB", "RB", "WR", "TE"].map((p) => `<button class="chip ${devyView.pos === p ? "active" : ""}" data-pos="${p}">${p === "ALL" ? "All" : p}${p !== "ALL" && counts[p] ? ` <span class="muted">${counts[p]}</span>` : ""}</button>`).join("")}</div>
+      <div class="chips">${[["ours", "Our rank"], ["value", "League value"]].map(([k, v]) => `<button class="chip ${devyView.sort === k ? "active" : ""}" data-sort="${k}">Sort: ${v}</button>`).join("")}</div>
+    </div>
+    <details class="muted"><summary>How these are ranked (research as of ${esc((devyNotes && devyNotes.as_of) || "–")})</summary>${devyNotes && devyNotes.method_by_year && devyNotes.method_by_year[year] ? `${esc(devyNotes.method_by_year[year])} ` : devyNotes && devyNotes.method ? `${esc(devyNotes.method)} ` : ""} League value is KTC's ${state.data.league.format && state.data.league.format.superflex === false ? "1QB" : "superflex"} devy value mapped onto this league's scale and adjusted for how this league scores each position; it refreshes every build. Class years follow NFL draft eligibility (three years out of high school), so a player can slide a year if he stays in school.</details>
+    <div class="devy-list">${rows.map(card).join("") || '<p class="muted">Nobody at this position yet.</p>'}</div>`;
+  el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { devyView.year = b.dataset.year; renderDevy(); }));
+  el.querySelectorAll("[data-pos]").forEach((b) => (b.onclick = () => { devyView.pos = b.dataset.pos; renderDevy(); }));
+  el.querySelectorAll("[data-sort]").forEach((b) => (b.onclick = () => { devyView.sort = b.dataset.sort; renderDevy(); }));
+}
+
 // ---------- team direction (mirrors engine/builds.py assign) ----------
 // The eight builds re-run on post-trade rosters, so a trade shows whether it moves a
 // team from, say, Playoff Bubble to Young Contender. Keep in sync with builds.py.
@@ -1396,10 +1823,42 @@ function assignBuilds(overrides = {}, pickDelta = {}) {
       : P < 2 / 3 && x.proj <= playoff ? "bubble"
       : young || Y <= 1 / 3 ? "youth"
       : P >= 2 / 3 ? "teardown" : "stuck";
-    out[x.rid] = { key, name: BUILD_INFO[key][0], tone: BUILD_INFO[key][1], nowRank: now[x.rid], valueRank: val[x.rid] };
+    out[x.rid] = { key, name: BUILD_INFO[key][0], tone: BUILD_INFO[key][1], nowRank: now[x.rid], valueRank: val[x.rid],
+      m: { P, V, Y, z, H: pct(psr[x.rid]) } };
   }
   return out;
 }
+// ---------- aiming for a build ----------
+// How far a team sits from each build, from the same parts assignBuilds uses (0 = best:
+// P points-a-week rank, V value rank, Y youth rank, H pick-share rank as 0..1 percentiles,
+// z core age against the league). A deal "moves you toward" a build when this drops.
+const BUILD_AIM = {
+  juggernaut: (m) => m.P + m.V,
+  young_contender: (m) => m.P + 0.5 * Math.max(0, m.z + 0.25),
+  all_in: (m) => m.P,
+  bubble: (m) => Math.abs(m.P - 0.45),
+  stuck: (m) => Math.abs(m.P - 0.5),
+  youth: (m) => m.Y + 0.5 * Math.max(0, m.z + 0.5),
+  pick_hoarder: (m) => m.H,
+  teardown: (m) => 1 - m.P + 0.5 * m.Y,
+};
+const aimTone = (key) => ({ contender: "contend", rebuilding: "rebuild" })[BUILD_INFO[key][1]] || "balanced";
+// Progress toward `key` from build b0 to b1: hit = lands on it, closer = distance saved.
+function aimProgress(b0, b1, key) {
+  if (!key || !b0 || !b1) return { hit: false, closer: 0 };
+  return { hit: b1.key === key, closer: BUILD_AIM[key](b0.m) - BUILD_AIM[key](b1.m) };
+}
+// Rosters and pick totals after a deal, from each team's gets and gives.
+function dealAfter(side) {
+  const overrides = {}, pd = {};
+  for (const [rid, x] of Object.entries(side)) {
+    const out = new Set(x.gives.map((a) => a.id));
+    overrides[rid] = rosterOf(Number(rid)).filter((p) => !out.has(p.id)).concat(x.gets.filter((a) => a.kind === "player"));
+    pd[rid] = x.gets.filter((a) => a.kind === "pick").reduce((t, a) => t + a.value, 0) - x.gives.filter((a) => a.kind === "pick").reduce((t, a) => t + a.value, 0);
+  }
+  return { overrides, pd };
+}
+
 const toneCls = (tone) => (tone === "contender" ? "contender" : tone === "middle" ? "middle" : "rebuilding");
 const buildChip = (b) => `<span class="outlook ${toneCls(b.tone)}">${esc(b.name)}</span>`;
 function directionHtml(b0, b1) {
@@ -1719,6 +2178,7 @@ function renderFormula() {
       <div class="toolbar"><button id="ideas-run" class="chip active">Find my trade ideas</button></div>
       <div id="ideas-out">${ideas.list && ideas.league === state.data.league.id ? ideasHtml(ideas.list) : ""}</div>` : ""}
     ${buyBlock}
+    ${modelTuningHtml()}
     <h3>Full formula rankings</h3>
     <div class="toolbar">
       <div id="formula-pos" class="chips">${positions.map((x) => `<button class="chip ${x === formulaView.pos ? "active" : ""}" data-pos="${x}">${x === "ALL" ? "Overall" : x}</button>`).join("")}</div>
@@ -1732,6 +2192,21 @@ function renderFormula() {
   $("#formula-signal").addEventListener("change", (e) => { formulaView.signal = e.target.value; drawFormulaTable(); });
   $("#formula-who").addEventListener("change", (e) => { formulaView.who = e.target.value; drawFormulaTable(); });
   $("#formula-search").addEventListener("input", (e) => { formulaView.q = e.target.value; drawFormulaTable(); });
+}
+
+// What the backtest tuned and what this league's own trades taught the values.
+function modelTuningHtml() {
+  const m = state.data.model || {}, bt = m.backtest || {}, lm = state.data.league_market;
+  if (!bt.stability && !lm) return "";
+  const pc = (x) => `${Math.round(x * 100)}%`;
+  const parts = [];
+  if (bt.stability) parts.push(`<p><b>Backtested on ${esc((bt.seasons || []).join("-"))}.</b> Share of a player's points over replacement he kept the next season, after aging and counting missed games: ${Object.entries(bt.stability).map(([k, v]) => `${esc(k)} ${pc(v.stability)}`).join(", ")}. Weighting the last three seasons ${bt.season_weights ? `(1, ${bt.season_weights.two_ago}, ${bt.season_weights.three_ago})` : ""} cut next-season error from ${bt.season_weights?.mae_last_season_only} to ${bt.season_weights?.mae_tuned} points a game. Recent role swings mostly faded${bt.in_season ? ` (role trend ${bt.in_season.role_trend})` : ""}. ${Object.keys(m.archetype_curves || {}).length ? `Fitted age curves that beat the old ones on 2020-2025 seasons: ${Object.keys(m.archetype_curves).map((k) => esc(ARCHETYPE[k] || k)).join(", ")}; the rest kept their curves.` : ""}</p>`);
+  if (m.replacement_fa_ppg && Object.keys(m.replacement_fa_ppg).length) parts.push(`<p>Replacement level here (points a game): ${Object.entries(m.replacement_ppg || {}).map(([k, v]) => `${esc(k)} ${v}`).join(", ")}, half the theoretical level and half the best free agents.</p>`);
+  if (lm) {
+    const moved = Object.entries(lm.multipliers || {}).filter(([, v]) => v !== 1);
+    parts.push(`<p>This league's trade market (${lm.rows} trade sides from ${lm.trades} trades, this season and the two before, valued at today's numbers): ${moved.length ? moved.map(([k, v]) => `${esc(k)} ×${v}`).join(", ") : "not enough trades to move any position yet"}.</p>`);
+  }
+  return `<h3>How the values are tuned</h3>${parts.join("")}`;
 }
 
 function drawFormulaTable() {
@@ -1778,7 +2253,7 @@ function runIdeas(done) {
   const mine = myTeam();
   if (!mine) { done([]); return; }
   const seeds = ideaSeeds(mine);
-  const saved = { me: finder.me, partners: finder.partners, goal: finder.goal, send: finder.send, offer: finder.offer, get: finder.get,
+  const saved = { me: finder.me, partners: finder.partners, goal: finder.goal, target: finder.target, mode: finder.mode, winBy: finder.winBy, send: finder.send, offer: finder.offer, get: finder.get,
     getMax: finder.getMax, sendMax: finder.sendMax, positions: finder.positions, openAll: finder.openAll, last: finder.last };
   const c = teamCtx(mine.roster_id);
   const goal = c && c.label === "contending" ? "contend" : c && (c.label === "rebuilding" || c.label === "tanking") ? "rebuild" : "balanced";
@@ -1787,7 +2262,7 @@ function runIdeas(done) {
     if (i >= seeds.length) { Object.assign(finder, saved); done(out); return; }
     const s = seeds[i];
     // Ideas may pay from anywhere on your roster except your untouchables.
-    Object.assign(finder, { me: mine.roster_id, partners: [], goal, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
+    Object.assign(finder, { me: mine.roster_id, partners: [], goal, target: null, mode: 2, winBy: 0, send: s.kind === "sell" ? [s.a.id] : [], offer: [], get: s.kind === "buy" ? [s.a.id] : [],
       getMax: null, sendMax: null, positions: [], openAll: s.kind === "buy" });
     const r = findTrades();
     const d = r.picked && r.picked[0];
@@ -2102,7 +2577,17 @@ function renderNews() {
 const FINDER_POOL = 18;   // partner assets it considers adding
 const FINDER_SHOW = 12;
 const FINDER_MAX_ADD = 3; // most partner pieces added beyond the ones you named
-const finder = { me: null, partners: [], goal: null, send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
+const finder = { me: null, partners: [], goal: null, target: null, mode: 2, winBy: 0, three: { teams: [null, null], goals: ["auto", "auto"] },
+  send: [], offer: [], get: [], getMax: null, sendMax: null, positions: [], openAll: false };
+const FINDER_AIM_POOL = 150; // candidates checked for movement toward the build you aim for
+// "Win by": 0 keeps every deal within the fair line. Otherwise you come out ahead at
+// market by about that much (within WIN_BAND either way), and each partner may give
+// up to that much plus the fair line, still judged by its own situation.
+const WIN_BY = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
+const WIN_BAND = 0.025;
+const myMarketFits = (net) => (finder.winBy ? Math.abs(net - finder.winBy) <= WIN_BAND : Math.abs(net) <= FAIR_MARGIN);
+const theirMarketFits = (net) => (finder.winBy ? net >= -(finder.winBy + FAIR_MARGIN) && net <= FAIR_MARGIN : Math.abs(net) <= FAIR_MARGIN);
+const theirFloor = () => -(finder.winBy + FAIR_MARGIN);
 const OLD_FOR_REBUILD = (a) => a.kind === "player" && (a.age || 0) >= (a.pos === "RB" ? 26 : 28);
 
 function goalFactor(a, goal, rid, startsForMe) {
@@ -2131,6 +2616,112 @@ function lockedIds(rid = finder.me ?? myTeam()?.roster_id) {
 function untouchable(id, rid) { return lockedIds(rid).has(id); }
 function setLocked(rid, ids) { localStorageSet(lockKey(rid), JSON.stringify([...ids])); }
 
+// ---------- manager profiles ----------
+// Two halves. Their trade history comes from the league's public Sleeper trades and
+// is worked out here in the browser. Your notes on each manager (won't trade with
+// you, picks only, players they won't move) live only in this browser, like the
+// untouchable list; the "won't move" list is that manager's untouchable list.
+const profileKey = (rid) => `profile.${state.data.league.id}.${rid}`;
+function managerNotes(rid) {
+  try { return { block: false, picksOnly: false, ...JSON.parse(localStorageGet(profileKey(rid)) || "{}") }; } catch { return { block: false, picksOnly: false }; }
+}
+function setManagerNotes(rid, notes) { localStorageSet(profileKey(rid), JSON.stringify(notes)); }
+const blockedPartner = (rid) => rid !== finder.me && managerNotes(rid).block;
+
+function managerHistory(rid) {
+  const me = myTeam()?.roster_id;
+  const ageOf = (id) => { const p = state.data.players.find((x) => x.id === id); return p && p.age ? p.age : null; };
+  const h = { trades: 0, withMe: 0, picksIn: 0, picksOut: 0, agesIn: [], agesOut: [], posIn: {}, last: null, partners: {} };
+  for (const t of state.data.trades || []) {
+    if (!t.rosters || !t.rosters.includes(rid)) continue;
+    h.trades++;
+    if (me != null && me !== rid && t.rosters.includes(me)) h.withMe++;
+    if (!h.last || t.at > h.last) h.last = t.at;
+    t.rosters.filter((r) => r !== rid).forEach((r) => (h.partners[r] = (h.partners[r] || 0) + 1));
+    for (const m of t.moves || []) {
+      if (m.to === rid) {
+        if (m.kind === "pick") h.picksIn++;
+        else { const a = ageOf(m.id); if (a) h.agesIn.push(a); if (m.pos) h.posIn[m.pos] = (h.posIn[m.pos] || 0) + 1; }
+      } else if (m.from === rid) {
+        if (m.kind === "pick") h.picksOut++;
+        else { const a = ageOf(m.id); if (a) h.agesOut.push(a); }
+      }
+    }
+  }
+  const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  h.ageIn = avg(h.agesIn); h.ageOut = avg(h.agesOut);
+  h.buysPicks = h.picksIn - h.picksOut >= 2;
+  h.sellsPicks = h.picksOut - h.picksIn >= 2;
+  h.younger = h.ageIn != null && h.ageOut != null && h.ageOut - h.ageIn >= 1.5;
+  h.older = h.ageIn != null && h.ageOut != null && h.ageIn - h.ageOut >= 1.5;
+  const top = Object.entries(h.posIn).sort((a, b) => b[1] - a[1])[0];
+  h.topPos = top && top[1] >= 2 ? top[0] : null;
+  return h;
+}
+function historyText(h) {
+  if (!h.trades) return "No trades this season.";
+  const bits = [`${h.trades} trade${h.trades > 1 ? "s" : ""} this season`];
+  if (h.buysPicks) bits.push(`buys picks (got ${h.picksIn}, sent ${h.picksOut})`);
+  else if (h.sellsPicks) bits.push(`sells picks (sent ${h.picksOut}, got ${h.picksIn})`);
+  if (h.younger) bits.push(`gets younger (adds ${h.ageIn.toFixed(1)}, sends ${h.ageOut.toFixed(1)} avg age)`);
+  else if (h.older) bits.push(`buys veterans (adds ${h.ageIn.toFixed(1)}, sends ${h.ageOut.toFixed(1)} avg age)`);
+  if (h.topPos) bits.push(`adds ${h.topPos} most`);
+  if (myTeam()) bits.push(h.withMe ? `${h.withMe} with you` : "never with you");
+  if (h.last) bits.push(`last ${new Date(h.last).toLocaleDateString()}`);
+  return bits.join(" · ");
+}
+// How well a deal fits what a manager has done before: one point per habit it matches.
+function historyFits(rid, theyGet, theySend) {
+  const h = managerHistory(rid), fits = [];
+  const ages = (xs) => xs.filter((a) => a.kind === "player" && a.age).map((a) => a.age);
+  const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  if (h.buysPicks && theyGet.some((a) => a.kind === "pick")) fits.push("they buy picks");
+  if (h.sellsPicks && theySend.some((a) => a.kind === "pick")) fits.push("they sell picks");
+  const gi = avg(ages(theyGet)), so = avg(ages(theySend));
+  if (h.younger && gi != null && so != null && gi < so) fits.push("they like getting younger");
+  if (h.older && gi != null && so != null && gi > so) fits.push("they buy veterans");
+  if (h.topPos && theyGet.some((a) => a.pos === h.topPos)) fits.push(`they add ${h.topPos}s`);
+  return fits;
+}
+
+// The Manager profiles panel in the Trade Finder: each other manager's trade history,
+// plus your own notes, which the finder obeys.
+function managersHtml() {
+  const others = state.data.teams.filter((t) => t.roster_id !== finder.me);
+  const rows = others.map((t) => {
+    const rid = t.roster_id, n = managerNotes(rid), keeps = [...lockedIds(rid)].map(assetById).filter(Boolean);
+    const theirs = [...state.assetMap.values()].filter((a) => a.roster_id === rid && a.value > 0).sort((a, b) => b.value - a.value);
+    return `<div class="mgr-row ${n.block ? "blocked" : ""}" data-rid="${rid}">
+      <div class="mgr-head">${teamAvatar(t)}<b>${esc(t.name)}</b>${managerOf(t) ? ` <span class="muted">${esc(managerOf(t))}</span>` : ""}</div>
+      <p class="muted small">${esc(historyText(managerHistory(rid)))}</p>
+      <div class="chips"><label class="chip"><input type="checkbox" data-note="block" ${n.block ? "checked" : ""}> Won't trade with me</label>
+        <label class="chip"><input type="checkbox" data-note="picksOnly" ${n.picksOnly ? "checked" : ""}> Picks only from me</label></div>
+      <input class="mgr-keep" type="search" placeholder="Won't move: add a piece" list="mgr-list-${rid}" />
+      <datalist id="mgr-list-${rid}">${theirs.map((a) => `<option value="${esc(a.label)}"></option>`).join("")}</datalist>
+      ${keeps.length ? `<ul class="assets">${keeps.map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-keep-off="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
+    </div>`;
+  }).join("");
+  const noted = others.filter((t) => { const n = managerNotes(t.roster_id); return n.block || n.picksOnly || lockedIds(t.roster_id).size; }).length;
+  return `<details class="card managers" ${finder.mgrOpen ? "open" : ""}><summary>Manager profiles <span class="muted">(${noted ? `${noted} with your notes` : "add notes the finder will follow"})</span></summary>
+    <p class="muted">Trade history comes from this season's trades in this league on Sleeper. Your notes stay in this browser only. The finder skips managers who won't trade with you, sends only picks to "picks only" managers, never asks for a piece they won't move, and ranks deals that match a manager's habits a little higher.</p>
+    <div class="mgr-grid">${rows}</div></details>`;
+}
+function bindManagers(el) {
+  const box = el.querySelector("details.managers");
+  if (!box) return;
+  box.addEventListener("toggle", () => (finder.mgrOpen = box.open));
+  box.querySelectorAll(".mgr-row").forEach((row) => {
+    const rid = Number(row.dataset.rid);
+    row.querySelectorAll("[data-note]").forEach((c) => (c.onchange = () => { const n = managerNotes(rid); n[c.dataset.note] = c.checked; setManagerNotes(rid, n); finder.last = null; renderFinder(); }));
+    row.querySelector(".mgr-keep").onchange = (e) => {
+      const a = [...state.assetMap.values()].find((x) => x.roster_id === rid && (x.label === e.target.value || x.name === e.target.value));
+      if (a) { const ids = lockedIds(rid); ids.add(a.id); setLocked(rid, ids); finder.get = finder.get.filter((id) => id !== a.id); finder.last = null; }
+      renderFinder();
+    };
+    row.querySelectorAll("[data-keep-off]").forEach((b) => (b.onclick = () => { const ids = lockedIds(rid); ids.delete(b.dataset.keepOff); setLocked(rid, ids); finder.last = null; renderFinder(); }));
+  });
+}
+
 function renderFinder() {
   const el = $("#finder");
   if (!el) return;
@@ -2147,12 +2738,17 @@ function renderFinder() {
   const opt = (sel, any) => (any ? `<option value="">Any team</option>` : "") + teams.map((t) => `<option value="${t.roster_id}" ${t.roster_id === sel ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("");
   const mine = [...state.assetMap.values()].filter((a) => a.roster_id === finder.me && a.value > 0).sort((a, b) => b.value - a.value);
   const theirs = [...state.assetMap.values()].filter((a) => a.roster_id != null && a.roster_id !== finder.me && a.value > 0
-    && (!finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
+    && (finder.mode === 3 ? finder.three.teams.includes(a.roster_id) : !finder.partners.length || finder.partners.includes(a.roster_id))).sort((a, b) => b.value - a.value).slice(0, 600);
   const chips = (ids, kind) => ids.map(assetById).filter(Boolean).map((a) => `<li><span>${face(a.id)}${esc(a.label)}${kind === "get" ? ` <span class="muted">${esc(teamName(a.roster_id))}</span>` : ""}</span><span class="num">${fmt(a.value)}</span><button data-kind="${kind}" data-id="${esc(a.id)}" aria-label="Remove">×</button></li>`).join("");
   const posList = [...new Set(["QB", "RB", "WR", "TE", ...roomPositions()])].filter((p) => POSITIONS.includes(p)).concat("PICK");
   const countChips = (key, opts) => opts.map((k) => `<button class="chip ${finder[key] === k ? "active" : ""}" data-count="${key}" data-k="${k ?? ""}">${k == null ? "Any" : k}</button>`).join("");
   const myStarters = new Set(bestLineup(rosterOf(finder.me), "ros_ppg").map((x) => x.p.id));
-  el.innerHTML = `<p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
+  const buildsNow = assignBuilds();
+  const goalOptions = (sel) => [["auto", "Goal: their own situation"], ["contend", "Goal: contend now"], ["rebuild", "Goal: rebuild"], ["balanced", "Goal: balanced"]]
+    .concat(Object.keys(BUILD_INFO).map((k) => [`aim:${k}`, `Aim for: ${BUILD_INFO[k][0]}`]))
+    .map(([v, l]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+  el.innerHTML = `<div class="toolbar"><span class="muted">Deal size</span><div class="chips" id="finder-mode">${[2, 3].map((k) => `<button class="chip ${finder.mode === k ? "active" : ""}" data-mode="${k}">${k} teams</button>`).join("")}</div></div>
+    <p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
     <div class="finder-grid">
       <div class="trade-side"><h3>Your team</h3><select id="finder-me" aria-label="Your team">${opt(finder.me, false)}</select>
         <div class="needs muted">${esc(situationText(finder.me))}</div>
@@ -2161,9 +2757,14 @@ function renderFinder() {
         <h4>OK to add <span class="muted">(the finder may use these)</span></h4><input id="finder-offer" type="search" placeholder="Add a piece you'd part with" list="finder-send-list" />
         <div class="chips small"><button class="chip" id="offer-picks">+ my picks</button><button class="chip" id="offer-bench">+ my bench</button><button class="chip" id="offer-clear">clear</button></div>
         <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">Nothing yet. Only "You send" will be offered.</span></li>`}</ul></div>
-      <div class="trade-side"><h3>Trade with <span class="muted">(pick one or more; none = every team)</span></h3>
+      <div class="trade-side">${finder.mode === 3 ? `<h3>Trade with <span class="muted">(two teams, each with its own goal)</span></h3>
+        ${[0, 1].map((k) => `<div class="three-pick"><select class="three-team" data-k="${k}" aria-label="Team ${k + 2}"><option value="">Pick team ${k + 2}</option>${teams.filter((t) => t.roster_id !== finder.me)
+          .map((t) => `<option value="${t.roster_id}" ${finder.three.teams[k] === t.roster_id ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("")}</select>
+          <select class="three-goal" data-k="${k}" aria-label="Team ${k + 2} goal">${goalOptions(finder.three.goals[k])}</select>
+          ${finder.three.teams[k] != null ? `<span class="muted">now ${esc(buildsNow[finder.three.teams[k]]?.name || "")}</span>` : ""}</div>`).join("")}`
+      : `<h3>Trade with <span class="muted">(pick one or more; none = every team)</span></h3>
         <div class="chips small" id="finder-partners"><button class="chip ${finder.partners.length ? "" : "active"}" data-partner="">All teams</button>${teams.filter((t) => t.roster_id !== finder.me)
-          .map((t) => `<button class="chip ${finder.partners.includes(t.roster_id) ? "active" : ""}" data-partner="${t.roster_id}">${esc(teamName(t.roster_id))}</button>`).join("")}</div>
+          .map((t) => `<button class="chip ${finder.partners.includes(t.roster_id) ? "active" : ""}" data-partner="${t.roster_id}">${esc(teamName(t.roster_id))}</button>`).join("")}</div>`}
         <h4>You get <span class="muted">(must be in the deal)</span></h4><input id="finder-get" type="search" placeholder="Add a player or pick you want" list="finder-get-list" /><datalist id="finder-get-list">${theirs.map((a) => `<option value="${esc(a.label)}">${fmt(a.value)} · ${esc(teamName(a.roster_id))}</option>`).join("")}</datalist>
         <ul class="assets">${chips(finder.get, "get")}</ul>
         <h4>Positions you want back</h4><div class="chips" id="finder-pos">${posList.map((p) => `<button class="chip ${finder.positions.includes(p) ? "active" : ""}" data-pos="${p}">${p}</button>`).join("")}</div>
@@ -2174,12 +2775,17 @@ function renderFinder() {
     <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(can't be added to "OK to add")</span></h3>
       <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
       <ul class="assets">${[...locked].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
+    ${managersHtml()}
     <div class="toolbar"><span class="muted">Your goal</span><div class="chips" id="finder-goal">${[["contend", "Contend now"], ["rebuild", "Rebuild"], ["balanced", "Balanced"]]
-      .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div>
+      .map(([k, l]) => `<button class="chip ${finder.goal === k ? "active" : ""}" data-goal="${k}">${l}</button>`).join("")}</div></div>
+    <div class="toolbar"><span class="muted">Aim for <span class="aim-now">(you're ${esc(buildsNow[finder.me]?.name || "")} now)</span></span><div class="chips" id="finder-aim"><button class="chip ${finder.target ? "" : "active"}" data-aim="">Any build</button>${Object.keys(BUILD_INFO)
+      .map((k) => `<button class="chip ${finder.target === k ? "active" : ""}" data-aim="${k}">${esc(BUILD_INFO[k][0])}</button>`).join("")}</div>
+</div>
+    <div class="toolbar"><span class="muted">Win by</span><div class="chips" id="finder-win">${WIN_BY.map((w) => `<button class="chip ${finder.winBy === w ? "active" : ""}" data-win="${w}">${w ? `${Math.round(w * 100)}%` : "Fair"}</button>`).join("")}</div>
       <button id="finder-run" class="chip active">Find trades</button></div>
     <div id="finder-out"></div>`;
   const reset = () => { finder.last = null; renderFinder(); };
-  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.partners = finder.partners.filter((r) => r !== finder.me); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; reset(); };
+  $("#finder-me").onchange = (e) => { finder.me = Number(e.target.value); finder.partners = finder.partners.filter((r) => r !== finder.me); finder.send = []; finder.offer = []; finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id !== finder.me); finder.goal = null; finder.three.teams = finder.three.teams.map((r) => (r === finder.me ? null : r)); reset(); };
   el.querySelectorAll("#finder-partners [data-partner]").forEach((b) => (b.onclick = () => {
     const rid = b.dataset.partner ? Number(b.dataset.partner) : null;
     if (rid == null) finder.partners = [];
@@ -2196,7 +2802,7 @@ function renderFinder() {
         // A piece is either always sent or optional, not both.
         if (kind === "send") finder.offer = finder.offer.filter((id) => id !== a.id);
         if (kind === "offer") finder.send = finder.send.filter((id) => id !== a.id);
-        if (kind === "get") finder.partners = [a.roster_id]; // gets must all come from one team
+        if (kind === "get" && finder.mode === 2) finder.partners = [a.roster_id]; // gets must all come from one team
         if (kind === "get") finder.get = finder.get.filter((id) => (assetById(id) || {}).roster_id === a.roster_id);
       }
       renderFinder();
@@ -2214,6 +2820,7 @@ function renderFinder() {
   el.querySelectorAll("[data-unlock]").forEach((b) => b.addEventListener("click", () => {
     const ids = lockedIds(finder.me); ids.delete(b.dataset.unlock); setLocked(finder.me, ids); renderFinder();
   }));
+  bindManagers(el);
   pick($("#finder-send"), mine, "send");
   pick($("#finder-offer"), mine, "offer");
   pick($("#finder-get"), theirs, "get");
@@ -2227,9 +2834,26 @@ function renderFinder() {
   }));
   el.querySelectorAll("[data-count]").forEach((b) => b.addEventListener("click", () => { finder[b.dataset.count] = b.dataset.k ? Number(b.dataset.k) : null; renderFinder(); }));
   el.querySelectorAll("#finder-goal button").forEach((b) => b.addEventListener("click", () => { finder.goal = b.dataset.goal; renderFinder(); }));
+  el.querySelectorAll("#finder-mode [data-mode]").forEach((b) => (b.onclick = () => { finder.mode = Number(b.dataset.mode); reset(); }));
+  el.querySelectorAll("#finder-win [data-win]").forEach((b) => (b.onclick = () => { finder.winBy = Number(b.dataset.win); reset(); }));
+  el.querySelectorAll("#finder-aim [data-aim]").forEach((b) => (b.onclick = () => {
+    finder.target = b.dataset.aim || null;
+    if (finder.target) finder.goal = aimTone(finder.target);
+    reset();
+  }));
+  el.querySelectorAll(".three-team").forEach((sel) => (sel.onchange = () => {
+    const k = Number(sel.dataset.k);
+    finder.three.teams[k] = sel.value ? Number(sel.value) : null;
+    finder.get = finder.get.filter((id) => finder.three.teams.includes((assetById(id) || {}).roster_id));
+    reset();
+  }));
+  el.querySelectorAll(".three-goal").forEach((sel) => (sel.onchange = () => { finder.three.goals[Number(sel.dataset.k)] = sel.value; finder.last = null; }));
   $("#finder-run").onclick = () => {
     $("#finder-out").innerHTML = `<p class="muted">Searching…</p>`;
-    setTimeout(() => { finder.last = findTrades(); $("#finder-out").innerHTML = finderResults(finder.last); }, 20);
+    setTimeout(() => {
+      finder.last = finder.mode === 3 ? findTrades3() : findTrades();
+      $("#finder-out").innerHTML = finder.mode === 3 ? finderResults3(finder.last) : finderResults(finder.last);
+    }, 20);
   };
 }
 
@@ -2268,7 +2892,10 @@ function findTrades() {
   if (getRoom < 0) return { error: `You named ${get.length} pieces to get but set ${finder.getMax} back.` };
   const posOk = (a) => !finder.positions.length || finder.positions.includes(a.kind === "pick" ? "PICK" : a.pos);
   const crack = (p) => p.kind === "player" && p.ros_ppg > 0 && teamPPG([...myRoster, p]) - myPPG > 0.3;
-  const partners = get.length ? [get[0].roster_id] : finder.partners.length ? finder.partners.filter((r) => r !== me) : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me);
+  if (get.length && blockedPartner(get[0].roster_id)) return { error: `You noted that ${teamName(get[0].roster_id)} won't trade with you. Clear that in Manager profiles to look anyway.` };
+  const partners = (get.length ? [get[0].roster_id] : finder.partners.length ? finder.partners.filter((r) => r !== me) : state.data.teams.map((t) => t.roster_id).filter((r) => r !== me))
+    .filter((r) => !blockedPartner(r));
+  if (!partners.length) return { error: "Every team you picked is marked \"won't trade with me\" in Manager profiles." };
   const dirs = assignBuilds();
   const extrasMine = combosUpTo(myExtra, Math.min(sendRoom, myExtra.length > 8 ? 2 : 3));
   const recBefore = projectRecords();
@@ -2276,9 +2903,12 @@ function findTrades() {
   for (const B of partners) {
     const getIds = new Set(get.map((a) => a.id));
     const theirTone = dirs[B] && dirs[B].tone;
+    const theirLocked = lockedIds(B), picksOnly = managerNotes(B).picksOnly;
+    // A manager you noted takes only picks from you: no players of yours in the deal.
+    if (picksOnly && send.some((a) => a.kind !== "pick")) continue;
     // What the partner could add: the positions you asked for, best fits for your goal first.
     const fitScore = (a) => a.value * goalFactor(a, goal, me, crack(a) ? new Set([a.id]) : new Set()) * (goal === "contend" && crack(a) ? 1.3 : 1);
-    const pool = [...state.assetMap.values()].filter((a) => a.roster_id === B && a.value >= 150 && !getIds.has(a.id) && posOk(a)
+    const pool = [...state.assetMap.values()].filter((a) => a.roster_id === B && a.value >= 150 && !getIds.has(a.id) && !theirLocked.has(a.id) && posOk(a)
       && !(goal === "rebuild" && OLD_FOR_REBUILD(a)))
       .sort((a, b) => fitScore(b) - fitScore(a)).slice(0, FINDER_POOL);
     const adds = combosUpTo(pool, Math.min(getRoom, FINDER_MAX_ADD));
@@ -2292,10 +2922,11 @@ function findTrades() {
         if (!gives.length) continue;
         // A rebuilding partner doesn't want your old veterans as throw-ins.
         if (theirTone === "rebuilding" && mx.some(OLD_FOR_REBUILD)) continue;
+        if (picksOnly && mx.some((a) => a.kind !== "pick")) continue;
         const mkt = netOf(gets, gives);
-        if (Math.abs(mkt) > FAIR_MARGIN) continue;
+        if (!myMarketFits(mkt)) continue;
         const them = netOf(gives, gets, (a) => teamFactor(B, a.id));
-        if (them < -FAIR_MARGIN) continue;
+        if (them < theirFloor()) continue;
         const crackSet = new Set(gets.filter(crack).map((a) => a.id));
         gives.forEach((a) => startsForMe.has(a.id) && crackSet.add(a.id));
         const mine = netOf(gets, gives, (a) => goalFactor(a, goal, me, crackSet));
@@ -2322,9 +2953,23 @@ function findTrades() {
     d.score = goal === "contend" ? d.dMe + 20 * d.mine + 5 * d.them - 0.4 * pieces
       : goal === "rebuild" ? 100 * d.mine + 10 * d.them - 0.15 * Math.max(0, -d.dMe) - 0.8 * pieces
       : 60 * d.mine + 0.5 * d.dMe + 15 * d.them - 0.6 * pieces;
+    // Deals that look like what this manager has done before rank a little higher.
+    d.fits = historyFits(d.B, d.gives, d.gets);
+    d.score += 0.6 * d.fits.length;
     top.push(d);
   }
   top.sort((a, b) => b.score - a.score);
+  // Aiming for a build: keep deals that land on it or move you toward it, closest first.
+  if (finder.target) {
+    const aimed = [];
+    for (const d of top.slice(0, FINDER_AIM_POOL)) {
+      const { overrides, pd } = dealAfter({ [me]: { gets: d.gets, gives: d.gives }, [d.B]: { gets: d.gives, gives: d.gets } });
+      d.aim = aimProgress(dirs[me], assignBuilds(overrides, pd)[me], finder.target);
+      if (d.aim.hit || d.aim.closer >= 0.005) aimed.push(d);
+    }
+    aimed.sort((a, b) => b.aim.hit - a.aim.hit || b.aim.closer - a.aim.closer || b.score - a.score);
+    top.splice(0, top.length, ...aimed);
+  }
   // One proposal per set of players you'd receive, so the list isn't ten variants of one deal.
   const seen = new Set(), picked = [];
   for (const d of top) {
@@ -2352,14 +2997,154 @@ function findTrades() {
   return { picked, total: out.length, partners: partners.length };
 }
 
+// ---------- three-team finder ----------
+// You plus two teams you pick, each with its own goal. Deals go around a circle (you
+// send to one team, it sends to the other, the other sends to you), both directions.
+// Same rules as two-team: only what you picked leaves your roster, every team within
+// the fair line at market and even or better by its own goal.
+const goalSpec = (g, rid) => {
+  if (g && g.startsWith("aim:")) { const key = g.slice(4); return { tone: aimTone(key), aim: key }; }
+  if (g === "contend" || g === "rebuild" || g === "balanced") return { tone: g, aim: null };
+  return { tone: "balanced", aim: null }; // "their situation": the team's own lens (teamFactor)
+};
+const goalLabel = (g) => (g && g.startsWith("aim:") ? `aiming for ${BUILD_INFO[g.slice(4)][0]}` : { contend: "contending", rebuild: "rebuilding", balanced: "balanced" }[g] || "their own situation");
+
+function findTrades3() {
+  const me = finder.me, [B, C] = finder.three.teams;
+  if (B == null || C == null || B === C) return { error: "Pick two different teams to trade with." };
+  const blocked = [B, C].filter(blockedPartner);
+  if (blocked.length) return { error: `You noted that ${blocked.map(teamName).join(" and ")} won't trade with you. Clear that in Manager profiles to look anyway.` };
+  const send = finder.send.map(assetById).filter(Boolean), get = finder.get.map(assetById).filter(Boolean);
+  const locked = lockedIds(me), sendIds = new Set(send.map((a) => a.id));
+  const myExtra = finder.offer.map(assetById).filter(Boolean)
+    .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id)).sort((a, b) => b.value - a.value).slice(0, 10);
+  if (!send.length && !myExtra.length) return { error: 'Add at least one player or pick to "You send" or "OK to add". The finder never offers anything you didn\'t pick.' };
+  const getOwners = new Set(get.map((a) => a.roster_id));
+  if ([...getOwners].some((r) => r !== B && r !== C)) return { error: "Everything in \"You get\" has to belong to one of the two teams you picked." };
+  if (getOwners.size > 1) return { error: "In a three-team deal one partner sends to you and the other gets paid by you, so \"You get\" can only come from one of them." };
+  const specs = { [me]: { tone: finder.goal, aim: finder.target }, [B]: goalSpec(finder.three.goals[0], B), [C]: goalSpec(finder.three.goals[1], C) };
+  const starts = {};
+  [me, B, C].forEach((r) => (starts[r] = new Set(bestLineup(rosterOf(r), "ros_ppg").map((x) => x.p.id))));
+  const factor = (rid) => (a) => (specs[rid].tone === "balanced" && !specs[rid].aim ? teamFactor(rid, a.id) : goalFactor(a, specs[rid].tone, rid, starts[rid]));
+  const sendRoom = finder.sendMax == null ? 3 : finder.sendMax - send.length;
+  const getRoom = finder.getMax == null ? 2 : finder.getMax - get.length;
+  if (sendRoom < 0 || getRoom < 0) return { error: "The piece limits are smaller than what you've already named." };
+  const posOk = (a) => !finder.positions.length || finder.positions.includes(a.kind === "pick" ? "PICK" : a.pos);
+  const getIds = new Set(get.map((a) => a.id));
+  // Pool of what team `from` could send to team `to`, best fits for `to` first.
+  const pool = (from, to, mineToo) => [...state.assetMap.values()]
+    .filter((a) => a.roster_id === from && a.value >= 150 && !getIds.has(a.id) && !lockedIds(from).has(a.id) && (!mineToo || posOk(a))
+      && !(specs[to].tone === "rebuild" && OLD_FOR_REBUILD(a)))
+    .sort((a, b) => b.value * factor(to)(b) - a.value * factor(to)(a)).slice(0, 9);
+  const mine = combosUpTo(myExtra, Math.min(sendRoom, 2)).map((mx) => [...send, ...mx]).filter((g) => g.length);
+  const ok = (gets, gives, rid, named) => {
+    const mkt = netOf(gets, gives);
+    if (rid === me ? !myMarketFits(mkt) : !theirMarketFits(mkt)) return null;
+    const g = netOf(gets, gives, factor(rid));
+    return !named && g < (rid === me ? -FAIR_MARGIN : theirFloor()) ? null : g;
+  };
+  const out = [];
+  for (const [X, Y] of [[B, C], [C, B]]) {   // you → X → Y → you
+    if (get.length && !getOwners.has(Y)) continue;
+    const xy = combosUpTo(pool(X, Y), 2).filter((c) => c.length);
+    const ym = combosUpTo(pool(Y, me, true), Math.min(getRoom, 2)).map((c) => [...get.filter((a) => a.roster_id === Y), ...c]).filter((c) => c.length);
+    for (const toY of xy) for (const toMe of ym) {
+      if (finder.getMax != null && toMe.length !== finder.getMax) continue;
+      if (finder.positions.length && !toMe.some(posOk)) continue;
+      const gy = ok(toY, toMe, Y, false);
+      if (gy == null) continue;
+      for (const toX of mine) {
+        if (managerNotes(X).picksOnly && toX.some((a) => a.kind !== "pick")) continue;
+        const gx = ok(toX, toY, X, false);
+        if (gx == null) continue;
+        const gm = ok(toMe, toX, me, get.length > 0);
+        if (gm == null) continue;
+        out.push({ X, Y, side: { [me]: { gets: toMe, gives: toX }, [X]: { gets: toX, gives: toY }, [Y]: { gets: toY, gives: toMe } },
+          g: { [me]: gm, [X]: gx, [Y]: gy } });
+      }
+    }
+  }
+  const dirs = assignBuilds(), ppg0 = {};
+  [me, B, C].forEach((r) => (ppg0[r] = teamPPG(rosterOf(r))));
+  out.sort((a, b) => b.g[me] - a.g[me]);
+  const scored = [];
+  for (const d of out.slice(0, 160)) {
+    const { overrides, pd } = dealAfter(d.side);
+    d.overrides = overrides;
+    d.dppg = {};
+    [me, B, C].forEach((r) => (d.dppg[r] = teamPPG(overrides[r]) - ppg0[r]));
+    // Contenders keep their lineups.
+    if ([me, B, C].some((r) => specs[r].tone === "contend" && d.dppg[r] < -1)) continue;
+    const after = assignBuilds(overrides, pd);
+    d.dir = {}; d.aim = {};
+    let miss = false;
+    for (const r of [me, B, C]) {
+      d.dir[r] = [dirs[r], after[r]];
+      d.aim[r] = aimProgress(dirs[r], after[r], specs[r].aim);
+      if (specs[r].aim && !d.aim[r].hit && d.aim[r].closer < 0.005) miss = true;
+    }
+    if (miss) continue;
+    const pieces = Object.values(d.side).reduce((t, x) => t + x.gets.length, 0);
+    const hits = [me, B, C].filter((r) => d.aim[r].hit).length;
+    d.score = 3 * hits + 10 * [me, B, C].reduce((t, r) => t + d.aim[r].closer, 0) + 40 * d.g[me] + 10 * (d.g[d.X] + d.g[d.Y])
+      + (specs[me].tone === "contend" ? 0.3 * d.dppg[me] : 0) - 0.3 * pieces;
+    scored.push(d);
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const seen = new Set(), picked = [];
+  for (const d of scored) {
+    const key = d.X + ":" + d.side[me].gets.map((a) => a.id).sort().join(",");
+    if (seen.has(key)) continue;
+    seen.add(key); picked.push(d);
+    if (picked.length >= 8) break;
+  }
+  const recBefore = projectRecords();
+  picked.forEach((d) => { const ra = projectRecords(d.overrides); d.rec = {}; [me, B, C].forEach((r) => (d.rec[r] = [recBefore[r], ra[r]])); });
+  return { three: true, picked, total: out.length, specs };
+}
+
+function finderResults3(r) {
+  if (r.error) return `<p class="error">${esc(r.error)}</p>`;
+  if (!r.picked.length) return `<p class="muted">No three-team deal fits: nothing ${finder.winBy ? `where you win by about ${Math.round(finder.winBy * 100)}% at market and both partners stay` : "that keeps all three teams"} within the fair line, even or better by each team's goal${Object.values(r.specs).some((s) => s.aim) ? ", and moving each aimed team toward its build" : ""}. Try more pieces in "OK to add", other goals, or other partners.</p>`;
+  const me = finder.me;
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
+  const cls = (x) => (x > FAIR_MARGIN ? "up" : x < -FAIR_MARGIN ? "down" : "");
+  const list = (xs) => `<ul>${xs.map((a) => `<li><span>${face(a.id)}${esc(a.label)}</span><span>${fmt(a.value)}</span></li>`).join("")}</ul>`;
+  const col = (d, rid) => {
+    const x = d.side[rid], aim = d.aim[rid], sp = r.specs[rid];
+    return `<div class="trade-side"><h3>${rid === me ? "You" : esc(teamOf(rid).name)}</h3>
+      <h4>Gets</h4>${list(x.gets)}<h4>Gives</h4>${list(x.gives)}
+      <p>Market <b class="${cls(netOf(x.gets, x.gives))}">${pct(netOf(x.gets, x.gives))}</b> · by its goal <b class="${cls(d.g[rid])}">${pct(d.g[rid])}</b></p>
+      <p>${directionHtml(...d.dir[rid])}${sp.aim ? ` <span class="${aim.hit ? "up" : "muted"}">${aim.hit ? "reaches" : "closer to"} ${esc(BUILD_INFO[sp.aim][0])}</span>` : ""}</p>
+      <p class="muted">Lineup ${d.dppg[rid] >= 0 ? "+" : ""}${d.dppg[rid].toFixed(1)} pts/wk · ${recordText(d.rec[rid][0])} → ${recordText(d.rec[rid][1])}</p></div>`;
+  };
+  return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} ${finder.winBy ? `three-team deals where you win by about ${Math.round(finder.winBy * 100)}%` : "fair three-team deals"}. You: ${esc(goalLabel(finder.target ? "aim:" + finder.target : finder.goal))}. ${esc(teamOf(finder.three.teams[0]).name)}: ${esc(goalLabel(finder.three.goals[0]))}. ${esc(teamOf(finder.three.teams[1]).name)}: ${esc(goalLabel(finder.three.goals[1]))}.</p>
+    ${r.picked.map((d, i) => `<div class="trade-log finder-deal">
+      <h3>${i + 1}. You → ${esc(teamOf(d.X).name)} → ${esc(teamOf(d.Y).name)} → you</h3>
+      <div class="trade-grid">${col(d, me)}${col(d, d.X)}${col(d, d.Y)}</div>
+      <button class="chip finder-open3" data-i="${i}">Open in Trade Calculator</button>
+    </div>`).join("")}`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".finder-open3");
+  if (!b || !finder.last || !finder.last.three) return;
+  const d = finder.last.picked[Number(b.dataset.i)];
+  state.trade = { sides: [finder.me, d.X, d.Y].map((rid) => ({ team: rid, assets: d.side[rid].gets.map((a) => a.id) })) };
+  renderTeamCount();
+  renderSides();
+  document.querySelector('.tabs button[data-tab="trade"]').click();
+});
+
 function finderResults(r) {
   if (r.error) return `<p class="error">${esc(r.error)}</p>`;
-  if (!r.picked.length) return `<p class="muted">No deal fits: nothing within the fair line for both teams that also helps your goal and makes sense for both directions. Try adding pieces to "OK to add", more positions or pieces back, a different partner, or another goal.</p>`;
+  if (!r.picked.length) return `<p class="muted">No deal fits: nothing ${finder.winBy ? `where you win by about ${Math.round(finder.winBy * 100)}% at market` : "within the fair line for both teams"} that also helps your goal and makes sense for both directions. Try adding pieces to "OK to add", more positions or pieces back, a different partner, or another goal.</p>`;
   const me = finder.me;
   const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10}%`;
   const cls = (x) => (x > FAIR_MARGIN ? "up" : x < -FAIR_MARGIN ? "down" : "");
   const list = (xs) => `<ul>${xs.map((a) => `<li><span>${esc(a.label)}</span><span>${fmt(a.value)}</span></li>`).join("")}</ul>`;
   const goalName = { contend: "contending", rebuild: "rebuilding", balanced: "your situation" }[finder.goal];
+  const winNote = finder.winBy ? ` You win each one by about ${Math.round(finder.winBy * 100)}% at market (${Math.round((finder.winBy - WIN_BAND) * 100)}-${Math.round((finder.winBy + WIN_BAND) * 100)}%), so expect to sell it to them on fit.` : "";
+  const aimNote = finder.target ? ` Only deals that reach ${esc(BUILD_INFO[finder.target][0])} or move you toward it, closest first.` : "";
   const themWhy = (d) => {
     const c = teamCtx(d.B), bits = [];
     if (c) bits.push(`They're ${c.label}${c.label === "middle" ? " of the pack" : ""}.`);
@@ -2369,9 +3154,11 @@ function finderResults(r) {
     const picks = d.gives.filter((a) => a.kind === "pick");
     if (picks.length && c && (c.label === "rebuilding" || c.label === "tanking")) bits.push(`They add ${picks.length > 1 ? "picks" : "a pick"} for their rebuild.`);
     if (d.why.themOpen.length) bits.push(`It opens a need at ${d.why.themOpen.join(", ")} for them.`);
+    if (d.fits && d.fits.length) bits.push(`Fits their trade history: ${d.fits.join(", ")}.`);
     return bits.join(" ");
   };
-  return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} fair deals found, ranked for ${goalName}.
+  return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} ${finder.winBy ? "winning" : "fair"} deals found, ranked for ${goalName}.
+${winNote}${aimNote}
       Market is league value with the value adjustment. Your goal is the deal valued for ${goalName}. Their needs is the other team's own lens.</p>
     ${r.picked.map((d, i) => `<div class="trade-log finder-deal">
       <h3>${i + 1}. With ${teamHtml(d.B)}</h3>
@@ -2381,7 +3168,7 @@ function finderResults(r) {
       </div>
       <table class="net"><tbody>
         <tr><td>Market (you)</td><td class="${cls(d.mkt)}">${pct(d.mkt)}</td><td>Your goal</td><td class="${cls(d.mine)}">${pct(d.mine)}</td><td>Their needs</td><td class="${cls(d.them)}">${pct(d.them)}</td></tr>
-        <tr><td>Your direction</td><td colspan="2">${directionHtml(...d.dir.me)}</td><td>Their direction</td><td colspan="2">${directionHtml(...d.dir.them)}</td></tr>
+        <tr><td>Your direction</td><td colspan="2">${directionHtml(...d.dir.me)}${d.aim ? ` <span class="${d.aim.hit ? "up" : "muted"}">${d.aim.hit ? "reaches" : "closer to"} ${esc(BUILD_INFO[finder.target][0])}</span>` : ""}</td><td>Their direction</td><td colspan="2">${directionHtml(...d.dir.them)}</td></tr>
         <tr><td>Your lineup</td><td class="${d.dMe > 0.3 ? "up" : d.dMe < -0.3 ? "down" : ""}">${d.dMe >= 0 ? "+" : ""}${d.dMe.toFixed(1)} pts/wk</td>
           <td>Your record</td><td>${recordText(d.rec.me[0])} → ${recordText(d.rec.me[1])}</td>
           <td>Your max PF</td><td>${fmt(d.rec.me[0].maxPF)} → ${fmt(d.rec.me[1].maxPF)}</td></tr>

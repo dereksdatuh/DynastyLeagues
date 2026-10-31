@@ -9,24 +9,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python -m engine.build --out site/data
-      - run: python check_trade.py || true
-      - name: Smoke test output (debug)
+      - name: Build with the new engine
+        run: python -m engine.build --out site/data 2> after.err | tee after.out
+      - name: Build with the engine on the default branch
+        run: |
+          git worktree add /tmp/base origin/claude/dazzling-shannon-p64vdd
+          cd /tmp/base && python -m engine.build --out /tmp/before > /tmp/before.out 2>&1 || true
+      - name: Smoke test
         run: |
           sed -i "s/__BUILD__/${GITHUB_SHA::7}/g" site/index.html site/app.js
           npm install --no-save --silent playwright-core@1.56
           python -m http.server 8000 -d site >/dev/null 2>&1 &
           sleep 1
           mkdir -p scratch
-          node tests/site_smoke.mjs http://localhost:8000/ > smoke.out 2>&1 || true
-          { grep -nE "Error|error|Timeout|waiting for|at .*site_smoke|logged in|^[a-z0-9-]+:|quick values" smoke.out | cut -c1-300; echo ---; tail -25 smoke.out | cut -c1-300; } > scratch/smoke.log
-      - name: Save the league data on this scratch branch
+          node tests/site_smoke.mjs http://localhost:8000/ > smoke.out 2>&1; echo "exit $?" >> smoke.out
+          { grep -nE "Error|error|Timeout|waiting for|at .*site_smoke|^[a-z0-9-]+:|exit" smoke.out | cut -c1-300; echo ---; tail -25 smoke.out | cut -c1-300; } > scratch/smoke.log
+      - name: Save both builds on this scratch branch
         run: |
-          mkdir -p scratch && cp site/data/*.json scratch/; ls scratch
+          mkdir -p scratch/before
+          cp site/data/*.json scratch/; cp /tmp/before/*.json scratch/before/
+          grep -vE "^note:" after.err | sort | uniq -c | sort -rn | head -60 > scratch/after.err
+          cp after.out scratch/after.out; tail -40 /tmp/before.out > scratch/before.out
           git config user.name "github-actions" && git config user.email "actions@github.com"
           git add -f scratch/ && git commit -qm "scratch data [skip ci]" && git push -q origin HEAD:claude/trade-check-gibbs

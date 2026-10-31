@@ -342,9 +342,17 @@ def test_rookie_draft_order_rule_board_and_class(offline):
     by_slot = {p["slot"]: p for p in firsts}
     assert sorted(by_slot) == list(range(1, len(teams) + 1))
     assert by_slot[1]["label"].startswith("2027 1.01") and by_slot[1]["tier"] == "early"
-    assert [by_slot[s]["value"] for s in sorted(by_slot)] == sorted((p["value"] for p in firsts), reverse=True)
-    assert by_slot[1]["value"] > by_slot[2]["value"] > by_slot[len(teams)]["value"]
-    # Two years out there is no order to read yet, so those picks keep a round-wide value.
+    # In season each pick is priced over every slot it can land at (the season played
+    # out many times): the projected 1.01 is still worth the most and the last slot the
+    # least, and a pick's value follows where it lands on average.
+    assert all(p.get("landing") for p in firsts)
+    assert abs(sum(p["landing"]["top3"] for p in firsts) - 3) < 0.01
+    assert by_slot[1]["value"] == max(p["value"] for p in firsts)
+    assert by_slot[len(teams)]["value"] == min(p["value"] for p in firsts)
+    by_avg = sorted(firsts, key=lambda p: p["landing"]["avg_slot"])
+    assert by_avg[0]["value"] > by_avg[len(teams) // 2]["value"] > by_avg[-1]["value"]
+    # Two years out there is no order to read yet; with no devy class listed for that
+    # year either, those picks keep a round-wide value.
     later = [p for p in data["picks"] if p["year"] > 2028 and p["round"] == 1]
     assert later and len({p["value"] for p in later}) == 1 and all(p["slot"] is None for p in later)
     # Class: only 2027 prospects, on the league's value scale, best first.
@@ -394,7 +402,8 @@ def test_class_blends_slot_and_ktc_devy_and_lifts_picks(offline, monkeypatch):
     # 1.01 and the best prospect, so it moves with the class, not just the market.
     first = next(p for p in data["picks"] if p["year"] == rd["year"] and p["round"] == 1 and p["slot"] == 1)
     board_101 = next(b for b in rd["board"] if b["overall"] == 1)
-    assert board_101["slot_value"] == first["value"]
+    # (The pick itself is priced over where it can still land; its own slot's price is kept.)
+    assert board_101["slot_value"] == first["landing"]["single_slot_value"]
     assert first["value"] > 0.5 * cls[0]["value"]
 
 
@@ -644,3 +653,117 @@ def test_upcoming_weekly_projections_lead_rest_of_season():
     assert record.blend_ppg(4.65, up) == pytest.approx(0.7 * 14.5 + 0.3 * 4.65)
     assert record.blend_ppg(4.65, None) == 4.65
     assert record.upcoming_ppg("nobody", "RB", weeks, scoring) is None
+
+
+def test_future_classes_are_priced_on_the_league_scale(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    fc = data["future_classes"]
+    assert "2028" in fc and fc["2028"]
+    rows = fc["2028"]
+    assert all(r["name"] and r["pos"] and r["value"] > 0 for r in rows)
+    assert [r["value"] for r in rows] == sorted((r["value"] for r in rows), reverse=True)
+    assert "2027" in fc  # the coming class too, beside the Rookie Mock
+
+
+# --- Value system upgrades: backtested model, situations, league market, pick landing ---
+
+def test_backtest_tuning_feeds_the_model():
+    from engine import model
+    t = model.TUNING
+    assert t.get("stability") and t.get("age_curves") and t.get("season_weights")
+    # Stability is measured, not hand-set, for offense; every position stays in (0, 1].
+    assert all(0 < v <= 1 for v in model.STABILITY.values())
+    assert model.STABILITY["QB"] == t["stability"]["QB"]["stability"]
+    # A fitted curve is only used where it beat the old one on held-out seasons.
+    for k, c in model.ARCHETYPE_CURVES.items():
+        h = t["aging_holdout"][k]
+        assert h["mae_fitted"] < h["mae_old"]
+    # Two seasons ago counts, and less than last season.
+    assert 0 < t["season_weights"]["two_ago"] < 1
+
+
+def test_rushing_qbs_age_on_their_own_curve():
+    from engine import model
+    if "QB_rush" not in model.ARCHETYPE_CURVES:
+        return
+    at31_rush = model.age_multiplier("QB", 29, 2, "QB_rush")
+    at31_pocket = model.age_multiplier("QB", 29, 2, "QB_pocket")
+    assert at31_rush < at31_pocket
+
+
+def test_availability_marks_down_missed_games_by_the_backtested_amount():
+    from engine import model
+    assert model.availability_factor("WR", 34, 34) == 1.0
+    hurt = model.availability_factor("WR", 24, 34)
+    assert 0.8 <= hurt < 1.0
+    # QBs' games played carry over more than WRs', so the same missed time costs more.
+    assert model.availability_factor("QB", 24, 34) <= hurt
+
+
+def test_two_seasons_ago_counts_in_points_per_game():
+    from engine import model
+    fmt = format_from_sleeper(STANDARD_LEAGUE)
+    line = lambda yd: {"x": {"stats": {"gp": 16, "rec": 80, "rec_yd": yd, "rec_td": 6}}}
+    without = model.estimate_ppg("x", "WR", fmt, {}, {}, line(1000))
+    with_old = model.estimate_ppg("x", "WR", fmt, {}, {}, line(1000), line(1600))
+    assert with_old["ppg"] > without["ppg"]
+
+
+def test_build_reads_situations_from_nflverse(offline):
+    data = _build(STANDARD_LEAGUE, offline)
+    src = data["model"]["situation_sources"]
+    assert src["usage"] > 0 and src["depth"] > 0 and src["contracts"] > 0
+    sits = {p["name"]: p["situation"] for p in data["players"] if p.get("situation")}
+    qb_rush = [n for n, s in sits.items() if s.get("archetype") == "QB_rush"]
+    assert qb_rush, "the run-heavy QB is typed as a rushing QB"
+    backup = [s for s in sits.values() if s.get("depth") == "QB2"]
+    assert backup and all(s["later"] < 1 for s in backup)
+    # Replacement blends the theoretical level with real free agents, never above it.
+    m = data["model"]
+    assert all(m["replacement_ppg"][g] <= m["replacement_lineup_ppg"][g] for g in m["replacement_ppg"])
+    assert all(p["vor"] is None or isinstance(p["vor"], float) for p in data["players"])
+    assert data["model"]["backtest"]["stability"]
+
+
+def test_league_market_learns_what_a_league_overpays_for():
+    from engine import market_learn
+    by_id = {f"r{i}": {"id": f"r{i}", "pos": "RB", "value": 5000} for i in range(12)}
+    by_id.update({f"w{i}": {"id": f"w{i}", "pos": "WR", "value": 5000} for i in range(12)})
+    now = 1_800_000_000_000
+    by_id.update({f"q{i}": {"id": f"q{i}", "pos": "WR", "value": 1250} for i in range(12)})
+    # Twelve trades where an RB fetched an equal WR plus a quarter-value WR on top.
+    trades = [{"at": now, "moves": [
+        {"kind": "player", "id": f"r{i}", "from": 1, "to": 2},
+        {"kind": "player", "id": f"w{i}", "from": 2, "to": 1},
+        {"kind": "player", "id": f"q{i}", "from": 2, "to": 1},
+    ]} for i in range(12)]
+    out = market_learn.learn(trades, by_id, lambda m: None, now, 10_000)
+    m = out["multipliers"]
+    assert m["RB"] > 1.0 > m["WR"] and market_learn.CLAMP[0] <= m["WR"] and m["RB"] <= market_learn.CLAMP[1]
+    # Too few trades: nothing moves.
+    few = market_learn.learn(trades[:3], by_id, lambda m: None, now, 10_000)
+    assert set(few["multipliers"].values()) == {1.0}
+    # A trade with a piece today's values can't price (a pick already drafted) is dropped.
+    t = {"at": now, "moves": [{"kind": "pick", "id": "pick:2025:1:1", "season": "2025", "round": 1, "from": 1, "to": 2},
+                              {"kind": "player", "id": "r0", "from": 2, "to": 1}]}
+    assert market_learn.learn([t], by_id, lambda m: None, now, 10_000)["rows"] == 0
+
+
+def test_landing_sim_prices_picks_over_where_they_can_land():
+    from engine import landing
+    teams = [{"roster_id": r, "ros_ppg": 100 + 4 * r, "record": {"wins": r // 3, "losses": 3 - r // 3, "ties": 0,
+                                                                  "fpts": 400 + r, "max_pf": 460 + r}} for r in range(1, 13)]
+    order = list(range(1, 13))
+    schedule = {w: [[order[i], order[11 - i]] for i in range(6)] for w in range(5, 15)}
+    counts = landing.simulate(teams, schedule, False, 20, "max_pf", 6, None, {}, sims=800)
+    assert all(sum(c) == 800 for c in counts.values())
+    assert all(sum(counts[r][i] for r in counts) == 800 for i in range(12))
+    # The weakest team lands top three far more often than the strongest.
+    assert landing.odds(counts[1])["top3"] > 0.5 > landing.odds(counts[12])["top3"]
+    value = lambda overall: 10_000 / overall
+    v1, s1 = landing.pick_value(counts[1], 1, 12, False, value)
+    v12, s12 = landing.pick_value(counts[12], 1, 12, False, value)
+    assert v1 > v12 and s1 < s12
+    # A snake draft's second round runs backwards.
+    _, s2 = landing.pick_value(counts[1], 2, 12, True, value)
+    assert s2 > s1

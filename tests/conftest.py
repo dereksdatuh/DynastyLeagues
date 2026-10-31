@@ -85,7 +85,7 @@ def make_world(seed: int = 7):
             players[str(pid)] = {"player_id": str(pid), "full_name": name, "first_name": name.split()[0],
                                  "last_name": name.split()[1], "position": pos, "fantasy_positions": fp,
                                  "team": "KC" if pid % 2 else "BUF", "age": age, "years_exp": max(0, age - 22),
-                                 "search_rank": i + 1, "espn_id": 9000 + pid,
+                                 "search_rank": i + 1, "espn_id": 9000 + pid, "gsis_id": f"00-{pid:07d}",
                                  "injury_status": "Questionable" if pid % 37 == 0 else None,
                                  "injury_body_part": "Hamstring" if pid % 37 == 0 else None, "news_updated": pid}
             proj[str(pid)] = {"player_id": str(pid), "stats": _stats(pos, q, rng, 17)}
@@ -186,7 +186,9 @@ def fake_responses(world, league):
                    "settings": {"playoff_teams": league["settings"].get("playoff_teams", n // 2)}}
     dp_csv = '"player","pos","team","age","draft_year","ecr_1qb","ecr_2qb","ecr_pos","value_1qb","value_2qb","scrape_date","fp_id"\n' + "\n".join(dp)
     lid = league["league_id"]
+    nflv = nflverse_fakes(world)
     return {
+        **nflv,
         "/state/nfl": {"season": "2026", "league_season": "2026", "week": 5, "season_type": "regular"},
         f"/league/{lid}/rosters": rosters,
         f"/league/{lid}/users": users,
@@ -195,6 +197,8 @@ def fake_responses(world, league):
         f"/league/{lid}/drafts": last_draft,
         "/league/P1/rosters": prev,
         "/league/P1/drafts": [],
+        # Last season: roster 3 paid a 2028 1st for one RB (today's values price both).
+        **{f"/league/P1/transactions/{leg}": [] for leg in range(0, 19)},
         "/league/P1": prev_league,
         "keeptradecut.com/devy-rankings": devy_html,
         **schedule,
@@ -224,10 +228,52 @@ def fake_responses(world, league):
     }
 
 
+def nflverse_fakes(world) -> dict:
+    """Small nflverse tables: the first QB runs a lot, one WR's targets jump lately,
+    a backup QB on the depth chart, an expiring contract and a coaching change."""
+    import gzip
+    qbs = [p for p in world.offense if p["position"] == "QB"][:3]
+    wrs = [p for p in world.offense if p["position"] == "WR"][:4]
+    gs = lambda p: f"00-{int(p['player_id']):07d}"
+    players_csv = "gsis_id,pfr_id,otc_id,birth_date,position\n" + "\n".join(
+        f"{gs(p)},PFR{p['player_id']},{p['player_id']},1998-01-01,{p['position']}" for p in world.offense)
+    head = ("player_id,position,season,week,season_type,team,attempts,passing_yards,passing_tds,passing_interceptions,"
+            "carries,rushing_yards,rushing_tds,receptions,targets,receiving_yards,receiving_tds,receiving_air_yards,target_share")
+    rows = []
+    for wk in range(1, 9):
+        for i, q in enumerate(qbs):
+            rush = 70 if i == 0 else 5
+            rows.append(f"{gs(q)},QB,2026,{wk},REG,{q['team']},34,250,2,1,{8 if i == 0 else 2},{rush},{1 if i == 0 else 0},0,0,0,0,0,0")
+        for i, w in enumerate(wrs):
+            tg = 6 if i else (5 if wk <= 4 else 11)
+            rows.append(f"{gs(w)},WR,2026,{wk},REG,{w['team']},0,0,0,0,0,0,0,{tg - 2},{tg},{tg * 12},0,{tg * 14},0.2")
+    week_csv = head + "\n" + "\n".join(rows)
+    snaps = "game_id,season,game_type,week,player,pfr_player_id,position,team,opponent,offense_snaps,offense_pct,defense_snaps,defense_pct\n" + \
+        "\n".join(f"g,2026,REG,{wk},x,PFR{w['player_id']},WR,KC,BUF,50,0.9,0,0" for w in wrs for wk in range(1, 9))
+    depth = "dt,team,player_name,espn_id,gsis_id,pos_abb,pos_rank\n" + "\n".join(
+        f"2026-10-30T00:00:00Z,{q['team']},x,1,{gs(q)},QB,{1 if i != 1 else 2}" for i, q in enumerate(qbs))
+    contracts = "player,position,team,is_active,year_signed,years,apy,otc_id\n" + "\n".join(
+        f"x,{p['position']},t,TRUE,2023,{4 if i else 3},1000000,{p['player_id']}" for i, p in enumerate(qbs + wrs))
+    games = "season,game_type,week,home_team,away_team,home_coach,away_coach\n" + \
+        "2025,REG,18,KC,BUF,Andy Reid,Sean McDermott\n2026,REG,1,KC,BUF,Andy Reid,New Coach"
+    return {
+        "nflverse-data/releases/download/players/players.csv": players_csv,
+        "stats_player_week_2026.csv": week_csv,
+        "stats_player_week_2025.csv": head + "\n",
+        "snap_counts_2026.csv": snaps,
+        "snap_counts_2025.csv": snaps.split("\n")[0] + "\n",
+        "depth_charts_2026.csv": depth,
+        "historical_contracts.csv.gz": gzip.compress(contracts.encode()),
+        "nfldata/master/data/games.csv": games,
+        "/stats/nfl/2024": list(world.last.values()),
+    }
+
+
 class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
-        self.text = payload if isinstance(payload, str) else json.dumps(payload)
+        self.content = payload if isinstance(payload, bytes) else None
+        self.text = payload if isinstance(payload, str) else "" if isinstance(payload, bytes) else json.dumps(payload)
 
     def json(self):
         return self.payload if not isinstance(self.payload, str) else json.loads(self.payload)
