@@ -143,6 +143,15 @@ for (const [id, liteRun] of runs) {
   const devyCards = await page.$$eval("#devy .devy-card", (r) => r.length);
   console.log(`  future rookies: ${devyCards} prospects, top ${await page.$$eval("#devy .devy-name b", (bs) => bs.slice(0, 3).map((b) => b.textContent).join(", "))}`);
   if (!devyCards) errors.push(`${id}: 2027-2029 rookie classes missing`);
+  // Playoff and draft-slot odds from simulated seasons.
+  if (drafted) {
+    await page.click('button[data-tab="odds"]');
+    const oddsRows = await page.$$eval("#odds table.odds-table:not(.slots) tbody tr", (r) => r.length);
+    const oddsTop = await page.$eval("#odds table.odds-table tbody tr", (r) => r.textContent.replace(/\s+/g, " ").trim().slice(0, 120)).catch(() => "");
+    console.log(`  playoff odds: ${oddsRows} teams, top ${oddsTop}`);
+    const nTeams = await page.evaluate(() => state.data.teams.length);
+    if (oddsRows !== nTeams) errors.push(`${id}: playoff odds show ${oddsRows} teams, expected ${nTeams}`);
+  }
   // Pick projections draw a board for every year with tradable picks.
   await page.click('button[data-tab="picks"]');
   const pickCards = await page.$$eval("#pickproj .pick-card", (r) => r.length);
