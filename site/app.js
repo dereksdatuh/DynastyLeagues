@@ -680,7 +680,7 @@ function situationHtml(p) {
   const s = p.situation || {}, g = p.games || {};
   const pc = (x) => `${Math.round(x * 100)}%`;
   const rows = [];
-  if (p.vor != null) rows.push(["Points over replacement", `${p.vor > 0 ? "+" : ""}${p.vor} a game`, "against what you'd start in his place in this league (half the theoretical level, half the best free agents)"]);
+  if (p.vor != null) rows.push(["Points over replacement", `${p.vor > 0 ? "+" : ""}${p.vor} a game`, "against what you'd start in his place in this league: mostly the best player left once every lineup is full, a quarter weight on the best free agents"]);
   if (s.archetype) rows.push(["Player type", ARCHETYPE[s.archetype] || s.archetype, s.archetype === "QB_rush" ? "ages on the rushing-QB curve the backtest fitted (peak to 28, then about 9% a year)" : "same age curve as his position"]);
   if (s.tgt_share != null || s.car_share != null) rows.push(["Role", [s.tgt_share ? `${pc(s.tgt_share)} of targets` : "", s.car_share ? `${pc(s.car_share)} of carries` : "", s.snap ? `${pc(s.snap)} of snaps lately` : ""].filter(Boolean).join(", "),
     s.role_trend ? `share ${s.role_trend > 1 ? "up" : "down"} ${pc(Math.abs(s.role_trend - 1))} over the last four games; this season's line counts ×${s.role ?? 1} (role swings mostly fade, per the backtest)` : ""]);
@@ -2201,7 +2201,7 @@ function modelTuningHtml() {
   const pc = (x) => `${Math.round(x * 100)}%`;
   const parts = [];
   if (bt.stability) parts.push(`<p><b>Backtested on ${esc((bt.seasons || []).join("-"))}.</b> Share of a player's points over replacement he kept the next season, after aging and counting missed games: ${Object.entries(bt.stability).map(([k, v]) => `${esc(k)} ${pc(v.stability)}`).join(", ")}. Weighting the last three seasons ${bt.season_weights ? `(1, ${bt.season_weights.two_ago}, ${bt.season_weights.three_ago})` : ""} cut next-season error from ${bt.season_weights?.mae_last_season_only} to ${bt.season_weights?.mae_tuned} points a game. Recent role swings mostly faded${bt.in_season ? ` (role trend ${bt.in_season.role_trend})` : ""}. ${Object.keys(m.archetype_curves || {}).length ? `Fitted age curves that beat the old ones on 2020-2025 seasons: ${Object.keys(m.archetype_curves).map((k) => esc(ARCHETYPE[k] || k)).join(", ")}; the rest kept their curves.` : ""}</p>`);
-  if (m.replacement_fa_ppg && Object.keys(m.replacement_fa_ppg).length) parts.push(`<p>Replacement level here (points a game): ${Object.entries(m.replacement_ppg || {}).map(([k, v]) => `${esc(k)} ${v}`).join(", ")}, half the theoretical level and half the best free agents.</p>`);
+  if (m.replacement_fa_ppg && Object.keys(m.replacement_fa_ppg).length) parts.push(`<p>Replacement level here (points a game): ${Object.entries(m.replacement_ppg || {}).map(([k, v]) => `${esc(k)} ${v}`).join(", ")}: three parts the best player left once every lineup is full, one part the best free agents.</p>`);
   if (lm) {
     const moved = Object.entries(lm.multipliers || {}).filter(([, v]) => v !== 1);
     parts.push(`<p>This league's trade market (${lm.rows} trade sides from ${lm.trades} trades, this season and the two before, valued at today's numbers): ${moved.length ? moved.map(([k, v]) => `${esc(k)} ×${v}`).join(", ") : "not enough trades to move any position yet"}.</p>`);

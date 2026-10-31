@@ -56,7 +56,11 @@ def rank(players: list[dict]) -> None:
             p["pos_tier"] = t["tier"]
 
 
-FA_REPLACEMENT_WEIGHT = 0.5  # replacement level: share from this league's real free agents
+# Replacement level: share from this league's real free agents. Most weeks the player
+# who'd start in a starter's place is a bench player (the theoretical level); now and
+# then it's a waiver pickup. Not backtested: at 0.5 superflex QBs rose about 18%
+# against the old values, at 0.25 about 9-14%, so it stays at the low end.
+FA_REPLACEMENT_WEIGHT = 0.25
 
 
 def free_agent_levels(rows: dict, rostered: set, groups) -> dict:
@@ -104,9 +108,9 @@ def value_players(
         if est and r["group"] in ppg_by_group and (pid in proj or pid in cur):
             ppg_by_group[r["group"]].append(est["ppg"])
     lineup_repl, starters = model.replacement_levels(ppg_by_group, fmt)
-    # Replacement is what you'd actually start instead: half the theoretical level
-    # (the best player left once every lineup is full) and half the best free agents
-    # in this league as rostered today, so deep benches and thin waivers count.
+    # Replacement is what you'd actually start instead: mostly the theoretical level
+    # (the best player left once every lineup is full), with FA_REPLACEMENT_WEIGHT on
+    # the best free agents in this league as rostered today, so thin waivers count.
     fa = free_agent_levels(rows, rostered, lineup_repl) if len(rostered) >= fmt.num_teams * 5 else {}
     repl = {g: round((1 - FA_REPLACEMENT_WEIGHT) * v + FA_REPLACEMENT_WEIGHT * min(fa[g], v), 2) if g in fa else v
             for g, v in lineup_repl.items()}

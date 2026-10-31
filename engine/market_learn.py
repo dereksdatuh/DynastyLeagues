@@ -16,7 +16,7 @@ import math
 
 from . import trade as trade_eval
 
-PRIOR_TRADES = 8.0
+PRIOR_TRADES = 12.0
 MIN_TRADES = 5
 CLAMP = (0.92, 1.08)
 HALF_LIFE_DAYS = 365
@@ -62,12 +62,18 @@ def equations(trades: list, by_id: dict, pick_value, now_ms: float, scale: float
             gave = [a for m, a in assets if m["from"] == rid]
             if not got or not gave:
                 continue
-            # Depth part of the value adjustment, per piece, so multipliers stay linear.
+            # The calculator's value adjustment: the depth part per piece (so the
+            # multipliers stay linear), the stud premium and roster-spot cost as each
+            # side's constant. Without them a 2-for-1 reads as an overpay by the side
+            # that got the star.
             allv = [v for _, v in got + gave]
             top = max(allv)
             e = trade_eval.DEPTH_EXP * top / scale if scale else 0
             eff = lambda xs: [(g, v * (v / top) ** e) for g, v in xs]
-            rows.append({"got": eff(got), "gave": eff(gave), "w": w})
+            item = lambda xs: [{"value": v, "kind": "pick" if g == "PICK" else "player"} for g, v in xs]
+            adj = trade_eval.adjust(item(got), item(gave), scale)
+            rows.append({"got": eff(got), "gave": eff(gave), "w": w,
+                         "got_c": adj["g"]["stud"] + adj["g"]["roster"], "gave_c": adj["v"]["stud"] + adj["v"]["roster"]})
     return rows
 
 
@@ -85,8 +91,8 @@ def fit(rows: list) -> dict:
     def loss(x):
         tot = 0.0
         for r in rows:
-            a = sum(math.exp(x[g]) * v for g, v in r["got"])
-            b = sum(math.exp(x[g]) * v for g, v in r["gave"])
+            a = sum(math.exp(x[g]) * v for g, v in r["got"]) + r.get("got_c", 0)
+            b = sum(math.exp(x[g]) * v for g, v in r["gave"]) + r.get("gave_c", 0)
             if a > 0 and b > 0:
                 tot += r["w"] * math.log(a / b) ** 2
         # A position that is about half of one side moves that trade's log balance by
