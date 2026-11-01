@@ -272,7 +272,10 @@ def test_projected_max_pf_adds_best_lineup_for_each_week_left(offline):
     data = _build(STANDARD_LEAGUE, offline)
     for t in data["teams"]:
         assert t["record"]["max_pf"] == pytest.approx(480.5 + t["roster_id"] - 1)
-        assert t["projection"]["max_pf"] == pytest.approx(t["record"]["max_pf"] + t["ros_ppg"] * 10, abs=0.1)
+        # Each week left adds that week's best lineup (byes and injuries out).
+        regular = [w for w in t["weekly"] if str(w["week"]) in {str(k) for k in data["schedule"]["weeks"]}]
+        assert len(regular) == 10
+        assert t["projection"]["max_pf"] == pytest.approx(t["record"]["max_pf"] + sum(w["mean"] for w in regular), abs=0.5)
     assert sorted(t["projection"]["max_pf_rank"] for t in data["teams"]) == list(range(1, 13))
 
 

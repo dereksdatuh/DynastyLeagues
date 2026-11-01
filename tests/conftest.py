@@ -255,7 +255,9 @@ def nflverse_fakes(world) -> dict:
     contracts = "player,position,team,is_active,year_signed,years,apy,otc_id\n" + "\n".join(
         f"x,{p['position']},t,TRUE,2023,{4 if i else 3},1000000,{p['player_id']}" for i, p in enumerate(qbs + wrs))
     games = "season,game_type,week,home_team,away_team,home_coach,away_coach\n" + \
-        "2025,REG,18,KC,BUF,Andy Reid,Sean McDermott\n2026,REG,1,KC,BUF,Andy Reid,New Coach"
+        "2025,REG,18,KC,BUF,Andy Reid,Sean McDermott\n2026,REG,1,KC,BUF,Andy Reid,New Coach\n" + \
+        "\n".join(f"2026,REG,{wk},{t},OPP,x,y" for t in sorted({p["team"] for p in world.offense if p.get("team")})
+                  for wk in range(2, 18) if not (t == "KC" and wk == 7))
     return {
         "nflverse-data/releases/download/players/players.csv": players_csv,
         "stats_player_week_2026.csv": week_csv,

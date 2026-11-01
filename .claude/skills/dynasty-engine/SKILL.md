@@ -66,6 +66,12 @@ hour and publishes the site; its run summary and `site-data` artifact hold the l
   ceiling, recent form).
 - `engine/market_learn.py`: per-league position multipliers from that league's own trades
   (cautious: prior, decay, Huber loss, clamp). Shown as `league_market` in the league JSON.
+- `engine/weeks.py` and `site/app.js` (`teamWeeks`, `seasonModel`): every team's best
+  lineup for each week left, playoffs included, with byes (nflverse schedule,
+  `nflverse.byes`) and injuries (`RETURN`) taken out; spread from starters' game logs
+  (`SD_SCALE`) plus one season-long error per team (`BIAS_SHARE`). Records, strength of
+  schedule, the landing sim and the Playoff Odds tab all play these weekly lineups.
+  Ships `players[].wk` (lined up with `schedule.sim_weeks`), `players[].cv`, `teams[].weekly`.
 - `engine/landing.py`: in-season Monte Carlo of the rest of the season and playoffs; the
   coming draft's picks are priced over every slot they land at (`picks[].landing`).
 - The build workflow caches only `data/cache/keep_*` between runs (finished weeks, old
