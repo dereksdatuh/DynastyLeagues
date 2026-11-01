@@ -8,6 +8,7 @@ summary is what gets cached, so the big raw files (the depth chart file runs pas
     depth(season)        -> {gsis: {"pos": "WR", "rank": 1, "team": "DET"}}
     contracts()          -> {gsis: {"years_left": 2, "apy": 30000000.0}}
     coach_changes(season)-> {"DET": True, ...} (head coach differs from last season's)
+    byes(season)         -> {"DET": [6], ...} (regular-season weeks each team has no game)
     birthdays()          -> {gsis: "1999-07-24"}, plus pfr and otc id maps
 """
 
@@ -193,6 +194,24 @@ def coach_changes(season: int) -> dict:
                 out[team] = coach[(season - 1, team)][1] != c
         return out
     return _derived(f"coaches_{season}", DAY, build)
+
+
+def byes(season: int, last_week: int = 18) -> dict:
+    """Team -> the regular-season weeks it doesn't play, from the published NFL schedule."""
+    def build():
+        played: dict[str, set] = {}
+        for r in _rows(GAMES_URL):
+            if int(_f(r.get("season"))) != season or r.get("game_type") != "REG":
+                continue
+            wk = int(_f(r.get("week")))
+            for side in ("home_team", "away_team"):
+                if r.get(side):
+                    played.setdefault(r[side], set()).add(wk)
+        if not played:
+            return {}
+        weeks = set(range(1, max(max(w) for w in played.values()) + 1))
+        return {t: sorted(weeks - w) for t, w in sorted(played.items())}
+    return _derived(f"byes_{season}", DAY, build)
 
 
 def age_on(birth: str | None, when: date) -> float | None:

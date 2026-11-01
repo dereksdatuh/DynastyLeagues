@@ -1,15 +1,18 @@
 """Projected season records from each team's best lineup and the league schedule.
 
-A team's weekly score is its optimal lineup's rest-of-season points per game.
-A game is won with probability Φ((μa − μb) / (σ·√2)), where σ is the spread of
-one team's weekly score (a share of the league's average score). Projected
-record = current record + expected wins over the remaining regular season.
-Weeks without a scheduled opponent use the average against every other team.
+Each week a team scores around that week's best lineup (engine/weeks.py: byes and
+injuries out, Sleeper's projections where it has them) with that lineup's own spread.
+A game is won with probability Φ((μa − μb) / √(σa² + σb²)), where each σ also carries
+the season-long projection error (weeks.BIAS_SHARE). Projected record = current
+record + expected wins over the remaining regular season. Weeks without a scheduled
+opponent use the average against every other team. Without weekly lineups (older
+data) every week is the rest-of-season lineup points with the league's one spread.
 The same math runs in the browser (site/app.js) to re-project after a trade.
 """
 
 from math import erf, sqrt
 
+from . import weeks as weeks_mod
 from .league import fantasy_points
 
 # Spread of a team's weekly score as a share of the league average: about 0.18
@@ -65,6 +68,48 @@ def vs_median(rid, ppg: dict, sigma: float) -> float:
     return 0.5 * (1 + erf((ppg[rid] - mid) / (sigma * sqrt(2))))
 
 
+class Weeks:
+    """(mean, spread) of every team's score in a given week."""
+
+    def __init__(self, ppg: dict, sigma: float, weekly: dict | None = None):
+        self.ppg, self.sigma, self.weekly = ppg, sigma, weekly or {}
+        self.bias = {rid: weeks_mod.bias_sd(self.weekly[rid]) for rid in self.weekly if self.weekly[rid]}
+
+    def get(self, rid, week) -> tuple[float, float]:
+        """Mean and the week's own spread (no season-long error)."""
+        w = (self.weekly.get(rid) or {}).get(int(week))
+        if w is None:
+            return self.ppg[rid], self.sigma
+        return w["mean"], w["sd"]
+
+    def total(self, rid, week) -> tuple[float, float]:
+        """Mean and the full spread a single game sees (weekly swing plus projection error)."""
+        mu, sd = self.get(rid, week)
+        b = self.bias.get(rid, 0.0)
+        return mu, sqrt(sd * sd + b * b)
+
+    def game(self, a, b, week) -> float:
+        ma, sa = self.total(a, week)
+        mb, sb = self.total(b, week)
+        s = sqrt(sa * sa + sb * sb)
+        if s <= 0:
+            return 0.5 if ma == mb else float(ma > mb)
+        return 0.5 * (1 + erf((ma - mb) / (s * sqrt(2))))
+
+    def field(self, rid, week) -> float:
+        others = [r for r in self.ppg if r != rid]
+        return sum(self.game(rid, o, week) for o in others) / len(others) if others else 0.5
+
+    def median(self, rid, week) -> float:
+        others = sorted(self.total(r, week)[0] for r in self.ppg if r != rid)
+        if not others:
+            return 0.5
+        h = len(others) // 2
+        mid = others[h] if len(others) % 2 else (others[h - 1] + others[h]) / 2
+        mu, sd = self.total(rid, week)
+        return 0.5 * (1 + erf((mu - mid) / (sd * sqrt(2)))) if sd > 0 else float(mu > mid)
+
+
 def schedule_pairs(matchups: list) -> list[list]:
     """Sleeper's matchup rows for one week -> [[roster_a, roster_b], ...]."""
     by_id: dict = {}
@@ -96,26 +141,29 @@ def seed(stats: dict, playoff_teams: int, divisions: dict | None = None) -> list
 
 
 def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False, sigma: float | None = None,
-            playoff_teams: int | None = None, divisions: dict | None = None) -> dict:
-    """ppg {rid: points/week}; current {rid: {"wins","losses","ties","fpts","max_pf"}}; schedule {week: [[a, b], ...]}."""
+            playoff_teams: int | None = None, divisions: dict | None = None, weekly: dict | None = None) -> dict:
+    """ppg {rid: points/week}; current {rid: {"wins","losses","ties","fpts","max_pf"}}; schedule {week: [[a, b], ...]};
+    weekly {rid: {week: {"mean", "sd"}}} (engine/weeks.py team_weeks), when known."""
     sigma = sigma or sigma_for(ppg)
+    wk = Weeks(ppg, sigma, weekly)
     out = {}
     for rid in ppg:
         cur = current.get(rid) or {}
-        exp_w = games = 0.0
-        for pairs in schedule.values():
+        exp_w = games = left = 0.0
+        for week, pairs in schedule.items():
             opp = next((b if a == rid else a for a, b in pairs if rid in (a, b)), None)
-            exp_w += win_prob(ppg[rid], ppg[opp], sigma) if opp in ppg else vs_field(rid, ppg, sigma)
+            exp_w += wk.game(rid, opp, week) if opp in ppg else wk.field(rid, week)
             games += 1
             if median_game:
-                exp_w += vs_median(rid, ppg, sigma)
+                exp_w += wk.median(rid, week)
                 games += 1
+            left += wk.get(rid, week)[0]
         wins = cur.get("wins", 0) + exp_w
         losses = cur.get("losses", 0) + games - exp_w
         # Max PF to date plus the best lineup's projected points for each week left.
-        max_pf = (cur.get("max_pf") or 0) + ppg[rid] * len(schedule)
+        max_pf = (cur.get("max_pf") or 0) + left
         # Points for (the playoff tiebreaker): to date plus the projected points left.
-        pf = (cur.get("fpts") or 0) + ppg[rid] * len(schedule)
+        pf = (cur.get("fpts") or 0) + left
         out[rid] = {"ppg": round(ppg[rid], 2), "wins": round(wins, 2), "losses": round(losses, 2), "pf": round(pf, 1),
                     "ties": cur.get("ties", 0), "remaining_wins": round(exp_w, 2), "remaining_games": int(games),
                     "max_pf": round(max_pf, 1)}
@@ -127,7 +175,8 @@ def project(ppg: dict, current: dict, schedule: dict, median_game: bool = False,
     return out
 
 
-def strength_of_schedule(ppg: dict, schedule: dict, median_game: bool = False, sigma: float | None = None) -> dict:
+def strength_of_schedule(ppg: dict, schedule: dict, median_game: bool = False, sigma: float | None = None,
+                         weekly: dict | None = None) -> dict:
     """How hard each team's remaining regular season is.
 
     For each week left: the opponent, that opponent's projected points per game and the
@@ -138,21 +187,26 @@ def strength_of_schedule(ppg: dict, schedule: dict, median_game: bool = False, s
     reported apart.
     """
     sigma = sigma or sigma_for(ppg)
+    wk = Weeks(ppg, sigma, weekly)
     out = {}
     for rid in ppg:
         weeks, opp_pts, exp_w, avg_w, med_w = [], [], 0.0, 0.0, 0.0
         for week in sorted(schedule, key=int):
             opp = next((b if a == rid else a for a, b in schedule[week] if rid in (a, b)), None)
-            field = vs_field(rid, ppg, sigma)
-            p = win_prob(ppg[rid], ppg[opp], sigma) if opp in ppg else field
+            field = wk.field(rid, week)
+            p = wk.game(rid, opp, week) if opp in ppg else field
+            mine = (weekly or {}).get(rid, {}).get(int(week)) or {}
+            theirs = (weekly or {}).get(opp, {}).get(int(week)) or {} if opp in ppg else {}
             weeks.append({"week": int(week), "opp": opp if opp in ppg else None,
-                          "opp_ppg": round(ppg[opp], 1) if opp in ppg else None, "win": round(p, 3)})
+                          "ppg": round(wk.get(rid, week)[0], 1),
+                          "opp_ppg": round(wk.get(opp, week)[0], 1) if opp in ppg else None, "win": round(p, 3),
+                          "out": mine.get("out") or [], "opp_out": theirs.get("out") or []})
             if opp in ppg:
-                opp_pts.append(ppg[opp])
+                opp_pts.append(wk.get(opp, week)[0])
             exp_w += p
             avg_w += field
             if median_game:
-                med_w += vs_median(rid, ppg, sigma)
+                med_w += wk.median(rid, week)
         out[rid] = {"weeks": weeks, "opp_ppg": round(sum(opp_pts) / len(opp_pts), 1) if opp_pts else None,
                     "exp_wins": round(exp_w, 2), "avg_wins": round(avg_w, 2), "vs_average": round(exp_w - avg_w, 2),
                     "median_wins": round(med_w, 2) if median_game else None}

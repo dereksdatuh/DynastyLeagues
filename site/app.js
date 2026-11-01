@@ -258,6 +258,12 @@ function closestBuilt(f) {
   return [...(state.index.leagues || [])].filter((l) => l.format).sort((a, b) => dist(a.format) - dist(b.format))[0];
 }
 
+function playoffWeeks(start, teams) {
+  const rounds = teams > 1 ? Math.ceil(Math.log2(teams)) : 0, out = [];
+  for (let i = 0; i < rounds && start + i <= 17; i++) out.push(start + i);
+  return out;
+}
+
 function remainingWeeks(lg, nfl) {
   const st = lg.settings || {};
   const last = Number(st.playoff_week_start || 15) - 1, start = Number(st.start_week || 1);
@@ -350,7 +356,10 @@ async function buildLite(entry) {
       divisions: Object.fromEntries(divs.map((d) => [String(d), (lg.metadata || {})[`division_${d}`] || `Division ${d}`])) },
     week: { ...base.week, week: nowWeek, matchups: current.map((r) => ({ roster_id: r.roster_id, matchup_id: r.matchup_id, points: r.points,
       starters: r.starters, players_points: r.players_points })), potw: potw(base.week?.potw), potw_last: potw(base.week?.potw_last) },
-    schedule: { weeks: schedule, median_game: !!st.league_average_match, sigma: 0, sigma_share: 0.21, strength: {} },
+    schedule: { weeks: schedule, median_game: !!st.league_average_match, sigma: 0, sigma_share: 0.21, strength: {},
+      // players[].wk is the template's, lined up with its sim weeks; byes are the NFL's.
+      sim_weeks: (base.schedule || {}).sim_weeks || [], byes: (base.schedule || {}).byes || {},
+      playoff_weeks: weeks.length ? playoffWeeks(Number(st.playoff_week_start) || 15, Number(st.playoff_teams) || Math.max(Math.floor(teams.length / 2), 1)) : [] },
     sources: base.sources, model: base.model, formula: base.formula, players, picks,
     rookie_draft: null, next_draft: null, future_classes: base.future_classes || {}, teams, team_values: { context: { teams: {} }, factors: {} }, trades: [],
   };
@@ -417,25 +426,28 @@ function liteBuilds(data) {
   }
 }
 
-// Strength of schedule (mirrors engine/record.py strength_of_schedule).
+// Strength of schedule (mirrors engine/record.py strength_of_schedule): each week's
+// opponent, both teams' best lineups that week (byes and injuries out), the chance to win.
 function scheduleStrength(data) {
-  const sch = data.schedule, sigma = sch.sigma;
-  const ppg = Object.fromEntries(data.teams.map((t) => [t.roster_id, t.ros_ppg]));
+  const sch = data.schedule, m = seasonModel();
   const out = {};
   for (const t of data.teams) {
     const rid = t.roster_id;
     const weeks = [], opp = [];
     let exp = 0, avg = 0, med = 0;
     for (const wk of Object.keys(sch.weeks).sort((a, b) => a - b)) {
-      const m = sch.weeks[wk].find((p) => p.includes(rid));
-      const o = m ? (m[0] === rid ? m[1] : m[0]) : null;
-      const field = vsField(rid, ppg, sigma);
-      const has = o != null && ppg[o] != null;
-      const p = has ? winProb(ppg[rid], ppg[o], sigma) : field;
-      weeks.push({ week: Number(wk), opp: has ? o : null, opp_ppg: has ? Math.round(ppg[o] * 10) / 10 : null, win: Math.round(p * 1000) / 1000 });
-      if (has) opp.push(ppg[o]);
+      const w = Number(wk);
+      const pair = sch.weeks[wk].find((p) => p.includes(rid));
+      const o = pair ? (pair[0] === rid ? pair[1] : pair[0]) : null;
+      const has = o != null && m.wk[o] != null;
+      const field = m.field(rid, w);
+      const p = has ? m.game(rid, o, w) : field;
+      const mine = m.week(rid, w), theirs = has ? m.week(o, w) : null;
+      weeks.push({ week: w, opp: has ? o : null, ppg: Math.round(mine.mean * 10) / 10, opp_ppg: has ? Math.round(theirs.mean * 10) / 10 : null,
+        win: Math.round(p * 1000) / 1000, out: mine.out || [], opp_out: has ? theirs.out || [] : [] });
+      if (has) opp.push(theirs.mean);
       exp += p; avg += field;
-      if (sch.median_game) med += vsMedian(rid, ppg, sigma);
+      if (sch.median_game) med += m.median(rid, w);
     }
     const r2 = (x) => Math.round(x * 100) / 100;
     out[rid] = { weeks, opp_ppg: opp.length ? Math.round((opp.reduce((a, b) => a + b, 0) / opp.length) * 10) / 10 : null,
@@ -1255,44 +1267,98 @@ function erf(x) {
   const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
   return x >= 0 ? y : -y;
 }
-const winProb = (a, b, sigma) => 0.5 * (1 + erf((a - b) / (sigma * 2)));
 const teamPPG = (players) => bestLineup(players, "ros_ppg").reduce((t, x) => t + x.p.ros_ppg, 0);
 
-function vsField(rid, ppg, sigma) {
-  const others = Object.keys(ppg).filter((k) => k != rid).map((k) => ppg[k]);
-  return others.length ? others.reduce((t, v) => t + winProb(ppg[rid], v, sigma), 0) / others.length : 0.5;
+// ---------- week-by-week season model (mirrors engine/weeks.py and record.Weeks) ----------
+// Every week left, playoffs included, each team scores around that week's best lineup:
+// players on bye or still out score 0 (players[].wk, built per week by the engine) and
+// the bench fills in. The weekly spread comes from the starters' own game-to-game
+// swings (players[].cv), and every team carries one season-long projection error
+// (BIAS_SHARE of its points), since a team the projections overrate is overrated every week.
+function simDefaults() {
+  const sch = state.data.schedule || {};
+  return { sdScale: sch.sd_scale || 1.15, bias: sch.bias_share ?? 0.08, minShare: sch.min_share || 0.12, cv: sch.default_cv || 0.55 };
 }
-function vsMedian(rid, ppg, sigma) {
-  const o = Object.keys(ppg).filter((k) => k != rid).map((k) => ppg[k]).sort((a, b) => a - b);
-  if (!o.length) return 0.5;
-  const h = Math.floor(o.length / 2);
-  const mid = o.length % 2 ? o[h] : (o[h - 1] + o[h]) / 2;
-  return 0.5 * (1 + erf((ppg[rid] - mid) / (sigma * Math.SQRT2)));
+function simWeeks() {
+  const sch = state.data.schedule || {};
+  const reg = Object.keys(sch.weeks || {}).map(Number);
+  return [...new Set([...reg, ...(reg.length ? sch.playoff_weeks || [] : [])])].sort((a, b) => a - b);
+}
+function playerWeek(p, w) {
+  const sch = state.data.schedule || {};
+  const i = (sch.sim_weeks || []).indexOf(w);
+  if (p.wk && i >= 0 && p.wk[i] != null) return p.wk[i];
+  const team = p.team === "LAR" ? "LA" : p.team;
+  if (team && ((sch.byes || {})[team] || []).includes(w)) return 0;
+  return p.ros_ppg || 0;
+}
+// {week: {mean, sd, out}} for one roster; cached per roster (rosters repeat across trade ideas).
+function teamWeeks(players) {
+  const cache = state.data._tw || (state.data._tw = new Map());
+  const key = players.map((p) => p.id).sort().join(",");
+  if (cache.has(key)) return cache.get(key);
+  const d = simDefaults(), out = {};
+  const usual = new Set(bestLineup(players, "ros_ppg").map((x) => x.p.id));
+  for (const w of simWeeks()) {
+    const pool = players.map((p) => ({ id: p.id, pos: p.pos, pts: playerWeek(p, w), cv: p.cv || d.cv }));
+    const lineup = bestLineup(pool, "pts");
+    const mean = lineup.reduce((t, x) => t + x.p.pts, 0);
+    const sd = d.sdScale * Math.sqrt(lineup.reduce((t, x) => t + (x.p.pts * x.p.cv) ** 2, 0));
+    out[w] = { mean, sd: Math.max(sd, d.minShare * mean, 1), out: pool.filter((x) => usual.has(x.id) && x.pts <= 0).map((x) => x.id) };
+  }
+  if (cache.size > 4000) cache.clear();
+  cache.set(key, out);
+  return out;
+}
+// All teams' weekly means and spreads, with game, field and median odds for any week.
+function seasonModel(overrides = {}) {
+  const d = simDefaults(), wk = {}, bias = {}, ppg = {};
+  for (const t of state.data.teams) {
+    const ps = overrides[t.roster_id] || rosterOf(t.roster_id);
+    wk[t.roster_id] = teamWeeks(ps);
+    ppg[t.roster_id] = teamPPG(ps);
+    const means = Object.values(wk[t.roster_id]).map((x) => x.mean);
+    bias[t.roster_id] = d.bias * (means.length ? means.reduce((a, b) => a + b, 0) / means.length : ppg[t.roster_id]);
+  }
+  const ids = Object.keys(wk).map(Number);
+  const week = (rid, w) => wk[rid][w] || { mean: ppg[rid], sd: Math.max(d.minShare * ppg[rid], 1), out: [] };
+  const total = (rid, w) => { const x = week(rid, w); return [x.mean, Math.sqrt(x.sd ** 2 + bias[rid] ** 2)]; };
+  const game = (a, b, w) => {
+    const [ma, sa] = total(a, w), [mb, sb] = total(b, w), s = Math.sqrt(sa * sa + sb * sb);
+    return s > 0 ? 0.5 * (1 + erf((ma - mb) / (s * Math.SQRT2))) : ma === mb ? 0.5 : +(ma > mb);
+  };
+  const field = (rid, w) => { const o = ids.filter((r) => r != rid); return o.length ? o.reduce((t, r) => t + game(rid, r, w), 0) / o.length : 0.5; };
+  const median = (rid, w) => {
+    const o = ids.filter((r) => r != rid).map((r) => week(r, w).mean).sort((a, b) => a - b);
+    if (!o.length) return 0.5;
+    const h = Math.floor(o.length / 2), mid = o.length % 2 ? o[h] : (o[h - 1] + o[h]) / 2;
+    const [mu, sd] = total(rid, w);
+    return 0.5 * (1 + erf((mu - mid) / (sd * Math.SQRT2)));
+  };
+  return { wk, bias, ppg, ids, week, total, game, field, median };
 }
 
 // Projected record for every team; `overrides` swaps in post-trade rosters.
-// The weekly spread stays at the league's pre-trade value so a trade moves only the means.
 function projectRecords(overrides = {}) {
   const sch = state.data.schedule || { weeks: {}, median_game: false, sigma: 0 };
-  const ppg = {};
-  for (const t of state.data.teams) ppg[t.roster_id] = teamPPG(overrides[t.roster_id] || rosterOf(t.roster_id));
-  const vals = Object.values(ppg).filter((v) => v > 0);
-  const sigma = sch.sigma || (sch.sigma_share || 0.21) * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const m = seasonModel(overrides);
   const out = {};
   for (const t of state.data.teams) {
     const rid = t.roster_id;
-    let w = 0, g = 0;
-    for (const pairs of Object.values(sch.weeks)) {
-      const m = pairs.find((p) => p.includes(rid));
-      const opp = m ? (m[0] === rid ? m[1] : m[0]) : null;
-      w += opp != null && ppg[opp] != null ? winProb(ppg[rid], ppg[opp], sigma) : vsField(rid, ppg, sigma);
+    let w = 0, g = 0, left = 0;
+    for (const [wk, pairs] of Object.entries(sch.weeks)) {
+      const week = Number(wk);
+      const pair = pairs.find((p) => p.includes(rid));
+      const opp = pair ? (pair[0] === rid ? pair[1] : pair[0]) : null;
+      w += opp != null && m.wk[opp] != null ? m.game(rid, opp, week) : m.field(rid, week);
       g += 1;
-      if (sch.median_game) { w += vsMedian(rid, ppg, sigma); g += 1; }
+      if (sch.median_game) { w += m.median(rid, week); g += 1; }
+      left += m.week(rid, week).mean;
     }
-    // Max PF to date plus the best lineup's projected points for each week left.
-    const maxPF = (t.record.max_pf || 0) + ppg[rid] * Object.keys(sch.weeks).length;
-    const pf = (t.record.fpts || 0) + ppg[rid] * Object.keys(sch.weeks).length;
-    out[rid] = { ppg: ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g, maxPF, pf };
+    // Max PF to date plus each week's best lineup for the weeks left.
+    const maxPF = (t.record.max_pf || 0) + left;
+    const pf = (t.record.fpts || 0) + left;
+    out[rid] = { ppg: m.ppg[rid], wins: t.record.wins + w, losses: t.record.losses + g - w, ties: t.record.ties || 0, games: g, maxPF, pf };
   }
   seedOrder(out).forEach((rid, i) => (out[rid].rank = i + 1));
   Object.keys(out).sort((a, b) => out[b].maxPF - out[a].maxPF).forEach((rid, i) => (out[rid].maxPFRank = i + 1));
@@ -1536,10 +1602,7 @@ function bracketOrder(size) {
 function simulateOdds(sims = ODDS_SIMS) {
   const teams = state.data.teams, n = teams.length;
   const sch = state.data.schedule || { weeks: {}, median_game: false };
-  const ppg = {};
-  teams.forEach((t) => (ppg[t.roster_id] = teamPPG(rosterOf(t.roster_id))));
-  const vals = Object.values(ppg).filter((v) => v > 0);
-  const sigma = sch.sigma || 0.21 * (vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) || 1;
+  const m = seasonModel();
   const P = Math.min(state.data.league.playoff_teams || 0, n);
   const rd = state.data.rookie_draft || {};
   const rule = (rd.rule && rd.rule.rule) || "record";
@@ -1548,19 +1611,24 @@ function simulateOdds(sims = ODDS_SIMS) {
   const rand = seededRandom(20261031 + n);
   let spare = null;
   const gauss = () => { if (spare != null) { const g = spare; spare = null; return g; } let u = 0, v = 0; while (u === 0) u = rand(); v = rand(); const r = Math.sqrt(-2 * Math.log(u)); spare = r * Math.sin(2 * Math.PI * v); return r * Math.cos(2 * Math.PI * v); };
-  const score = (rid) => ppg[rid] + sigma * gauss();
+  // One projection error per team per season, then each week's own swing.
+  let err = {};
+  const score = (rid, w) => { const x = m.week(rid, w); return x.mean + err[rid] + x.sd * gauss(); };
+  const po = (sch.playoff_weeks || []).filter((w) => !(w in (sch.weeks || {})));
+  const lastWeek = Math.max(...Object.keys(sch.weeks || {}).map(Number), 0);
   const ids = teams.map((t) => t.roster_id);
   const acc = {};
   ids.forEach((r) => (acc[r] = { wins: 0, playoff: 0, bye: 0, title: 0, final: 0, slot: new Array(n + 1).fill(0), slotSum: 0 }));
-  const weeks = Object.values(sch.weeks || {});
+  const weeks = Object.entries(sch.weeks || {}).map(([w, pairs]) => [Number(w), pairs]);
   const size = P > 1 ? 2 ** Math.ceil(Math.log2(P)) : 0;
   const bOrder = size ? bracketOrder(size) : [];
   for (let s = 0; s < sims; s++) {
     const st = {};
     teams.forEach((t) => (st[t.roster_id] = { wins: t.record.wins || 0, ties: t.record.ties || 0, pf: t.record.fpts || 0, maxPF: t.record.max_pf || 0 }));
-    for (const pairs of weeks) {
+    ids.forEach((r) => (err[r] = m.bias[r] * gauss()));
+    for (const [w, pairs] of weeks) {
       const pts = {};
-      ids.forEach((r) => { pts[r] = score(r); st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
+      ids.forEach((r) => { pts[r] = score(r, w); st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
       for (const [a, b] of pairs) { if (pts[a] > pts[b]) st[a].wins++; else st[b].wins++; }
       if (sch.median_game) {
         const sorted = ids.map((r) => pts[r]).sort((x, y) => x - y), h = Math.floor(n / 2);
@@ -1576,27 +1644,30 @@ function simulateOdds(sims = ODDS_SIMS) {
       seeds.slice(0, P).forEach((r, i) => { acc[r].playoff++; if (size > P && i < size - P) acc[r].bye++; });
       let alive = bOrder.map((sd) => (sd <= P ? seeds[sd - 1] : null));
       const outByRound = [];
+      let round = 0;
       while (alive.length > 1) {
+        const w = po.length ? po[Math.min(round, po.length - 1)] : lastWeek;
+        round++;
         const next = [], out = [];
         for (let i = 0; i < alive.length; i += 2) {
           const a = alive[i], b = alive[i + 1];
           if (a == null || b == null) { next.push(a ?? b); continue; }
-          const w = score(a) >= score(b) ? a : b;
-          next.push(w); out.push(w === a ? b : a);
+          const win = score(a, w) >= score(b, w) ? a : b;
+          next.push(win); out.push(win === a ? b : a);
         }
-        outByRound.push(out);
+        outByRound.push({ out, w });
         alive = next;
       }
       place[alive[0]] = 1;
       let nextPlace = 2;
-      for (const out of outByRound.reverse()) {
+      for (const { out, w } of outByRound.reverse()) {
         // Teams knocked out in the same round play for place, two at a time, best seed first.
         const grp = out.slice().sort((a, b) => seeds.indexOf(a) - seeds.indexOf(b));
         const ordered = [];
         for (let i = 0; i < grp.length; i += 2) {
           if (i + 1 >= grp.length) { ordered.push(grp[i]); continue; }
           const a = grp[i], b = grp[i + 1];
-          const aw = score(a) >= score(b);
+          const aw = score(a, w) >= score(b, w);
           ordered.push(aw ? a : b, aw ? b : a);
         }
         ordered.forEach((r) => (place[r] = nextPlace++));
@@ -1621,7 +1692,8 @@ function simulateOdds(sims = ODDS_SIMS) {
       order.forEach((r, i) => { if (r != null) { acc[r].slot[i + 1]++; acc[r].slotSum += i + 1; } });
     }
   }
-  return { acc, sims, P, sigma, fixed, rule, slotsFor, size, year: rd.year, weeksLeft: weeks.length };
+  const swing = ids.reduce((t, r) => t + (weeks.length ? weeks.reduce((s2, [w]) => s2 + m.total(r, w)[1], 0) / weeks.length : 0), 0) / (ids.length || 1);
+  return { acc, sims, P, sigma: swing, fixed, rule, slotsFor, size, year: rd.year, weeksLeft: weeks.length, playoffWeeks: po };
 }
 
 function renderOdds() {
@@ -1643,7 +1715,7 @@ function renderOdds() {
   const myFirsts = mine ? (state.data.picks || []).filter((p) => p.year === year && p.round === 1 && p.roster_id === mine.roster_id) : [];
   el.innerHTML = `
     <div class="lab-head"><div><p class="kicker">${fmt(r.sims)} simulated seasons</p><h2>Playoff and draft odds</h2></div></div>
-    <p class="muted">${r.weeksLeft} regular-season weeks left. Each sim plays every remaining game from each team's rest-of-season lineup points (weekly swing of ±${r.sigma.toFixed(1)}), seeds the ${r.P}-team playoff the league's way${r.size > r.P ? ` with byes for the top ${r.size - r.P}` : ""}, and plays it out. ${ruleText}</p>
+    <p class="muted">${r.weeksLeft} regular-season weeks left. Each sim plays every remaining game week by week: each team's best lineup that week, with players on bye or still hurt left out and the bench filling in, against its real opponent. Scores swing by each lineup's own game-to-game spread (about ±${r.sigma.toFixed(1)} a week, projection error included). It seeds the ${r.P}-team playoff the league's way${r.size > r.P ? ` with byes for the top ${r.size - r.P}` : ""} and plays it out${r.playoffWeeks.length ? ` in weeks ${r.playoffWeeks.join(", ")}` : ""}. ${ruleText}</p>
     ${myFirsts.length && !r.fixed ? `<div class="my-picks">${myFirsts.map((p) => { const a = r.acc[p.original_roster_id]; return `<div class="my-pick on">${face(p.id)}<div><b>${year} 1st${p.original_roster_id !== p.roster_id ? ` via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " (your own)"}</b><span class="muted">avg slot ${(a.slotSum / r.sims).toFixed(1)} · top ${top}: ${pct(a.slot.slice(1, top + 1).reduce((x, y) => x + y, 0))}</span></div></div>`; }).join("")}</div>` : ""}
     <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th>Record</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Final</th><th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${year} slot</th><th class="num">Top ${top} pick</th><th>Their 1st belongs to</th>`}</tr></thead><tbody>
     ${rows.map(({ t, a }) => { const h = holder(t.roster_id); return `<tr class="${mine && t.roster_id === mine.roster_id ? "me" : ""}"><td>${teamHtml(t.roster_id)}</td><td>${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}</td>
@@ -2443,7 +2515,10 @@ function sideOf(row) {
     return { p, pts, full, left, rem: full * left, status: g ? (g.state === "pre" ? new Date(g.kickoff).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : g.label) : Object.keys(state.live.games).length ? "Bye / no game" : "" };
   });
   const rem = starters.reduce((t, x) => t + x.rem, 0), full = starters.reduce((t, x) => t + x.full, 0);
-  return { rid: row.roster_id, points: row.points || 0, rem, proj: (row.points || 0) + rem, full, starters, left: starters.filter((x) => x.left > 0).length };
+  // What's left can still swing: each starter's own game-to-game spread, for the part of his game left.
+  const d = simDefaults();
+  const sd = d.sdScale * Math.sqrt(starters.reduce((t, x) => t + (x.full * (x.p.cv || d.cv)) ** 2 * x.left, 0));
+  return { rid: row.roster_id, points: row.points || 0, rem, proj: (row.points || 0) + rem, full, sd, starters, left: starters.filter((x) => x.left > 0).length };
 }
 
 function matchupPairs() {
@@ -2458,7 +2533,7 @@ function matchupPairs() {
 function winOdds(a, b) {
   const sigma = (state.data.schedule || {}).sigma || 25;
   // Spread shrinks as the week plays out: what's left is the only uncertainty.
-  const sd = (s) => sigma * Math.sqrt(s.full > 0 ? Math.min(1, s.rem / s.full) : 0);
+  const sd = (s) => (s.sd != null ? s.sd : sigma * Math.sqrt(s.full > 0 ? Math.min(1, s.rem / s.full) : 0));
   const spread = Math.sqrt(sd(a) ** 2 + sd(b) ** 2);
   if (spread < 1e-6) return a.proj > b.proj ? 1 : a.proj < b.proj ? 0 : 0.5;
   return 0.5 * (1 + erf((a.proj - b.proj) / (spread * Math.SQRT2)));
@@ -3211,6 +3286,11 @@ function renderSchedule() {
   const pct = (p) => `${Math.round(p * 100)}%`;
   const winCls = (p) => (p >= 0.6 ? "up" : p <= 0.4 ? "down" : "");
   const signed = (x) => `${x > 0 ? "+" : ""}${x.toFixed(1)}`;
+  const names = (ids) => (ids || []).map((id) => playerOf(id).name).join(", ");
+  const weekTip = (w) => [w.ppg != null ? `Your lineup that week: ${w.ppg}` : "",
+    (w.out || []).length ? `Out (bye or injury): ${names(w.out)}` : "",
+    w.opp ? `${teamName(w.opp)}: ${w.opp_ppg}${(w.opp_out || []).length ? `, without ${names(w.opp_out)}` : ""}` : "No opponent listed: rated against the whole league"]
+    .filter(Boolean).join(". ");
   const byRank = [...teams].sort((a, b) => (sos[a.roster_id].rank || 99) - (sos[b.roster_id].rank || 99));
   const rec = (t) => `${t.record.wins}-${t.record.losses}${t.record.ties ? "-" + t.record.ties : ""}`;
   const summary = byRank.map((t) => {
@@ -3226,10 +3306,11 @@ function renderSchedule() {
   const grid = byRank.map((t) => {
     const s = sos[t.roster_id];
     return `<tr class="${mine && t.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="name">${teamHtml(t.roster_id)}</td>${s.weeks.map((w) =>
-      `<td class="${winCls(w.win)}" data-sort="${w.opp_ppg ?? ""}" title="${w.opp ? `${esc(teamName(w.opp))}: ${w.opp_ppg} projected per game` : "No opponent listed: rated against the whole league"}">${w.opp ? esc(short(w.opp)) : "League"} <span class="muted">${pct(w.win)}</span></td>`).join("")}</tr>`;
+      `<td class="${winCls(w.win)}" data-sort="${w.opp_ppg ?? ""}" title="${esc(weekTip(w))}">${w.opp ? esc(short(w.opp)) : "League"} <span class="muted">${pct(w.win)}</span>${(w.out || []).length ? ` <span class="tag" title="${esc(names(w.out))} out">−${w.out.length}</span>` : ""}</td>`).join("")}</tr>`;
   }).join("");
   el.innerHTML = `<p class="muted">Rest of the regular season (week ${weeks[0]}${weeks.length > 1 ? ` to ${weeks[weeks.length - 1]}` : ""}), hardest first.
-      Opponent strength is the points per game that team's best lineup projects from here on, in this league's scoring.
+      Each week compares both teams' best lineups for that week, with players on bye or still hurt left out (a −2 tag means two of your usual starters are out that week; tap for names).
+      Opponent strength is the average of those weekly lineups, in this league's scoring.
       "Vs. average" is the wins this schedule is worth compared with playing an average opponent every week; negative means a tougher draw.${sch.median_game ? " Median games don't depend on the schedule, so they're shown on their own." : ""}
       Updates every build.</p>
     <div class="table-wrap"><table id="sos"><thead><tr><th>#</th><th>Team</th><th>Record</th><th class="num">Own proj/wk</th>

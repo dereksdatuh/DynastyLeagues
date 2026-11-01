@@ -15,7 +15,8 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import builds, draft, fetch, formula, future, gamelog, ids, landing, market_learn, model, outlook, record, role, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, future, gamelog, ids, landing, market_learn, model, nflverse, outlook, record, role, sleeper, team_value, valuation, weekly
+from . import weeks as week_sim
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
 from .market import build_consensus
@@ -56,6 +57,7 @@ class Shared:
         self.index = ids.PlayerIndex(self.players, crosswalk)
         self.crosswalk = crosswalk
         self._situations = None
+        self._byes = None
         self._stats: dict = {}
         self._espn: dict = {}
 
@@ -65,6 +67,13 @@ class Shared:
             season = int(self.state.get("league_season") or self.state.get("season"))
             self._situations = role.Situations(season, self.players, self.crosswalk, self.optional)
         return self._situations
+
+    def byes(self) -> dict:
+        """NFL team -> regular-season weeks without a game, once per run."""
+        if self._byes is None:
+            season = int(self.state.get("league_season") or self.state.get("season"))
+            self._byes = self.optional(lambda: nflverse.byes(season)) or {}
+        return self._byes
 
     def optional(self, fn):
         """Run a fetch the build can do without; None (with a warning) when it fails."""
@@ -312,8 +321,30 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     n = len(teams)
     playoff_teams = int((league.get("settings") or {}).get("playoff_teams") or max(n // 2, 1))
     divisions = {t["roster_id"]: t["division"] for t in teams}
+    # Every week left, playoffs included: each team's best lineup that week, byes and
+    # injuries out (engine/weeks.py).
+    playoff_start = int((league.get("settings") or {}).get("playoff_week_start") or record.DEFAULT_PLAYOFF_WEEK)
+    rounds = max((playoff_teams - 1).bit_length(), 0)
+    sim_weeks = week_sim.sim_weeks(tables["week"], sorted(schedule), playoff_start, rounds)
+    playoff_weeks = [w for w in sim_weeks if w >= playoff_start]
+    byes = shared.byes() if sim_weeks else {}
+    now_week = tables["week"] or (sim_weeks[0] if sim_weeks else 0)
+    upcoming = {now_week + i: tbl for i, tbl in enumerate(tables["upcoming"])}
+    wk_of = {}
+    for p in players:
+        base = record.blend_ppg(p.get("ppg"), p.get("proj_next"))
+        if sim_weeks and (base or 0) > 0:
+            wk_of[p["id"]] = week_sim.player_weeks(p, sim_weeks, now_week, base, upcoming, fmt.scoring, byes)
+            p["wk"] = [wk_of[p["id"]][w] for w in sim_weeks]
+            p["cv"] = week_sim.cv_of(p)
+    weekly_by = {}
+    for t in teams:
+        roster_players = [{**by_id[pid], "wk": wk_of.get(pid)} for pid in t["players"] if pid in by_id]
+        weekly_by[t["roster_id"]] = week_sim.team_weeks(roster_players, fmt.slots, sim_weeks) if sim_weeks else {}
+        t["weekly"] = [{"week": w, **v} for w, v in weekly_by[t["roster_id"]].items()]
+    weekly_by = weekly_by if sim_weeks else None
     projected = record.project(ppg, {t["roster_id"]: t["record"] for t in teams}, schedule, median_game, sigma,
-                               playoff_teams, divisions)
+                               playoff_teams, divisions, weekly_by)
     for t in teams:
         t["projection"] = projected[t["roster_id"]]
     # Standings today: seeded the league's way (division champions, then wildcards,
@@ -375,7 +406,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     landing_counts = None
     if first_year and not round_orders and league.get("status") == "in_season" and len(teams) == n:
         landing_counts = shared.optional(lambda: landing.simulate(
-            teams, schedule, median_game, sigma, rule["rule"], playoff_teams, playoff_slots, divisions))
+            teams, schedule, median_game, sigma, rule["rule"], playoff_teams, playoff_slots, divisions,
+            weekly=weekly_by, playoff_weeks=playoff_weeks))
     for pk in owned:
         first = pk["year"] == first_year
         tier = finish_tier.get(pk["original_roster_id"]) if first else None
@@ -519,7 +551,11 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "week": week_data(tables, current_rows, fmt, shared, players, owner_of, history),
         "schedule": {"weeks": schedule, "median_game": median_game, "sigma": round(sigma, 2),
                      "sigma_share": record.SIGMA_SHARE,
-                     "strength": record.strength_of_schedule(ppg, schedule, median_game, sigma)},
+                     # Weeks the sims play (players[].wk lines up with sim_weeks) and how.
+                     "sim_weeks": sim_weeks, "playoff_weeks": playoff_weeks, "byes": byes,
+                     "bias_share": week_sim.BIAS_SHARE, "sd_scale": week_sim.SD_SCALE,
+                     "min_share": week_sim.MIN_SHARE, "default_cv": week_sim.DEFAULT_CV,
+                     "strength": record.strength_of_schedule(ppg, schedule, median_game, sigma, weekly_by)},
         "history": history,
         "sources": source_status,
         "model": model_info,
