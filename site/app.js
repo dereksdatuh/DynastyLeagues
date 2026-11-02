@@ -1801,7 +1801,7 @@ function renderWhatIf() {
       ${mine ? `<button class="chip" data-all="win">You win out</button><button class="chip" data-all="lose">You lose out</button>` : ""}
       <button class="chip" data-all="fav">Favorites win this week</button><button class="chip" data-all="clear"${nPicks ? "" : " disabled"}>Clear all</button></div>
     <div class="wi-games">${gameRows || `<p class="muted">No games listed for week ${w}.</p>`}</div>
-    <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${r.year || ""} slot</th>`}</tr></thead><tbody>${table}</tbody></table></div>`;
+    <div class="table-wrap"><table class="wi-table"><thead><tr><th>Team</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${r.year || ""} slot</th>`}</tr></thead><tbody>${table}</tbody></table></div>`;
   el.onclick = (e) => {
     const t = e.target.closest("button");
     if (!t || t.disabled) return;
