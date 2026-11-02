@@ -1589,6 +1589,9 @@ function pickYearOrder(year) {
 // non-playoff teams by max PF or record, playoff teams by finish (or the league's
 // fixed slots for each finish).
 const ODDS_SIMS = 10000;
+const WHATIF_SIMS = 4000;
+const whatIf = { league: null, picks: {}, week: null, base: null };
+const gameKey = (w, a, b) => `${w}:${Math.min(a, b)}:${Math.max(a, b)}`;
 function seededRandom(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -1599,7 +1602,8 @@ function bracketOrder(size) {
   while (order.length < size) { const n = order.length * 2; order = order.flatMap((s) => [s, n + 1 - s]); }
   return order;
 }
-function simulateOdds(sims = ODDS_SIMS) {
+// `picks` {"week:a:b": winner roster id} forces a game's result (the What-if panel).
+function simulateOdds(sims = ODDS_SIMS, picks = {}) {
   const teams = state.data.teams, n = teams.length;
   const sch = state.data.schedule || { weeks: {}, median_game: false };
   const m = seasonModel();
@@ -1628,7 +1632,14 @@ function simulateOdds(sims = ODDS_SIMS) {
     ids.forEach((r) => (err[r] = m.bias[r] * gauss()));
     for (const [w, pairs] of weeks) {
       const pts = {};
-      ids.forEach((r) => { pts[r] = score(r, w); st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
+      ids.forEach((r) => (pts[r] = score(r, w)));
+      // A picked result: the two scores trade places when the pick lost the draw, so
+      // points for, max PF and the median game stay consistent with the result.
+      for (const [a, b] of pairs) {
+        const pick = picks[gameKey(w, a, b)];
+        if (pick != null && pts[pick] < pts[pick === a ? b : a]) [pts[a], pts[b]] = [pts[b], pts[a]];
+      }
+      ids.forEach((r) => { st[r].pf += pts[r]; st[r].maxPF += pts[r]; });
       for (const [a, b] of pairs) { if (pts[a] > pts[b]) st[a].wins++; else st[b].wins++; }
       if (sch.median_game) {
         const sorted = ids.map((r) => pts[r]).sort((x, y) => x - y), h = Math.floor(n / 2);
@@ -1727,6 +1738,89 @@ function renderOdds() {
     ${teams.slice().sort((x, y) => r.acc[x.roster_id].slotSum - r.acc[y.roster_id].slotSum).map((t) => { const a = r.acc[t.roster_id], h = holder(t.roster_id); const own = mine && h && h.roster_id === mine.roster_id;
       return `<tr class="${own ? "me" : ""}"><td>${esc(t.name)}${own ? ' <span class="tag new">YOURS</span>' : ""}</td>${a.slot.slice(1).map((c) => `<td class="num" ${heat(c)}>${c ? pct(c) : ""}</td>`).join("")}</tr>`; }).join("")}
     </tbody></table></div>`}`;
+  el.insertAdjacentHTML("beforeend", `<div id="whatif"></div>`);
+  renderWhatIf();
+}
+
+// ---------- what-if: pick winners, watch every team's odds move ----------
+// Tap a winner for any game left; the season sims re-run with those results locked
+// (same random draws each time, so the change you see is the pick, not noise).
+
+function whatIfLoad() {
+  const key = state.data.league.id;
+  if (whatIf.league === key) return;
+  whatIf.league = key; whatIf.base = null; whatIf.week = null;
+  try { whatIf.picks = JSON.parse(localStorageGet(`whatif.${key}`) || "{}") || {}; } catch { whatIf.picks = {}; }
+  const weeks = state.data.schedule.weeks || {};
+  // Drop picks for weeks already played or games no longer on the schedule.
+  for (const k of Object.keys(whatIf.picks)) {
+    const [w, a, b] = k.split(":").map(Number);
+    if (!(weeks[w] || []).some(([x, y]) => gameKey(w, x, y) === k)) delete whatIf.picks[k];
+    else if (![a, b].includes(whatIf.picks[k])) delete whatIf.picks[k];
+  }
+}
+function whatIfSave() { localStorageSet(`whatif.${whatIf.league}`, JSON.stringify(whatIf.picks)); }
+
+function renderWhatIf() {
+  const el = $("#whatif");
+  if (!el || !state.data) return;
+  whatIfLoad();
+  const sch = state.data.schedule || {}, weeks = Object.keys(sch.weeks || {}).map(Number).sort((a, b) => a - b);
+  if (!weeks.length) { el.innerHTML = ""; return; }
+  if (!weeks.includes(whatIf.week)) whatIf.week = weeks[0];
+  const m = seasonModel(), mine = myTeam(), w = whatIf.week;
+  if (!whatIf.base) whatIf.base = simulateOdds(WHATIF_SIMS);
+  const nPicks = Object.keys(whatIf.picks).length;
+  const r = nPicks ? simulateOdds(WHATIF_SIMS, whatIf.picks) : whatIf.base, b = whatIf.base;
+  const pctOf = (x, sims) => (100 * x) / sims;
+  const show = (v) => (v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`);
+  const delta = (now, was) => { const d = Math.round(now - was); return d ? `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d}</span>` : ""; };
+  const name = (rid) => { const t = teamOf(rid); return t ? managerOf(t) || t.name : ""; };
+  const games = (sch.weeks[w] || []).slice().sort((x, y) => (mine ? x.includes(mine.roster_id) ? -1 : y.includes(mine.roster_id) ? 1 : 0 : 0));
+  const picksIn = (wk) => (sch.weeks[wk] || []).filter(([a, c]) => whatIf.picks[gameKey(wk, a, c)] != null).length;
+  const btn = (k, rid, label, on) => `<button class="chip${on ? " active" : ""}" data-pick="${k}" data-rid="${rid}">${label}</button>`;
+  const gameRows = games.map(([a, c]) => {
+    const k = gameKey(w, a, c), pick = whatIf.picks[k], pa = m.game(a, c, w);
+    const side = (rid, p) => `<div class="wi-team${pick === rid ? " won" : pick != null ? " lost" : ""}">${teamHtml(rid)}<span class="muted">${(m.week(rid, w).mean).toFixed(0)} pts · ${Math.round(p * 100)}%</span></div>`;
+    return `<div class="wi-game${mine && (a === mine.roster_id || c === mine.roster_id) ? " mine" : ""}">${side(a, pa)}
+      <div class="wi-pick">${btn(k, a, "Wins", pick === a)}${btn(k, "", "Sim", pick == null)}${btn(k, c, "Wins", pick === c)}</div>${side(c, 1 - pa)}</div>`;
+  }).join("");
+  const rows = state.data.teams.map((t) => ({ t, a: r.acc[t.roster_id], z: b.acc[t.roster_id] }))
+    .sort((x, y) => y.a.playoff - x.a.playoff || y.a.title - x.a.title);
+  const table = rows.map(({ t, a, z }) => {
+    const rec = (t.record.wins || 0) + a.wins / r.sims, rec0 = (t.record.wins || 0) + z.wins / b.sims;
+    const cell = (x, y) => `<td class="num">${show(pctOf(x, r.sims))} ${delta(pctOf(x, r.sims), pctOf(y, b.sims))}</td>`;
+    return `<tr class="${mine && t.roster_id === mine.roster_id ? "me" : ""}"><td>${teamHtml(t.roster_id)}</td>
+      <td class="num">${rec.toFixed(1)} ${Math.abs(rec - rec0) >= 0.05 ? `<span class="${rec > rec0 ? "up" : "down"}">${rec > rec0 ? "+" : ""}${(rec - rec0).toFixed(1)}</span>` : ""}</td>
+      ${cell(a.playoff, z.playoff)}${r.size > r.P ? cell(a.bye, z.bye) : ""}${cell(a.title, z.title)}
+      ${r.fixed ? "" : `<td class="num">${(a.slotSum / r.sims).toFixed(1)} ${Math.abs(a.slotSum / r.sims - z.slotSum / b.sims) >= 0.05 ? `<span class="muted">(${(z.slotSum / b.sims).toFixed(1)})</span>` : ""}</td>`}</tr>`;
+  }).join("");
+  el.innerHTML = `<h3>What if</h3>
+    <p class="muted">Pick a winner for any game left and every team's odds re-run with those results locked in (${fmt(WHATIF_SIMS)} sims each time, same weekly lineups, byes and injuries). Green and red show the change from no picks. ${nPicks ? `<b>${nPicks} game${nPicks > 1 ? "s" : ""} picked.</b>` : ""}</p>
+    <div class="wi-bar">${weeks.map((wk) => `<button class="chip${wk === w ? " active" : ""}" data-wk="${wk}">Wk ${wk}${picksIn(wk) ? ` · ${picksIn(wk)}` : ""}</button>`).join("")}
+      ${mine ? `<button class="chip" data-all="win">You win out</button><button class="chip" data-all="lose">You lose out</button>` : ""}
+      <button class="chip" data-all="fav">Favorites win this week</button><button class="chip" data-all="clear"${nPicks ? "" : " disabled"}>Clear all</button></div>
+    <div class="wi-games">${gameRows || `<p class="muted">No games listed for week ${w}.</p>`}</div>
+    <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${r.year || ""} slot</th>`}</tr></thead><tbody>${table}</tbody></table></div>`;
+  el.onclick = (e) => {
+    const t = e.target.closest("button");
+    if (!t || t.disabled) return;
+    if (t.dataset.wk) { whatIf.week = Number(t.dataset.wk); return renderWhatIf(); }
+    if (t.dataset.pick) {
+      if (t.dataset.rid === "") delete whatIf.picks[t.dataset.pick]; else whatIf.picks[t.dataset.pick] = Number(t.dataset.rid);
+    } else if (t.dataset.all === "clear") whatIf.picks = {};
+    else if (t.dataset.all === "fav") {
+      for (const [a, c] of sch.weeks[w] || []) whatIf.picks[gameKey(w, a, c)] = m.game(a, c, w) >= 0.5 ? a : c;
+    } else if (t.dataset.all && mine) {
+      for (const wk of weeks) for (const [a, c] of sch.weeks[wk] || []) {
+        if (a !== mine.roster_id && c !== mine.roster_id) continue;
+        const opp = a === mine.roster_id ? c : a;
+        whatIf.picks[gameKey(wk, a, c)] = t.dataset.all === "win" ? mine.roster_id : opp;
+      }
+    }
+    whatIfSave();
+    renderWhatIf();
+  };
 }
 
 function renderPickProj() {
