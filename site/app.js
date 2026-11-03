@@ -1603,10 +1603,10 @@ function bracketOrder(size) {
   return order;
 }
 // `picks` {"week:a:b": winner roster id} forces a game's result (the What-if panel).
-function simulateOdds(sims = ODDS_SIMS, picks = {}) {
+function simulateOdds(sims = ODDS_SIMS, picks = {}, overrides = {}) {
   const teams = state.data.teams, n = teams.length;
   const sch = state.data.schedule || { weeks: {}, median_game: false };
-  const m = seasonModel();
+  const m = seasonModel(overrides);
   const P = Math.min(state.data.league.playoff_teams || 0, n);
   const rd = state.data.rookie_draft || {};
   const rule = (rd.rule && rd.rule.rule) || "record";
@@ -2063,6 +2063,17 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
     return { v, rank };
   };
   const ovB = overall(false), ovA = overall(true);
+  // Playoff and title odds: the week-by-week season sim (each week's best lineup,
+  // byes and injuries out) on today's rosters and on the post-trade ones, same draws.
+  const inSeason = Object.keys((state.data.schedule || {}).weeks || {}).length > 0;
+  const oddsB = inSeason ? simulateOdds(WHATIF_SIMS) : null, oddsA = inSeason ? simulateOdds(WHATIF_SIMS, {}, overrides) : null;
+  const oddsCell = (rid) => {
+    if (!oddsB) return '<span class="muted">season over</span>';
+    const p = (o, k) => (100 * o.acc[rid][k]) / o.sims;
+    const show = (v) => (v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`);
+    const d = (k) => { const x = Math.round(p(oddsA, k) - p(oddsB, k)); return `<span class="${x > 0 ? "up" : x < 0 ? "down" : "muted"}">(${x > 0 ? "+" : ""}${x})</span>`; };
+    return `Playoffs ${show(p(oddsB, "playoff"))} → ${show(p(oddsA, "playoff"))} ${d("playoff")}<br><span class="muted">Title ${show(p(oddsB, "title"))} → ${show(p(oddsA, "title"))}</span> ${d("title")}`;
+  };
   const rows = s.filter((x) => x.team != null).map((side) => {
     const rid = side.team;
     const sb = before.by[rid].starters, sa = after.by[rid].starters;
@@ -2080,16 +2091,17 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
     return `<tr><td class="name">${teamHtml(rid)}</td>
       <td>${directionHtml(dirBefore[rid], dirAfter[rid])}</td>
       <td>${recCell}</td>
+      <td>${oddsCell(rid)}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
       <td class="num">${fmt(ovB.v[rid])} → ${fmt(ovA.v[rid])} <span class="${ovA.v[rid] > ovB.v[rid] ? "up" : ovA.v[rid] < ovB.v[rid] ? "down" : "muted"}">(${ovA.v[rid] >= ovB.v[rid] ? "+" : ""}${fmt(ovA.v[rid] - ovB.v[rid])})</span><br>${arrow(ovB.rank[rid], ovA.rank[rid])}</td>
       <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
       <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
   });
-  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th title="${fmt(WHATIF_SIMS)} simulated seasons, week by week with byes and injuries, before and after">Playoff odds</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
     <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks. Overall value counts the whole roster, bench included, plus every pick, with its league rank underneath.
     Direction is the team's build (see the Teams tab) before and after, re-run on the new rosters and pick totals.
-    ${recordNote()}</p>`;
+    ${recordNote()} Playoff odds replay the rest of the season ${fmt(WHATIF_SIMS)} times week by week (each week's best lineup, byes and injuries out) on today's rosters and on the rosters after the trade.</p>`;
 }
 
 function recordNote() {
