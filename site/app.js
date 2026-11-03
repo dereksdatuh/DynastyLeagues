@@ -765,7 +765,7 @@ function evenOut(gets, gives) {
   return hi;
 }
 // Shorthand for the many places that only need the net: values × an optional factor.
-const netOf = (gets, gives, f = () => 1) => adjustTrade(gets.map((a) => ({ value: a.value * f(a), kind: a.kind })), gives.map((a) => ({ value: a.value * f(a), kind: a.kind }))).pct;
+const netOf = (gets, gives, f = () => 1, val = (a) => a.value) => adjustTrade(gets.map((a) => ({ value: val(a) * f(a), kind: a.kind })), gives.map((a) => ({ value: val(a) * f(a), kind: a.kind }))).pct;
 
 const newSide = () => ({ team: null, assets: [] });
 // A new trade starts with the logged-in user's team as Team A, when they have one here.
@@ -895,7 +895,42 @@ function fillDatalists() {
   });
 }
 
+// ---------- value source for the calculator ----------
+// The calculator can price a deal with this league's values (the engine) or with one
+// site's own numbers. Sites don't price picks on this scale, so picks (and anyone a
+// site doesn't list) take the league value times that site's typical ratio to it.
+const CALC_SOURCES = [["engine", "Dynasty engine"], ["ktc", "KTC"], ["fantasycalc", "FantasyCalc"], ["dynastyprocess", "DynastyProcess"], ["sites", "Sites avg"]];
+const calc = { source: localStorageGet("calc.source") || "engine", ratio: null, ratioFor: null };
+function calcSourceName() {
+  const n = (CALC_SOURCES.find(([k]) => k === calc.source) || CALC_SOURCES[0])[1];
+  return calc.source === "engine" ? "league value" : `${n} values`;
+}
+function siteValue(a, src) {
+  if (a.kind === "pick") return null;
+  const v = src === "sites" ? a.sites_avg : (a.sources_raw || {})[src];
+  return v > 0 ? v : null;
+}
+function calcRatio(src) {
+  if (calc.ratioFor !== state.data) { calc.ratio = {}; calc.ratioFor = state.data; }
+  if (calc.ratio[src] != null) return calc.ratio[src];
+  const rs = state.data.players.filter((p) => p.value > 500 && siteValue(p, src)).sort((a, b) => b.value - a.value).slice(0, 150)
+    .map((p) => siteValue(p, src) / p.value).sort((a, b) => a - b);
+  return (calc.ratio[src] = rs.length ? rs[Math.floor(rs.length / 2)] : 1);
+}
+function calcValue(a) {
+  if (!a || calc.source === "engine" || !CALC_SOURCES.some(([k]) => k === calc.source)) return a ? a.value : 0;
+  return siteValue(a, calc.source) ?? Math.round((a.value || 0) * calcRatio(calc.source));
+}
+function renderCalcSource() {
+  const el = $("#calc-source");
+  if (!el) return;
+  el.innerHTML = CALC_SOURCES.map(([k, l]) => `<button class="chip ${calc.source === k ? "active" : ""}" data-src="${k}">${l}</button>`).join("")
+    + (calc.source === "engine" ? "" : `<span class="muted"> Each player at ${esc(CALC_SOURCES.find(([k]) => k === calc.source)[1])}'s own number; picks scaled from league value.</span>`);
+  el.querySelectorAll("[data-src]").forEach((b) => (b.onclick = () => { calc.source = b.dataset.src; localStorageSet("calc.source", calc.source); renderTrade(); }));
+}
+
 function renderTrade() {
+  renderCalcSource();
   const s = sides();
   const multi = s.length > 2;
   fillDatalists();
@@ -909,10 +944,10 @@ function renderTrade() {
   const baseRanks = base.ranks;
   s.forEach((side, i) => {
     side.assets.map(assetById).filter(Boolean).forEach((a) => {
-      gets[i].push({ value: a.value, kind: a.kind });
-      tGets[i].push({ value: a.value * teamFactor(tm[i], a.id), kind: a.kind });
+      gets[i].push({ value: calcValue(a), kind: a.kind });
+      tGets[i].push({ value: calcValue(a) * teamFactor(tm[i], a.id), kind: a.kind });
       const from = senderOf(a, i);
-      if (from >= 0) { gives[from].push({ value: a.value, kind: a.kind }); tGives[from].push({ value: a.value * teamFactor(tm[from], a.id), kind: a.kind }); }
+      if (from >= 0) { gives[from].push({ value: calcValue(a), kind: a.kind }); tGives[from].push({ value: calcValue(a) * teamFactor(tm[from], a.id), kind: a.kind }); }
       else unassigned.push(a);
     });
   });
@@ -928,9 +963,9 @@ function renderTrade() {
         const tag = multi ? `<span class="muted from">${from >= 0 ? "from " + esc(sideName(from)) : "sender not in trade"}</span>` : "";
         const f = teamFactor(tm[i], x.id);
         const toThem = tm[i] != null && f !== 1
-          ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(x.value * f)} to them</span>` : "";
-        const sites = x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
-        return `<li><span>${face(x.id)}${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+          ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(calcValue(x) * f)} to them</span>` : "";
+        const sites = calc.source === "engine" && x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
+        return `<li><span>${face(x.id)}${esc(x.label)}${tag}</span><span class="num">${fmt(calcValue(x))}${calc.source !== "engine" && x.kind === "pick" ? `<span class="muted tv" title="No site prices picks here: the league value scaled to this site">scaled</span>` : ""}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
       })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
@@ -944,7 +979,7 @@ function renderTrade() {
     }
     const sit = tm[i] != null ? `<div class="needs muted">${esc(situationText(tm[i]))}</div>` : "";
     const toThemTotal = items.length && tm[i] != null ? ` · To them <strong>${fmt(tAdj[i].g.total)}</strong>` : "";
-    const sitesTotal = items.some((x) => x.sites_avg) ? ` · Sites avg ${fmt(items.reduce((t, x) => t + (x.sites_avg || 0), 0))}${items.some((x) => x.kind === "pick") ? " (players only)" : ""}` : "";
+    const sitesTotal = calc.source === "engine" && items.some((x) => x.sites_avg) ? ` · Sites avg ${fmt(items.reduce((t, x) => t + (x.sites_avg || 0), 0))}${items.some((x) => x.kind === "pick") ? " (players only)" : ""}` : "";
     el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)}${sitesTotal} · Adjusted <strong>${fmt(adj[i].g.total)}</strong>${toThemTotal}` : "") + needLine + sit;
   });
 
@@ -963,8 +998,8 @@ function renderTrade() {
   const winner = rows.reduce((a, b) => (b.pct > a.pct ? b : a));
   const loser = rows.reduce((a, b) => (b.pct < a.pct ? b : a));
   let verdict;
-  if (fair) verdict = "Fair trade at market value";
-  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}% at market value`;
+  if (fair) verdict = `Fair trade at ${calcSourceName()}`;
+  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}% at ${calcSourceName()}`;
   else verdict = `${esc(sideName(winner.i))} wins most (+${Math.round(winner.pct * 100)}%), ${esc(sideName(loser.i))} loses most (${Math.round(loser.pct * 100)}%)`;
 
   let detail;
@@ -1004,12 +1039,12 @@ function renderTrade() {
     const giver = s[winner.i].team;
     const taken = new Set(s.flatMap((x) => x.assets));
     const cands = [...state.assetMap.values()]
-      .filter((x) => !taken.has(x.id) && x.value > 0 && (giver == null || x.roster_id === giver))
-      .sort((x, y) => Math.abs(x.value - need) - Math.abs(y.value - need))
+      .filter((x) => !taken.has(x.id) && calcValue(x) > 0 && (giver == null || x.roster_id === giver))
+      .sort((x, y) => Math.abs(calcValue(x) - need) - Math.abs(calcValue(y) - need))
       .slice(0, 6)
-      .sort((x, y) => y.value - x.value);
+      .sort((x, y) => calcValue(y) - calcValue(x));
     suggest = `<p>To even it out, ${esc(sideName(loser.i))} should also get about <strong>${fmt(need)}</strong> in value${multi ? ` from ${esc(sideName(winner.i))}` : ""}. Closest fits:</p>
-      <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
+      <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(calcValue(x))}</span></button></li>`).join("")}</ul>`;
   }
   const overrides = tradeOverrides(s);
   const after = leagueStrength(overrides);
@@ -1120,7 +1155,7 @@ function gradeOffer() {
   const rows = s.map((side, i) => {
     const gets = side.assets.map(assetById).filter(Boolean);
     const gives = s.flatMap((x, j) => (j === i ? [] : x.assets.map(assetById).filter((a) => a && senderOf(a, j) === i)));
-    const mkt = netOf(gets, gives), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id));
+    const mkt = netOf(gets, gives, undefined, calcValue), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id), calcValue);
     const p0 = teamPPG(rosterOf(side.team)), p1 = teamPPG(overrides[side.team] || rosterOf(side.team));
     return { i, rid: side.team, mkt, lens, p0, p1 };
   });
@@ -1138,7 +1173,7 @@ function gradeOffer() {
       <td class="num ${r.mkt > FAIR_MARGIN ? "up" : r.mkt < -FAIR_MARGIN ? "down" : ""}">${pct(r.mkt)}</td><td class="num">${pct(r.lens)}</td><td class="num">${r.p0.toFixed(1)} → ${r.p1.toFixed(1)}</td></tr>`).join("")}</tbody></table>
     ${guessed.length ? `<p class="muted">The summary doesn't say whose pick it is, and the sender owns more than one in that round, so I used: ${guessed.map(esc).join(", ")}. Swap it in the calculator below if that's wrong.</p>` : ""}
     ${missing.length ? `<p class="error">Couldn't match: ${missing.map(esc).join("; ")}.</p>` : ""}
-    <p class="muted">Grades are by market value with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
+    <p class="muted">Grades are by ${calcSourceName()} (switch it under "Values from") with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
 }
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "offer-grade") gradeOffer(); });
 
