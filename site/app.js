@@ -2917,7 +2917,7 @@ function renderFinder() {
     .concat(Object.keys(BUILD_INFO).map((k) => [`aim:${k}`, `Aim for: ${BUILD_INFO[k][0]}`]))
     .map(([v, l]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`).join("");
   el.innerHTML = `<div class="toolbar"><span class="muted">Deal size</span><div class="chips" id="finder-mode">${[2, 3].map((k) => `<button class="chip ${finder.mode === k ? "active" : ""}" data-mode="${k}">${k} teams</button>`).join("")}</div></div>
-    <p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
+    <p class="muted">Picking is optional. Leave your side empty and the finder looks across your whole roster (never anything marked untouchable) for deals that move you toward your goal and the build you aim for. Pick pieces and it only offers those: "You send" is always in the deal, "OK to add" pieces may be added, nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
     <div class="finder-grid">
       <div class="trade-side"><h3>Your team</h3><select id="finder-me" aria-label="Your team">${opt(finder.me, false)}</select>
         <div class="needs muted">${esc(situationText(finder.me))}</div>
@@ -2925,7 +2925,7 @@ function renderFinder() {
         <ul class="assets">${chips(finder.send, "send")}</ul>
         <h4>OK to add <span class="muted">(the finder may use these)</span></h4><input id="finder-offer" type="search" placeholder="Add a piece you'd part with" list="finder-send-list" />
         <div class="chips small"><button class="chip" id="offer-picks">+ my picks</button><button class="chip" id="offer-bench">+ my bench</button><button class="chip" id="offer-clear">clear</button></div>
-        <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">Nothing yet. Only "You send" will be offered.</span></li>`}</ul></div>
+        <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">${finder.send.length ? 'Nothing yet. Only "You send" will be offered.' : "Nothing picked, so anyone not untouchable may be offered."}</span></li>`}</ul></div>
       <div class="trade-side">${finder.mode === 3 ? `<h3>Trade with <span class="muted">(two teams, each with its own goal)</span></h3>
         ${[0, 1].map((k) => `<div class="three-pick"><select class="three-team" data-k="${k}" aria-label="Team ${k + 2}"><option value="">Pick team ${k + 2}</option>${teams.filter((t) => t.roster_id !== finder.me)
           .map((t) => `<option value="${t.roster_id}" ${finder.three.teams[k] === t.roster_id ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("")}</select>
@@ -2941,7 +2941,7 @@ function renderFinder() {
         <h4>Pieces you get back</h4><div class="chips">${countChips("getMax", [null, 1, 2, 3, 4])}</div>
         <h4>Pieces you send, at most</h4><div class="chips">${countChips("sendMax", [null, 1, 2, 3, 4, 5])}</div></div>
     </div>
-    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(can't be added to "OK to add")</span></h3>
+    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(never offered)</span></h3>
       <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
       <ul class="assets">${[...locked].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     ${managersHtml()}
@@ -3045,16 +3045,15 @@ function findTrades() {
   const myRoster = rosterOf(me);
   const myPPG = teamPPG(myRoster);
   const startsForMe = new Set(bestLineup(myRoster, "ros_ppg").map((x) => x.p.id));
-  // Your optional pieces: only what you listed as OK to add. The trade ideas (and
-  // nothing else) may open the rest of your roster, still never an untouchable.
-  const myExtra = (finder.openAll
+  // Your optional pieces: what you listed as OK to add. With nothing picked at all
+  // (and for the trade ideas) the whole roster is open, still never an untouchable.
+  const open = finder.openAll || (!send.length && !finder.offer.length);
+  const myExtra = (open
     ? [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150)
     : finder.offer.map(assetById).filter(Boolean))
     .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id))
     .sort((a, b) => b.value - a.value).slice(0, 14);
-  if (!send.length && !myExtra.length) return { error: get.length
-    ? `Add what you'd send for ${get.map((a) => a.name).join(" and ")}: put pieces in "You send" or "OK to add". The finder never offers anything you didn't pick.`
-    : "Add at least one player or pick to send, or to OK to add." };
+  if (!send.length && !myExtra.length) return { error: "Everything on your roster is marked untouchable, so there's nothing to offer." };
   const sendRoom = finder.sendMax == null ? 4 : finder.sendMax - send.length;
   const getRoom = finder.getMax == null ? FINDER_MAX_ADD : finder.getMax - get.length;
   if (sendRoom < 0) return { error: `You named ${send.length} pieces to send but set at most ${finder.sendMax}.` };
@@ -3185,9 +3184,10 @@ function findTrades3() {
   if (blocked.length) return { error: `You noted that ${blocked.map(teamName).join(" and ")} won't trade with you. Clear that in Manager profiles to look anyway.` };
   const send = finder.send.map(assetById).filter(Boolean), get = finder.get.map(assetById).filter(Boolean);
   const locked = lockedIds(me), sendIds = new Set(send.map((a) => a.id));
-  const myExtra = finder.offer.map(assetById).filter(Boolean)
+  const open = !send.length && !finder.offer.length;
+  const myExtra = (open ? [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150) : finder.offer.map(assetById).filter(Boolean))
     .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id)).sort((a, b) => b.value - a.value).slice(0, 10);
-  if (!send.length && !myExtra.length) return { error: 'Add at least one player or pick to "You send" or "OK to add". The finder never offers anything you didn\'t pick.' };
+  if (!send.length && !myExtra.length) return { error: "Everything on your roster is marked untouchable, so there's nothing to offer." };
   const getOwners = new Set(get.map((a) => a.roster_id));
   if ([...getOwners].some((r) => r !== B && r !== C)) return { error: "Everything in \"You get\" has to belong to one of the two teams you picked." };
   if (getOwners.size > 1) return { error: "In a three-team deal one partner sends to you and the other gets paid by you, so \"You get\" can only come from one of them." };

@@ -208,6 +208,20 @@ for (const [id, liteRun] of runs) {
     await page.click('button[data-tab="finder"]');
     for (let i = 0; i < 6 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
   }
+  // Nothing picked: the finder may use your whole roster, but never an untouchable.
+  if (drafted) {
+    await page.click('button[data-tab="finder"]');
+    for (let i = 0; i < 20 && (await page.$("#finder .assets button[data-kind]")); i++) await page.click("#finder .assets button[data-kind]");
+    const t0 = Date.now();
+    await page.click("#finder-run");
+    await page.waitForFunction(() => !/Searching/.test(document.querySelector("#finder-out").textContent), null, { timeout: 60000 });
+    const openDeals = await page.$$eval("#finder-out .finder-deal", (r) => r.length);
+    const openLocked = await page.$$eval("#finder-out .finder-deal", (ds, l) => ds.filter((d) => d.querySelectorAll(".card")[1]?.textContent.includes(l)).length, lockedLabel);
+    if (lockedLabel && openLocked) errors.push(`${id}: open finder offered untouchable ${lockedLabel}`);
+    const openErr = await page.$eval("#finder-out .error", (e) => e.textContent).catch(() => "");
+    if (openErr) errors.push(`${id}: open finder failed: ${openErr}`);
+    finderRuns.push(`nothing picked: ${openDeals} deals in ${Date.now() - t0} ms`);
+  }
   // Three-team finder: you plus two teams, still only offering what you picked.
   if (drafted && (await page.evaluate(() => state.data.teams.length >= 3))) {
     await page.click('button[data-tab="finder"]');
