@@ -765,7 +765,7 @@ function evenOut(gets, gives) {
   return hi;
 }
 // Shorthand for the many places that only need the net: values × an optional factor.
-const netOf = (gets, gives, f = () => 1) => adjustTrade(gets.map((a) => ({ value: a.value * f(a), kind: a.kind })), gives.map((a) => ({ value: a.value * f(a), kind: a.kind }))).pct;
+const netOf = (gets, gives, f = () => 1, val = (a) => a.value) => adjustTrade(gets.map((a) => ({ value: val(a) * f(a), kind: a.kind })), gives.map((a) => ({ value: val(a) * f(a), kind: a.kind }))).pct;
 
 const newSide = () => ({ team: null, assets: [] });
 // A new trade starts with the logged-in user's team as Team A, when they have one here.
@@ -895,7 +895,42 @@ function fillDatalists() {
   });
 }
 
+// ---------- value source for the calculator ----------
+// The calculator can price a deal with this league's values (the engine) or with one
+// site's own numbers. Sites don't price picks on this scale, so picks (and anyone a
+// site doesn't list) take the league value times that site's typical ratio to it.
+const CALC_SOURCES = [["engine", "Dynasty engine"], ["ktc", "KTC"], ["fantasycalc", "FantasyCalc"], ["dynastyprocess", "DynastyProcess"], ["sites", "Sites avg"]];
+const calc = { source: localStorageGet("calc.source") || "engine", ratio: null, ratioFor: null };
+function calcSourceName() {
+  const n = (CALC_SOURCES.find(([k]) => k === calc.source) || CALC_SOURCES[0])[1];
+  return calc.source === "engine" ? "league value" : `${n} values`;
+}
+function siteValue(a, src) {
+  if (a.kind === "pick") return null;
+  const v = src === "sites" ? a.sites_avg : (a.sources_raw || {})[src];
+  return v > 0 ? v : null;
+}
+function calcRatio(src) {
+  if (calc.ratioFor !== state.data) { calc.ratio = {}; calc.ratioFor = state.data; }
+  if (calc.ratio[src] != null) return calc.ratio[src];
+  const rs = state.data.players.filter((p) => p.value > 500 && siteValue(p, src)).sort((a, b) => b.value - a.value).slice(0, 150)
+    .map((p) => siteValue(p, src) / p.value).sort((a, b) => a - b);
+  return (calc.ratio[src] = rs.length ? rs[Math.floor(rs.length / 2)] : 1);
+}
+function calcValue(a) {
+  if (!a || calc.source === "engine" || !CALC_SOURCES.some(([k]) => k === calc.source)) return a ? a.value : 0;
+  return siteValue(a, calc.source) ?? Math.round((a.value || 0) * calcRatio(calc.source));
+}
+function renderCalcSource() {
+  const el = $("#calc-source");
+  if (!el) return;
+  el.innerHTML = CALC_SOURCES.map(([k, l]) => `<button class="chip ${calc.source === k ? "active" : ""}" data-src="${k}">${l}</button>`).join("")
+    + (calc.source === "engine" ? "" : `<span class="muted"> Each player at ${esc(CALC_SOURCES.find(([k]) => k === calc.source)[1])}'s own number; picks scaled from league value.</span>`);
+  el.querySelectorAll("[data-src]").forEach((b) => (b.onclick = () => { calc.source = b.dataset.src; localStorageSet("calc.source", calc.source); renderTrade(); }));
+}
+
 function renderTrade() {
+  renderCalcSource();
   const s = sides();
   const multi = s.length > 2;
   fillDatalists();
@@ -909,10 +944,10 @@ function renderTrade() {
   const baseRanks = base.ranks;
   s.forEach((side, i) => {
     side.assets.map(assetById).filter(Boolean).forEach((a) => {
-      gets[i].push({ value: a.value, kind: a.kind });
-      tGets[i].push({ value: a.value * teamFactor(tm[i], a.id), kind: a.kind });
+      gets[i].push({ value: calcValue(a), kind: a.kind });
+      tGets[i].push({ value: calcValue(a) * teamFactor(tm[i], a.id), kind: a.kind });
       const from = senderOf(a, i);
-      if (from >= 0) { gives[from].push({ value: a.value, kind: a.kind }); tGives[from].push({ value: a.value * teamFactor(tm[from], a.id), kind: a.kind }); }
+      if (from >= 0) { gives[from].push({ value: calcValue(a), kind: a.kind }); tGives[from].push({ value: calcValue(a) * teamFactor(tm[from], a.id), kind: a.kind }); }
       else unassigned.push(a);
     });
   });
@@ -928,9 +963,9 @@ function renderTrade() {
         const tag = multi ? `<span class="muted from">${from >= 0 ? "from " + esc(sideName(from)) : "sender not in trade"}</span>` : "";
         const f = teamFactor(tm[i], x.id);
         const toThem = tm[i] != null && f !== 1
-          ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(x.value * f)} to them</span>` : "";
-        const sites = x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
-        return `<li><span>${face(x.id)}${esc(x.label)}${tag}</span><span class="num">${fmt(x.value)}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
+          ? `<span class="muted tv" title="What ${esc(teamName(tm[i]))} would pay, given its situation">${fmt(calcValue(x) * f)} to them</span>` : "";
+        const sites = calc.source === "engine" && x.sites_avg ? `<span class="muted tv" title="Plain average of each site's own number">sites avg ${fmt(x.sites_avg)}</span>` : "";
+        return `<li><span>${face(x.id)}${esc(x.label)}${tag}</span><span class="num">${fmt(calcValue(x))}${calc.source !== "engine" && x.kind === "pick" ? `<span class="muted tv" title="No site prices picks here: the league value scaled to this site">scaled</span>` : ""}${sites}${toThem}</span><button data-id="${esc(x.id)}" aria-label="Remove">×</button></li>`;
       })
       .join("");
     el.querySelectorAll(".assets button").forEach((b) =>
@@ -944,7 +979,7 @@ function renderTrade() {
     }
     const sit = tm[i] != null ? `<div class="needs muted">${esc(situationText(tm[i]))}</div>` : "";
     const toThemTotal = items.length && tm[i] != null ? ` · To them <strong>${fmt(tAdj[i].g.total)}</strong>` : "";
-    const sitesTotal = items.some((x) => x.sites_avg) ? ` · Sites avg ${fmt(items.reduce((t, x) => t + (x.sites_avg || 0), 0))}${items.some((x) => x.kind === "pick") ? " (players only)" : ""}` : "";
+    const sitesTotal = calc.source === "engine" && items.some((x) => x.sites_avg) ? ` · Sites avg ${fmt(items.reduce((t, x) => t + (x.sites_avg || 0), 0))}${items.some((x) => x.kind === "pick") ? " (players only)" : ""}` : "";
     el.querySelector(".side-total").innerHTML = (items.length ? `Total ${fmt(raw)}${sitesTotal} · Adjusted <strong>${fmt(adj[i].g.total)}</strong>${toThemTotal}` : "") + needLine + sit;
   });
 
@@ -963,8 +998,8 @@ function renderTrade() {
   const winner = rows.reduce((a, b) => (b.pct > a.pct ? b : a));
   const loser = rows.reduce((a, b) => (b.pct < a.pct ? b : a));
   let verdict;
-  if (fair) verdict = "Fair trade at market value";
-  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}% at market value`;
+  if (fair) verdict = `Fair trade at ${calcSourceName()}`;
+  else if (!multi) verdict = `${esc(sideName(winner.i))} wins by ${Math.round(winner.pct * 100)}% at ${calcSourceName()}`;
   else verdict = `${esc(sideName(winner.i))} wins most (+${Math.round(winner.pct * 100)}%), ${esc(sideName(loser.i))} loses most (${Math.round(loser.pct * 100)}%)`;
 
   let detail;
@@ -1004,12 +1039,12 @@ function renderTrade() {
     const giver = s[winner.i].team;
     const taken = new Set(s.flatMap((x) => x.assets));
     const cands = [...state.assetMap.values()]
-      .filter((x) => !taken.has(x.id) && x.value > 0 && (giver == null || x.roster_id === giver))
-      .sort((x, y) => Math.abs(x.value - need) - Math.abs(y.value - need))
+      .filter((x) => !taken.has(x.id) && calcValue(x) > 0 && (giver == null || x.roster_id === giver))
+      .sort((x, y) => Math.abs(calcValue(x) - need) - Math.abs(calcValue(y) - need))
       .slice(0, 6)
-      .sort((x, y) => y.value - x.value);
+      .sort((x, y) => calcValue(y) - calcValue(x));
     suggest = `<p>To even it out, ${esc(sideName(loser.i))} should also get about <strong>${fmt(need)}</strong> in value${multi ? ` from ${esc(sideName(winner.i))}` : ""}. Closest fits:</p>
-      <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(x.value)}</span></button></li>`).join("")}</ul>`;
+      <ul class="suggest">${cands.map((x) => `<li><button data-i="${loser.i}" data-id="${esc(x.id)}">+ ${esc(x.label)} <span class="muted">${fmt(calcValue(x))}</span></button></li>`).join("")}</ul>`;
   }
   const overrides = tradeOverrides(s);
   const after = leagueStrength(overrides);
@@ -1120,7 +1155,7 @@ function gradeOffer() {
   const rows = s.map((side, i) => {
     const gets = side.assets.map(assetById).filter(Boolean);
     const gives = s.flatMap((x, j) => (j === i ? [] : x.assets.map(assetById).filter((a) => a && senderOf(a, j) === i)));
-    const mkt = netOf(gets, gives), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id));
+    const mkt = netOf(gets, gives, undefined, calcValue), lens = netOf(gets, gives, (a) => teamFactor(side.team, a.id), calcValue);
     const p0 = teamPPG(rosterOf(side.team)), p1 = teamPPG(overrides[side.team] || rosterOf(side.team));
     return { i, rid: side.team, mkt, lens, p0, p1 };
   });
@@ -1138,7 +1173,7 @@ function gradeOffer() {
       <td class="num ${r.mkt > FAIR_MARGIN ? "up" : r.mkt < -FAIR_MARGIN ? "down" : ""}">${pct(r.mkt)}</td><td class="num">${pct(r.lens)}</td><td class="num">${r.p0.toFixed(1)} → ${r.p1.toFixed(1)}</td></tr>`).join("")}</tbody></table>
     ${guessed.length ? `<p class="muted">The summary doesn't say whose pick it is, and the sender owns more than one in that round, so I used: ${guessed.map(esc).join(", ")}. Swap it in the calculator below if that's wrong.</p>` : ""}
     ${missing.length ? `<p class="error">Couldn't match: ${missing.map(esc).join("; ")}.</p>` : ""}
-    <p class="muted">Grades are by market value with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
+    <p class="muted">Grades are by ${calcSourceName()} (switch it under "Values from") with the value adjustment: A+ wins by 10% or more, A by 5%, B+ and B are fair, C is short by up to 10%, D up to 20%, F more. The full breakdown is below.</p>`;
 }
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "offer-grade") gradeOffer(); });
 
@@ -1603,10 +1638,10 @@ function bracketOrder(size) {
   return order;
 }
 // `picks` {"week:a:b": winner roster id} forces a game's result (the What-if panel).
-function simulateOdds(sims = ODDS_SIMS, picks = {}) {
+function simulateOdds(sims = ODDS_SIMS, picks = {}, overrides = {}) {
   const teams = state.data.teams, n = teams.length;
   const sch = state.data.schedule || { weeks: {}, median_game: false };
-  const m = seasonModel();
+  const m = seasonModel(overrides);
   const P = Math.min(state.data.league.playoff_teams || 0, n);
   const rd = state.data.rookie_draft || {};
   const rule = (rd.rule && rd.rule.rule) || "record";
@@ -1801,7 +1836,7 @@ function renderWhatIf() {
       ${mine ? `<button class="chip" data-all="win">You win out</button><button class="chip" data-all="lose">You lose out</button>` : ""}
       <button class="chip" data-all="fav">Favorites win this week</button><button class="chip" data-all="clear"${nPicks ? "" : " disabled"}>Clear all</button></div>
     <div class="wi-games">${gameRows || `<p class="muted">No games listed for week ${w}.</p>`}</div>
-    <div class="table-wrap"><table class="odds-table"><thead><tr><th>Team</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${r.year || ""} slot</th>`}</tr></thead><tbody>${table}</tbody></table></div>`;
+    <div class="table-wrap"><table class="wi-table"><thead><tr><th>Team</th><th class="num">Proj. wins</th><th class="num">Playoffs</th>${r.size > r.P ? '<th class="num">Bye</th>' : ""}<th class="num">Title</th>${r.fixed ? "" : `<th class="num">Avg ${r.year || ""} slot</th>`}</tr></thead><tbody>${table}</tbody></table></div>`;
   el.onclick = (e) => {
     const t = e.target.closest("button");
     if (!t || t.disabled) return;
@@ -2063,6 +2098,17 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
     return { v, rank };
   };
   const ovB = overall(false), ovA = overall(true);
+  // Playoff and title odds: the week-by-week season sim (each week's best lineup,
+  // byes and injuries out) on today's rosters and on the post-trade ones, same draws.
+  const inSeason = Object.keys((state.data.schedule || {}).weeks || {}).length > 0;
+  const oddsB = inSeason ? simulateOdds(WHATIF_SIMS) : null, oddsA = inSeason ? simulateOdds(WHATIF_SIMS, {}, overrides) : null;
+  const oddsCell = (rid) => {
+    if (!oddsB) return '<span class="muted">season over</span>';
+    const p = (o, k) => (100 * o.acc[rid][k]) / o.sims;
+    const show = (v) => (v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`);
+    const d = (k) => { const x = Math.round(p(oddsA, k) - p(oddsB, k)); return `<span class="${x > 0 ? "up" : x < 0 ? "down" : "muted"}">(${x > 0 ? "+" : ""}${x})</span>`; };
+    return `Playoffs ${show(p(oddsB, "playoff"))} → ${show(p(oddsA, "playoff"))} ${d("playoff")}<br><span class="muted">Title ${show(p(oddsB, "title"))} → ${show(p(oddsA, "title"))}</span> ${d("title")}`;
+  };
   const rows = s.filter((x) => x.team != null).map((side) => {
     const rid = side.team;
     const sb = before.by[rid].starters, sa = after.by[rid].starters;
@@ -2080,16 +2126,17 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
     return `<tr><td class="name">${teamHtml(rid)}</td>
       <td>${directionHtml(dirBefore[rid], dirAfter[rid])}</td>
       <td>${recCell}</td>
+      <td>${oddsCell(rid)}</td>
       <td class="num">${fmt(sb)} → ${fmt(sa)} <span class="${diff > 0 ? "up" : diff < 0 ? "down" : "muted"}">(${diff >= 0 ? "+" : ""}${fmt(diff)})</span></td>
       <td>${arrow(before.ranks.starters[rid], after.ranks.starters[rid])}</td>
       <td class="num">${fmt(ovB.v[rid])} → ${fmt(ovA.v[rid])} <span class="${ovA.v[rid] > ovB.v[rid] ? "up" : ovA.v[rid] < ovB.v[rid] ? "down" : "muted"}">(${ovA.v[rid] >= ovB.v[rid] ? "+" : ""}${fmt(ovA.v[rid] - ovB.v[rid])})</span><br>${arrow(ovB.rank[rid], ovA.rank[rid])}</td>
       <td>${moved.map((p) => `${p} ${arrow(before.ranks[p][rid], after.ranks[p][rid])}`).join("<br>") || '<span class="muted">no change</span>'}</td>
       <td>${notes || (need.length ? `<span class="muted">needs ${need.join(", ")}</span>` : "")}</td></tr>`;
   });
-  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
+  return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th title="${fmt(WHATIF_SIMS)} simulated seasons, week by week with byes and injuries, before and after">Playoff odds</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
     <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks. Overall value counts the whole roster, bench included, plus every pick, with its league rank underneath.
     Direction is the team's build (see the Teams tab) before and after, re-run on the new rosters and pick totals.
-    ${recordNote()}</p>`;
+    ${recordNote()} Playoff odds replay the rest of the season ${fmt(WHATIF_SIMS)} times week by week (each week's best lineup, byes and injuries out) on today's rosters and on the rosters after the trade.</p>`;
 }
 
 function recordNote() {
@@ -2917,7 +2964,7 @@ function renderFinder() {
     .concat(Object.keys(BUILD_INFO).map((k) => [`aim:${k}`, `Aim for: ${BUILD_INFO[k][0]}`]))
     .map(([v, l]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`).join("");
   el.innerHTML = `<div class="toolbar"><span class="muted">Deal size</span><div class="chips" id="finder-mode">${[2, 3].map((k) => `<button class="chip ${finder.mode === k ? "active" : ""}" data-mode="${k}">${k} teams</button>`).join("")}</div></div>
-    <p class="muted">The finder only offers what you pick. "You send" is always in the deal; "OK to add" pieces may be added; nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
+    <p class="muted">Picking is optional. Leave your side empty and the finder looks across your whole roster (never anything marked untouchable) for deals that move you toward your goal and the build you aim for. Pick pieces and it only offers those: "You send" is always in the deal, "OK to add" pieces may be added, nothing else of yours is touched. It keeps deals within ${Math.round(FAIR_MARGIN * 100)}% at market for both teams (with the value adjustment), even or better for the other team by its own situation, and good for your goal.</p>
     <div class="finder-grid">
       <div class="trade-side"><h3>Your team</h3><select id="finder-me" aria-label="Your team">${opt(finder.me, false)}</select>
         <div class="needs muted">${esc(situationText(finder.me))}</div>
@@ -2925,7 +2972,7 @@ function renderFinder() {
         <ul class="assets">${chips(finder.send, "send")}</ul>
         <h4>OK to add <span class="muted">(the finder may use these)</span></h4><input id="finder-offer" type="search" placeholder="Add a piece you'd part with" list="finder-send-list" />
         <div class="chips small"><button class="chip" id="offer-picks">+ my picks</button><button class="chip" id="offer-bench">+ my bench</button><button class="chip" id="offer-clear">clear</button></div>
-        <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">Nothing yet. Only "You send" will be offered.</span></li>`}</ul></div>
+        <ul class="assets">${chips(finder.offer, "offer") || `<li><span class="muted">${finder.send.length ? 'Nothing yet. Only "You send" will be offered.' : "Nothing picked, so anyone not untouchable may be offered."}</span></li>`}</ul></div>
       <div class="trade-side">${finder.mode === 3 ? `<h3>Trade with <span class="muted">(two teams, each with its own goal)</span></h3>
         ${[0, 1].map((k) => `<div class="three-pick"><select class="three-team" data-k="${k}" aria-label="Team ${k + 2}"><option value="">Pick team ${k + 2}</option>${teams.filter((t) => t.roster_id !== finder.me)
           .map((t) => `<option value="${t.roster_id}" ${finder.three.teams[k] === t.roster_id ? "selected" : ""}>${esc(teamName(t.roster_id))}</option>`).join("")}</select>
@@ -2941,7 +2988,7 @@ function renderFinder() {
         <h4>Pieces you get back</h4><div class="chips">${countChips("getMax", [null, 1, 2, 3, 4])}</div>
         <h4>Pieces you send, at most</h4><div class="chips">${countChips("sendMax", [null, 1, 2, 3, 4, 5])}</div></div>
     </div>
-    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(can't be added to "OK to add")</span></h3>
+    <div class="trade-side untouchables"><h3>Untouchable <span class="muted">(never offered)</span></h3>
       <input id="finder-lock" type="search" placeholder="Lock a player or pick" list="finder-send-list" />
       <ul class="assets">${[...locked].map(assetById).filter(Boolean).map((a) => `<li><span>🔒 ${esc(a.label)}</span><span class="num">${fmt(a.value)}</span><button data-unlock="${esc(a.id)}" aria-label="Unlock">×</button></li>`).join("") || `<li><span class="muted">Nothing locked yet.</span></li>`}</ul></div>
     ${managersHtml()}
@@ -3045,16 +3092,15 @@ function findTrades() {
   const myRoster = rosterOf(me);
   const myPPG = teamPPG(myRoster);
   const startsForMe = new Set(bestLineup(myRoster, "ros_ppg").map((x) => x.p.id));
-  // Your optional pieces: only what you listed as OK to add. The trade ideas (and
-  // nothing else) may open the rest of your roster, still never an untouchable.
-  const myExtra = (finder.openAll
+  // Your optional pieces: what you listed as OK to add. With nothing picked at all
+  // (and for the trade ideas) the whole roster is open, still never an untouchable.
+  const open = finder.openAll || (!send.length && !finder.offer.length);
+  const myExtra = (open
     ? [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150)
     : finder.offer.map(assetById).filter(Boolean))
     .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id))
     .sort((a, b) => b.value - a.value).slice(0, 14);
-  if (!send.length && !myExtra.length) return { error: get.length
-    ? `Add what you'd send for ${get.map((a) => a.name).join(" and ")}: put pieces in "You send" or "OK to add". The finder never offers anything you didn't pick.`
-    : "Add at least one player or pick to send, or to OK to add." };
+  if (!send.length && !myExtra.length) return { error: "Everything on your roster is marked untouchable, so there's nothing to offer." };
   const sendRoom = finder.sendMax == null ? 4 : finder.sendMax - send.length;
   const getRoom = finder.getMax == null ? FINDER_MAX_ADD : finder.getMax - get.length;
   if (sendRoom < 0) return { error: `You named ${send.length} pieces to send but set at most ${finder.sendMax}.` };
@@ -3185,9 +3231,10 @@ function findTrades3() {
   if (blocked.length) return { error: `You noted that ${blocked.map(teamName).join(" and ")} won't trade with you. Clear that in Manager profiles to look anyway.` };
   const send = finder.send.map(assetById).filter(Boolean), get = finder.get.map(assetById).filter(Boolean);
   const locked = lockedIds(me), sendIds = new Set(send.map((a) => a.id));
-  const myExtra = finder.offer.map(assetById).filter(Boolean)
+  const open = !send.length && !finder.offer.length;
+  const myExtra = (open ? [...state.assetMap.values()].filter((a) => a.roster_id === me && a.value >= 150) : finder.offer.map(assetById).filter(Boolean))
     .filter((a) => a.roster_id === me && !sendIds.has(a.id) && !locked.has(a.id)).sort((a, b) => b.value - a.value).slice(0, 10);
-  if (!send.length && !myExtra.length) return { error: 'Add at least one player or pick to "You send" or "OK to add". The finder never offers anything you didn\'t pick.' };
+  if (!send.length && !myExtra.length) return { error: "Everything on your roster is marked untouchable, so there's nothing to offer." };
   const getOwners = new Set(get.map((a) => a.roster_id));
   if ([...getOwners].some((r) => r !== B && r !== C)) return { error: "Everything in \"You get\" has to belong to one of the two teams you picked." };
   if (getOwners.size > 1) return { error: "In a three-team deal one partner sends to you and the other gets paid by you, so \"You get\" can only come from one of them." };
