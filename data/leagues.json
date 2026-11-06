@@ -72,7 +72,7 @@
       "notes": "",
       "draft_order": {
         "non_playoff": "max_pf",
-        "notes": "The Boneyard: non-playoff teams pick in order of lowest max PF (Derek, 2026-11-06). Playoff teams pick after them by finish."
+        "notes": "The Boneyard bylaws (Derek, 2026-11-06): picks 1-6 go to the non-playoff teams by lowest Sleeper max PF (whole roster, bench, taxi and IR included). Playoff teams: champion 12, runner-up 11, 3rd-place game winner 10 and loser 9, first-round losers 8 (higher seed) and 7 (lower seed). That is the default reverse-finish order, so no playoff_slots are set; the sims settle 7 vs 8 with a placement game instead of by seed."
       }
     },
     {
