@@ -71,28 +71,3 @@ def test_build_ships_weekly_lineups_with_byes(offline):
     assert [w["week"] for w in t["weekly"]] == sch["sim_weeks"]
     assert any(w["out"] for w in t["weekly"] if w["week"] == 7) or not any(
         data_p.get("team") == "KC" for data_p in data["players"] if data_p.get("roster_id") == t["roster_id"])
-
-
-def test_reported_return_week_beats_the_ir_curve():
-    p = {**P("5", "WR", "LAR", 22, "IR"), "out_until": 15}
-    wk = weeks.player_weeks(p, [10, 11, 14, 15, 16], 10, 22, {}, {}, {"LA": [11]})
-    assert wk[10] == wk[11] == wk[14] == 0
-    assert wk[15] == pytest.approx(22 * 0.85) and wk[16] == pytest.approx(22)
-
-
-def test_injury_overrides_apply_until_the_return_week(tmp_path):
-    from engine import build
-    f = tmp_path / "inj.json"
-    f.write_text('{"players": {"9493": {"status": "IR", "note": "MCL", "back_week": 15}, "x": {"back_week": 12}}}')
-    db = {"9493": {"injury_status": "Questionable"}, "x": {"injury_status": None}}
-    assert build.apply_injury_overrides(db, 10, f) == ["9493", "x"]
-    assert db["9493"]["injury_status"] == "IR" and db["9493"]["out_until"] == 15
-    assert db["9493"]["injury_override"]["sleeper_status"] == "Questionable"
-    # Once the return week arrives the entry stops applying.
-    db2 = {"9493": {"injury_status": None}}
-    assert build.apply_injury_overrides(db2, 15, f) == [] and db2["9493"].get("injury_status") is None
-    # Sleeper already has him on IR: keep Sleeper's tag, still use the return week.
-    db3 = {"9493": {"injury_status": "IR", "injury_notes": "Sleeper"}}
-    build.apply_injury_overrides(db3, 10, f)
-    assert db3["9493"]["injury_notes"] == "Sleeper" and db3["9493"]["out_until"] == 15
-    assert build.apply_injury_overrides({}, 10, tmp_path / "missing.json") == []

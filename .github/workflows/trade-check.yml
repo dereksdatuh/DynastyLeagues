@@ -16,6 +16,8 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: Probe Sleeper
+        run: mkdir -p scratch && python probe.py || true
       - name: Build with the new engine
         run: python -m engine.build --out site/data 2> after.err | tee after.out
       - name: Build with the engine on the default branch

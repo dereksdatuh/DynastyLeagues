@@ -144,7 +144,6 @@ def injury_report(players: list, players_db: dict) -> list:
         info = players_db.get(p["id"]) or {}
         if p.get("roster_id") and info.get("injury_status"):
             out.append({"id": p["id"], "status": info["injury_status"], "body_part": info.get("injury_body_part"),
-                        "notes": info.get("injury_notes"), "updated": info.get("news_updated"),
-                        **({"override": info["injury_override"]} if info.get("injury_override") else {})})
+                        "notes": info.get("injury_notes"), "updated": info.get("news_updated")})
     out.sort(key=lambda r: -(r["updated"] or 0))
     return out

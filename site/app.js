@@ -226,8 +226,6 @@ async function loadLeague(key) {
   resetLab();
   safely("lineups", renderLab);
   safely("odds", renderOdds);
-  rosView.pos = "ALL"; rosView.owner = "mine";
-  safely("ros", renderROS);
   pickProj.year = null;
   safely("picks", renderPickProj);
   devyView.year = null;
@@ -1777,115 +1775,6 @@ function renderOdds() {
     </tbody></table></div>`}`;
   el.insertAdjacentHTML("beforeend", `<div id="whatif"></div>`);
   renderWhatIf();
-}
-
-// ---------- rest-of-season points ----------
-// Every team's best lineup for each week left (players[].wk: Sleeper's projections for
-// the next weeks, byes and injuries out, built by engine/weeks.py), the same numbers
-// the season sims play. "Healthy" puts every hurt player back at his season pace on the
-// weeks he isn't on bye, so the gap is what injuries cost each team. The build reruns
-// hourly, so a new Sleeper designation or a team report in data/injury_overrides.json
-// shows up within the hour.
-const rosView = { pos: "ALL", owner: "mine" };
-const ROS_POS = ["QB", "RB", "WR", "TE"];
-const ROS_ROWS = 150;
-function onBye(p, w) {
-  const team = p.team === "LAR" ? "LA" : p.team;
-  return !!team && (((state.data.schedule || {}).byes || {})[team] || []).includes(w);
-}
-function healthyWeek(p, w) {
-  const now = playerWeek(p, w);
-  if (!p.injury || onBye(p, w)) return now;
-  return Math.max(now, p.ppg || p.ros_ppg || 0);
-}
-function rosLineupWeeks(players, weeks, ptsOf) {
-  return weeks.map((w) => bestLineup(players.map((p) => ({ id: p.id, pos: p.pos, pts: ptsOf(p, w) })), "pts").reduce((t, x) => t + x.p.pts, 0));
-}
-function renderROS() {
-  const el = $("#ros");
-  if (!el || !state.data) return;
-  const sch = state.data.schedule || {};
-  const reg = Object.keys(sch.weeks || {}).map(Number).sort((a, b) => a - b);
-  const po = reg.length ? (sch.playoff_weeks || []) : [];
-  const all = [...reg, ...po];
-  if (!all.length || !state.data.teams.some((t) => t.players && t.players.length)) {
-    el.innerHTML = `<p class="muted">Rest-of-season points start once the league has drafted and has games left.</p>`;
-    return;
-  }
-  const mine = myTeam();
-  const sum = (a) => a.reduce((x, y) => x + y, 0);
-  const f1 = (x) => (x == null ? "" : x.toFixed(1));
-  const teams = state.data.teams.map((t) => {
-    const ps = rosterOf(t.roster_id);
-    const now = rosLineupWeeks(ps, all, playerWeek), healthy = rosLineupWeeks(ps, all, healthyWeek);
-    const regNow = now.slice(0, reg.length), poNow = now.slice(reg.length);
-    return { t, reg: sum(regNow), po: sum(poNow), lost: sum(healthy) - sum(now), weeks: now,
-      perWeek: regNow.length ? sum(regNow) / regNow.length : 0 };
-  }).sort((a, b) => b.reg - a.reg || b.po - a.po);
-  const poRank = new Map(teams.slice().sort((a, b) => b.po - a.po).map((x, i) => [x.t.roster_id, i + 1]));
-  const n = teams.length;
-  const heat = (v, lo, hi) => `style="background:rgba(111,227,164,${hi > lo ? (0.05 + 0.45 * (v - lo) / (hi - lo)).toFixed(2) : 0.1})"`;
-  const wkLo = Math.min(...teams.flatMap((x) => x.weeks)), wkHi = Math.max(...teams.flatMap((x) => x.weeks));
-
-  // Players
-  const rows = state.data.players.filter((p) => ROS_POS.includes(p.pos) || p.roster_id).map((p) => {
-    const w = all.map((x) => playerWeek(p, x));
-    const playing = all.filter((x, i) => w[i] > 0).length;
-    return { p, w, reg: sum(w.slice(0, reg.length)), po: sum(w.slice(reg.length)), playing,
-      lost: sum(all.map((x) => healthyWeek(p, x))) - sum(w), byes: all.filter((x) => onBye(p, x)) };
-  }).filter((r) => r.reg + r.po > 0 || r.p.injury);
-  const ownerOk = (r) => rosView.owner === "all" ? true : rosView.owner === "fa" ? !r.p.roster_id
-    : rosView.owner === "mine" ? mine && r.p.roster_id === mine.roster_id : r.p.roster_id === Number(rosView.owner);
-  if (rosView.owner === "mine" && !mine) rosView.owner = "all";
-  const shown = rows.filter((r) => (rosView.pos === "ALL" || r.p.pos === rosView.pos) && ownerOk(r))
-    .sort((a, b) => b.reg + b.po - (a.reg + a.po)).slice(0, ROS_ROWS);
-
-  // Injury watch: rostered players carrying a designation, what it costs them and their team.
-  const injRows = rows.filter((r) => r.p.roster_id && r.p.injury);
-  const info = new Map(((state.data.week || {}).injuries || []).map((i) => [i.id, i]));
-  const teamLoss = new Map(teams.map((x) => [x.t.roster_id, x]));
-  const teamHit = (r) => {
-    const ps = rosterOf(r.p.roster_id);
-    const without = rosLineupWeeks(ps, all, (p, w) => (p.id === r.p.id ? healthyWeek(p, w) : playerWeek(p, w)));
-    return sum(without) - sum(teamLoss.get(r.p.roster_id).weeks);
-  };
-  const inj = injRows.map((r) => ({ ...r, hit: teamHit(r), i: info.get(r.p.id) || {} }))
-    .sort((a, b) => (mine ? (b.p.roster_id === mine.roster_id) - (a.p.roster_id === mine.roster_id) : 0) || b.hit - a.hit || b.lost - a.lost);
-  const ago = (ms) => { if (!ms) return ""; const h = (Date.now() - ms) / 36e5; return h < 1 ? "just now" : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
-  const weeksOut = (r) => {
-    if (r.i.override && r.i.override.back_week) return `back Week ${r.i.override.back_week}`;
-    const out = all.filter((x, i) => r.w[i] <= 0 && !onBye(r.p, x));
-    return !out.length ? "plays" : out.length === all.length ? "out all season" : `out ${out.length} wk${out.length > 1 ? "s" : ""}`;
-  };
-  const when = new Date(state.data.generated_at);
-  const owners = state.data.teams.slice().sort((a, b) => a.name.localeCompare(b.name));
-  el.innerHTML = `
-    <div class="lab-head"><div><p class="kicker">Updated ${when.toLocaleString()} · rebuilt every hour</p><h2>Rest-of-season points</h2></div></div>
-    <p class="muted">Each team's best lineup for every week left: regular season weeks ${reg[0]}-${reg[reg.length - 1]}${po.length ? `, playoffs weeks ${po.join(", ")}` : ""}. Players on bye or out score 0 and the bench fills in. Points come mostly from Sleeper's projections for the next three weeks and each player's pace after that, in this league's scoring. "Lost to injuries" is how many more points the team would score with every hurt player back at his season pace.</p>
-    <div class="table-wrap"><table class="odds-table" id="ros-teams"><thead><tr><th>#</th><th>Team</th><th class="num">Reg. season left</th><th class="num">Per week</th>${po.length ? `<th class="num">Playoff weeks</th><th class="num">Playoff rank</th>` : ""}<th class="num">Lost to injuries</th>${all.map((w) => `<th class="num">Wk ${w}</th>`).join("")}</tr></thead><tbody>
-    ${teams.map((x, i) => `<tr class="${mine && x.t.roster_id === mine.roster_id ? "me" : ""}"><td>${i + 1}</td><td>${teamHtml(x.t.roster_id)}</td><td class="num"><b>${fmt(x.reg)}</b></td><td class="num">${f1(x.perWeek)}</td>${po.length ? `<td class="num">${fmt(x.po)}</td><td class="num">${poRank.get(x.t.roster_id)} of ${n}</td>` : ""}
-      <td class="num ${x.lost >= 5 ? "down" : ""}">${x.lost >= 0.5 ? "-" + fmt(x.lost) : ""}</td>${x.weeks.map((v) => `<td class="num" ${heat(v, wkLo, wkHi)}>${f1(v)}</td>`).join("")}</tr>`).join("")}
-    </tbody></table></div>
-
-    <h3>Injury watch <span class="muted">(rostered players, Sleeper's designations plus team reports Sleeper hasn't posted yet${mine ? "; yours first" : ""})</span></h3>
-    ${inj.length ? `<div class="table-wrap"><table id="ros-injuries"><thead><tr><th>Player</th><th>Owner</th><th>Status</th><th>Outlook</th><th class="num">His ROS pts lost</th><th class="num">Team ROS pts lost</th><th>News</th></tr></thead><tbody>
-    ${inj.map((r) => `<tr class="${mine && r.p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="name"><span class="player-link" data-pid="${esc(r.p.id)}">${esc(r.p.name)}</span>${starMine(r.p.roster_id)} <span class="pos pos-${r.p.pos}">${r.p.pos}</span></td><td>${ownerTag(r.p.roster_id)}</td>
-      <td><span class="inj">${esc(r.p.injury)}</span>${r.i.override ? ` <span class="tag new" title="Sleeper still lists ${esc(r.i.override.sleeper_status || "no designation")}">TEAM REPORT</span>` : ""}</td><td>${esc(weeksOut(r))}</td>
-      <td class="num">${r.lost >= 0.5 ? "-" + fmt(r.lost) : "0"}</td><td class="num ${r.hit >= 5 ? "down" : ""}">${r.hit >= 0.5 ? "-" + fmt(r.hit) : "0"}</td>
-      <td>${esc(r.i.body_part || "")}${r.i.notes ? ` <span class="muted">${esc(r.i.notes)}</span>` : ""}${r.i.override && r.i.override.source ? ` <a href="${esc(r.i.override.source)}" target="_blank" rel="noopener">report</a>` : ""}${r.i.updated ? ` <span class="muted">· ${ago(r.i.updated)}</span>` : ""}</td></tr>`).join("")}
-    </tbody></table></div>` : `<p class="muted">No rostered player carries an injury designation.</p>`}
-
-    <h3>Players</h3>
-    <div class="toolbar"><div class="chips" id="ros-pos">${["ALL", ...ROS_POS].map((p) => `<button class="chip ${p === rosView.pos ? "active" : ""}" data-pos="${p}">${p === "ALL" ? "All" : p}</button>`).join("")}</div>
-      <select id="ros-owner" aria-label="Whose players">${mine ? `<option value="mine">My team</option>` : ""}<option value="all">Everyone</option><option value="fa">Free agents</option>${owners.map((t) => `<option value="${t.roster_id}">${esc(t.name)}</option>`).join("")}</select></div>
-    <div class="table-wrap"><table id="ros-players"><thead><tr><th>Player</th><th>Pos</th><th>Owner</th><th class="num">ROS total</th><th class="num">Reg. season</th>${po.length ? `<th class="num">Playoffs</th>` : ""}<th class="num">Per game</th><th class="num">Games</th><th>Bye</th><th>Status</th></tr></thead><tbody>
-    ${shown.map((r) => `<tr class="${mine && r.p.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="name"><span class="player-link" data-pid="${esc(r.p.id)}">${esc(r.p.name)}</span>${starMine(r.p.roster_id)}</td><td><span class="pos pos-${r.p.pos}">${r.p.pos}</span></td><td>${ownerTag(r.p.roster_id)}</td>
-      <td class="num"><b>${fmt(r.reg + r.po)}</b></td><td class="num">${fmt(r.reg)}</td>${po.length ? `<td class="num">${fmt(r.po)}</td>` : ""}<td class="num">${r.playing ? f1((r.reg + r.po) / r.playing) : ""}</td><td class="num">${r.playing} of ${all.length}</td>
-      <td>${r.byes.length ? "Wk " + r.byes.join(", ") : ""}</td><td>${r.p.injury ? `<span class="inj">${esc(r.p.injury)}</span>` : ""}</td></tr>`).join("") || `<tr><td colspan="10" class="muted">No players here.</td></tr>`}
-    </tbody></table></div>`;
-  $("#ros-owner").value = rosView.owner;
-  el.querySelectorAll("#ros-pos button").forEach((b) => (b.onclick = () => { rosView.pos = b.dataset.pos; renderROS(); }));
-  $("#ros-owner").onchange = (e) => { rosView.owner = e.target.value; renderROS(); };
 }
 
 // ---------- what-if: pick winners, watch every team's odds move ----------

@@ -26,7 +26,6 @@ from .sources import SOURCES
 ROOT = Path(__file__).resolve().parent.parent
 LEAGUES_FILE = ROOT / "data" / "leagues.json"
 PROSPECTS_FILE = ROOT / "data" / "prospects.json"
-INJURY_FILE = ROOT / "data" / "injury_overrides.json"
 DEFAULT_OUT = ROOT / "site" / "data"
 SITE_URL = os.environ.get("SITE_URL", "https://dereksdatuh.github.io/DynastyLeagues/")
 
@@ -50,7 +49,6 @@ class Shared:
     def __init__(self):
         self.state = sleeper.nfl_state()
         self.players = sleeper.players()
-        apply_injury_overrides(self.players, int(self.state.get("week") or 0))
         try:
             crosswalk = ids.load_crosswalk()
         except Exception as exc:  # name matching still works without it
@@ -184,38 +182,6 @@ def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> 
     }
 
 
-def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE) -> list:
-    """Team news Sleeper hasn't caught up to yet (data/injury_overrides.json): a player
-    reported out until week N is marked out until then, everywhere the build reads his
-    status. An override stops applying once its return week arrives or Sleeper already
-    has him on IR/PUP/NFI/Sus, so a stale entry can't keep a healthy player out."""
-    try:
-        rows = json.loads(path.read_text()).get("players") or {}
-    except FileNotFoundError:
-        return []
-    except Exception as exc:
-        print(f"warning: injury overrides unreadable: {exc}", file=sys.stderr)
-        return []
-    used = []
-    for pid, o in rows.items():
-        info = players_db.get(pid)
-        back = int(o.get("back_week") or 0)
-        if not info or (week and back and week >= back):
-            continue
-        sleeper_status = info.get("injury_status")
-        info["injury_override"] = {"sleeper_status": sleeper_status, "source": o.get("source"),
-                                   "reported": o.get("reported"), "back_week": back or None}
-        if sleeper_status not in week_sim.LONG:
-            info["injury_status"] = o.get("status") or "IR"
-            info["injury_notes"] = o.get("note") or info.get("injury_notes")
-            if o.get("body_part"):
-                info["injury_body_part"] = o["body_part"]
-        if back:
-            info["out_until"] = back
-        used.append(pid)
-    return used
-
-
 def prospect_overrides() -> list:
     """Prospects pinned to a positional rank (data/prospects.json); none if unreadable."""
     try:
@@ -310,9 +276,6 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         if g:
             p["games"] = g
         p["roster_id"] = owner_of.get(p["id"])
-        info = shared.players.get(p["id"]) or {}
-        if info.get("out_until"):
-            p["out_until"] = info["out_until"]
         p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
         p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
     by_id = {p["id"]: p for p in players}
