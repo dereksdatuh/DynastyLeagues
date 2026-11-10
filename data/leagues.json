@@ -169,6 +169,34 @@
         "notes": "The 2027 rookie draft order Derek gave on 2026-10-14, one list per round of the slot's original owner (Sleeper display names; JordanConnors is JCONNNN on Sleeper). Pick holders come from Sleeper's traded picks. Non-playoff teams pick in order of lowest max PF (Derek, 2026-11-06: every league).",
         "non_playoff": "max_pf"
       }
+    },
+    {
+      "id": "league-7",
+      "name": "Dynasty Mirage",
+      "sleeper_league_id": "1420817565600509952",
+      "buy_in": 150,
+      "currency": "USD",
+      "payouts": {
+        "notes": "60% champion, 25% runner-up, 10% third, 5% most points (Derek's bylaws: https://dynastymiragebylaws.netlify.app/)."
+      },
+      "notes": "Derek is commissioner. Startup: 30-round snake with 3rd-round reversal; bench 25 during the startup, 16 after.",
+      "startup": {
+        "kickers_are_picks": true,
+        "kicker_rounds": 4,
+        "notes": "Kickers drafted in the startup stand in for 2027 rookie picks: the 1st kicker taken is 1.01, the 13th is 2.01, and so on through 4.12. Kickers are cut once the 2027 pick list is posted, and kickers score nothing this season."
+      },
+      "draft_order": {
+        "non_playoff": "max_pf",
+        "playoff_slots": [
+          12,
+          11,
+          9,
+          10,
+          7,
+          8
+        ],
+        "notes": "From 2028: bottom 6 by max PF (lowest 1.01), 5th-place game W 1.07 / L 1.08, 3rd-place game W 1.09 / L 1.10, runner-up 1.11, champion 1.12. The 2027 draft goes by the startup's kicker slots."
+      }
     }
   ]
 }

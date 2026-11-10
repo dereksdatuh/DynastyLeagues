@@ -77,6 +77,47 @@ def last_rookie_draft(chain: list) -> dict | None:
             "playoff_teams": int(((seeded or {}).get("settings") or {}).get("playoff_teams") or 0) or None}
 
 
+# ---------- startup draft ----------
+
+STARTUP_STATUSES = ("pre_draft", "drafting")
+
+
+def startup_draft(league: dict, rosters: list, kicker_values: list | None = None, kicker_class: list | None = None) -> dict | None:
+    """The league's startup draft while it's still to come or under way, for the site's
+    draft mode: settings, the order once Sleeper has it, and every pick made so far.
+    `kicker_values` prices kicker picks for leagues whose startup kickers stand in for
+    next year's rookie picks (the Nth kicker taken is that draft's Nth pick)."""
+    lid = league["league_id"]
+    found = [d for d in drafts(lid) or [] if int((d.get("settings") or {}).get("rounds") or 0) > ROOKIE_MAX_ROUNDS
+             and d.get("status") != "complete"]
+    if not found:
+        return None
+    d = max(found, key=lambda x: x.get("created") or 0)
+    did = d["draft_id"]
+    detail = get_json(f"sleeper_draft_{did}", f"{V1}/draft/{did}", ttl=0) or d
+    rows = get_json(f"sleeper_draft_picks_{did}", f"{V1}/draft/{did}/picks", ttl=0) or []
+    st = detail.get("settings") or {}
+    roster_of_user = {r.get("owner_id"): r["roster_id"] for r in rosters if r.get("owner_id")}
+    picks = [{"pick_no": r.get("pick_no"), "round": r.get("round"), "slot": r.get("draft_slot"),
+              "roster_id": r.get("roster_id") or roster_of_user.get(r.get("picked_by")),
+              "player_id": r.get("player_id"), "pos": (r.get("metadata") or {}).get("position"),
+              "name": " ".join(x for x in ((r.get("metadata") or {}).get("first_name"), (r.get("metadata") or {}).get("last_name")) if x)}
+             for r in rows]
+    return {
+        "draft_id": did, "status": detail.get("status"), "type": detail.get("type"),
+        "start_time": detail.get("start_time"), "teams": int(st.get("teams") or len(rosters)),
+        "rounds": int(st.get("rounds") or 0), "reversal_round": int(st.get("reversal_round") or 0),
+        "pick_timer": st.get("pick_timer"),
+        "slots": {k[len("slots_"):]: v for k, v in st.items() if k.startswith("slots_")},
+        "draft_order": detail.get("draft_order"),
+        "slot_to_roster_id": detail.get("slot_to_roster_id"),
+        "roster_of_user": roster_of_user,
+        "picks": sorted(picks, key=lambda x: x["pick_no"] or 0),
+        **({"kicker_picks": {"year": kicker_class and kicker_class.get("year"), "values": kicker_values,
+                              "class": (kicker_class or {}).get("names") or []}} if kicker_values else {}),
+    }
+
+
 def _num(st: dict, key: str) -> float:
     return (st.get(key) or 0) + (st.get(f"{key}_decimal") or 0) / 100
 

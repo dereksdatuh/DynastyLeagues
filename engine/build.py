@@ -559,6 +559,26 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "source": {k: v for k, v in devy.items() if k != "players"},
         }
 
+    # Startup draft mode: while the league's startup is ahead or under way the site
+    # runs a draft guide and live pick advice; once Sleeper calls the league in season
+    # this block disappears and the league reads like every other.
+    startup = None
+    if league.get("status") in draft.STARTUP_STATUSES:
+        def kicker_picks():
+            yr = int(league.get("season") or datetime.now().year) + 1
+            krounds = int(config["startup"].get("kicker_rounds") or (league.get("settings") or {}).get("draft_rounds") or 4)
+            dv = shared.devy(fmt.superflex)
+            cls = draft.rookie_class(dv["players"], yr, players, pick_values, n, krounds, draft.devy_scale(players, market),
+                                     prospect_overrides()) if dv["players"] else []
+            sfn = draft.class_slot_fn(pick_values, yr, n, cls) if cls else (lambda o: draft.slot_value(pick_values, yr, o, n))
+            return ([round(sfn(i) * mult.get("PICK", 1.0)) for i in range(1, n * krounds + 1)],
+                    {"year": yr, "names": [{"name": p["name"], "pos": p["pos"], "value": p["value"]} for p in cls[: n * krounds]]})
+        kv, kc = (shared.optional(kicker_picks) or (None, None)) if (config.get("startup") or {}).get("kickers_are_picks") \
+            else (None, None)
+        startup = shared.optional(lambda: draft.startup_draft({**league, "league_id": lid}, rosters, kv, kc))
+        if startup:
+            startup["notes"] = (config.get("startup") or {}).get("notes")
+
     teams.sort(key=lambda t: t["total_value"], reverse=True)
     starter_rank = {t["roster_id"]: i for i, t in enumerate(sorted(teams, key=lambda t: -t["starter_value"]), 1)}
     for i, t in enumerate(teams, 1):
@@ -605,6 +625,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "players": players,
         "picks": picks,
         "rookie_draft": rookie,
+        "startup": startup,
         "next_draft": next_draft,
         "future_classes": future_classes,
         "teams": teams,
