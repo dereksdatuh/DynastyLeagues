@@ -63,6 +63,15 @@ for (const [id, liteRun] of runs) {
   // A new league that hasn't drafted yet has empty rosters: no max PF, no trades to judge.
   const drafted = await page.evaluate(() => state.data.teams.some((t) => t.players.length));
   if (!drafted) console.log(`${id}: rosters are empty (not drafted yet), skipping roster-based checks`);
+  // A league whose startup draft is ahead or under way opens on the Startup Draft tab:
+  // check it rendered its advice and mock, then go on from Rankings like any league.
+  if (await page.$('.tabs button[data-tab="draft"]:not(.hidden)')) {
+    await page.waitForSelector("#draft h2");
+    const draftTxt = await page.$eval("#draft", (e) => e.innerText);
+    if (!/Startup draft/i.test(draftTxt)) errors.push(`${id}: startup draft tab is empty`);
+    console.log(`  startup draft: ${(await page.$$eval("#sd-mock tbody tr", (r) => r.length))} mock picks, ${(await page.$$eval("#sd-best tbody tr", (r) => r.length))} best available`);
+    await page.click('button[data-tab="rankings"]');
+  }
   // Player page: open the top player, check the pieces, close it.
   await page.click("#rankings .player-link");
   await page.waitForSelector("#player-modal:not(.hidden) .buyers tbody tr");
