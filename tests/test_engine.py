@@ -788,3 +788,28 @@ def test_startup_draft_block_maps_kickers_and_picks(monkeypatch):
     # A finished startup (or none at all) means no draft mode.
     monkeypatch.setattr(draft, "drafts", lambda lid: [{**d, "status": "complete"}])
     assert draft.startup_draft({"league_id": "L"}, []) is None
+
+
+def test_kicker_picks_become_next_years_rookie_picks(monkeypatch):
+    from engine import draft
+    d = {"draft_id": "9", "status": "complete", "created": 1, "settings": {"rounds": 30}}
+    monkeypatch.setattr(draft, "drafts", lambda lid: [d])
+    k = lambda no, **kw: {"pick_no": no, "metadata": {"position": "K"}, **kw}
+    rows = [k(40, roster_id=2), k(7, roster_id=4), {"pick_no": 1, "roster_id": 1, "metadata": {"position": "QB"}},
+            k(20, picked_by="u5"), k(30, roster_id=4)]
+    monkeypatch.setattr(draft, "get_json", lambda key, url, ttl=0: rows)
+    rosters = [{"roster_id": 5, "owner_id": "u5"}]
+    # Still drafting: Sleeper's own picks stand.
+    assert draft.kicker_pick_slots({"league_id": "L", "status": "drafting"}, rosters, 2) is None
+    slots = draft.kicker_pick_slots({"league_id": "L", "status": "in_season"}, rosters, 2)
+    # Kickers in the order taken: 1.01, 1.02, 2.01, 2.02.
+    assert slots == {(1, 1): 4, (1, 2): 5, (2, 1): 4, (2, 2): 2}
+    default = [{"year": 2027, "round": r, "original_roster_id": o, "owner_roster_id": o} for r in (1, 2) for o in (1, 2)] \
+        + [{"year": 2028, "round": 1, "original_roster_id": 1, "owner_roster_id": 1}]
+    # Team 2 traded its 2027 2nd in Sleeper: the one kicker pick it drafted in round 2 moves.
+    traded = [{"season": "2027", "round": 2, "roster_id": 2, "owner_id": 1}]
+    out = draft.apply_kicker_picks(default, slots, 2027, traded)
+    k27 = [p for p in out if p["year"] == 2027]
+    assert [(p["round"], p["original_roster_id"], p["drafter"], p["owner_roster_id"]) for p in k27] == \
+        [(1, 1, 4, 4), (1, 2, 5, 5), (2, 1, 4, 4), (2, 2, 2, 1)]
+    assert [p for p in out if p["year"] == 2028] == default[-1:]

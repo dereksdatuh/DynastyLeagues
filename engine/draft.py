@@ -118,6 +118,47 @@ def startup_draft(league: dict, rosters: list, kicker_values: list | None = None
     }
 
 
+def kicker_pick_slots(league: dict, rosters: list, n: int) -> dict | None:
+    """For a league whose startup kickers stand in for next year's rookie picks: once
+    the startup is done, {(round, slot): roster id that drafted it}. The Nth kicker
+    taken is pick N of that draft (round ceil(N/n), slot ((N-1) % n) + 1)."""
+    if league.get("status") in STARTUP_STATUSES or not n:
+        return None
+    done = [d for d in drafts(league["league_id"]) or []
+            if int((d.get("settings") or {}).get("rounds") or 0) > ROOKIE_MAX_ROUNDS and d.get("status") == "complete"]
+    if not done:
+        return None
+    d = max(done, key=lambda x: x.get("created") or 0)
+    did = d["draft_id"]
+    rows = get_json(f"sleeper_draft_picks_{did}", f"{V1}/draft/{did}/picks", ttl=6 * 3600) or []
+    roster_of_user = {r.get("owner_id"): r["roster_id"] for r in rosters if r.get("owner_id")}
+    kickers = sorted((r for r in rows if (r.get("metadata") or {}).get("position") == "K"),
+                     key=lambda r: r.get("pick_no") or 0)
+    out = {}
+    for i, r in enumerate(kickers):
+        rid = r.get("roster_id") or roster_of_user.get(r.get("picked_by"))
+        if rid is not None:
+            out[(i // n + 1, i % n + 1)] = int(rid)
+    return out or None
+
+
+def apply_kicker_picks(owned: list, slots: dict, year: int, traded: list) -> list:
+    """Swap Sleeper's default `year` picks for the ones the startup kickers earned.
+    Each kicker pick is keyed by its slot (original_roster_id = slot, so each round
+    reads in slot order) and remembers who drafted it. A Sleeper trade of team R's
+    pick in a round moves R's kicker pick in that round when R drafted exactly one."""
+    rest = [p for p in owned if p["year"] != year]
+    kp = [{"year": year, "round": rnd, "original_roster_id": slot, "owner_roster_id": rid, "drafter": rid}
+          for (rnd, slot), rid in sorted(slots.items())]
+    for t in traded or []:
+        if int(t.get("season") or 0) != year:
+            continue
+        mine = [p for p in kp if p["round"] == int(t["round"]) and p["drafter"] == t["roster_id"]]
+        if len(mine) == 1:
+            mine[0]["owner_roster_id"] = t["owner_id"]
+    return sorted(rest + kp, key=lambda p: (p["year"], p["round"], p["original_roster_id"]))
+
+
 def _num(st: dict, key: str) -> float:
     return (st.get(key) or 0) + (st.get(f"{key}_decimal") or 0) / 100
 
