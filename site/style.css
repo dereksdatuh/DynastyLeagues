@@ -419,3 +419,9 @@ details.muted { margin: 0 0 12px; } details.muted summary { cursor: pointer; col
 .wi-pick { display: flex; gap: 4px; }
 .wi-pick .chip { padding: 4px 8px; font-size: 0.78rem; }
 @media (max-width: 480px) { .wi-games { grid-template-columns: 1fr; } }
+/* startup draft */
+#draft .card { margin: 12px 0; }
+#draft .card.me { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#draft .card ol { margin: 4px 0 0; padding-left: 20px; }
+#draft .card li { display: list-item; border: none; padding: 2px 0; }
+#draft .lab-head label select { margin-left: 6px; }
