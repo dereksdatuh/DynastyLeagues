@@ -96,6 +96,7 @@ def startup_draft(league: dict, rosters: list, kicker_values: list | None = None
     did = d["draft_id"]
     detail = get_json(f"sleeper_draft_{did}", f"{V1}/draft/{did}", ttl=0) or d
     rows = get_json(f"sleeper_draft_picks_{did}", f"{V1}/draft/{did}/picks", ttl=0) or []
+    traded = get_json(f"sleeper_draft_traded_{did}", f"{V1}/draft/{did}/traded_picks", ttl=0) or []
     st = detail.get("settings") or {}
     roster_of_user = {r.get("owner_id"): r["roster_id"] for r in rosters if r.get("owner_id")}
     picks = [{"pick_no": r.get("pick_no"), "round": r.get("round"), "slot": r.get("draft_slot"),
@@ -113,6 +114,10 @@ def startup_draft(league: dict, rosters: list, kicker_values: list | None = None
         "slot_to_roster_id": detail.get("slot_to_roster_id"),
         "roster_of_user": roster_of_user,
         "picks": sorted(picks, key=lambda x: x["pick_no"] or 0),
+        # Startup picks traded before or during the draft: the original team's pick in
+        # that round now belongs to owner_id (both roster ids).
+        "traded_picks": [{"round": int(t["round"]), "roster_id": t["roster_id"], "owner_id": t["owner_id"]}
+                         for t in traded if isinstance(t, dict) and t.get("round") and t.get("roster_id") and t.get("owner_id")],
         **({"kicker_picks": {"year": kicker_class and kicker_class.get("year"), "values": kicker_values,
                               "class": (kicker_class or {}).get("names") or []}} if kicker_values else {}),
     }

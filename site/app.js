@@ -204,6 +204,8 @@ async function loadLeague(key) {
   state.data = data;
   if (data.lite) finishLite(data);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
+  sd.league = null;
+  if (data.startup) safely("draft", sdInit);
   state.adjScale = null;
   state.trade = freshTrade();
   state.teamOpen = null;
@@ -890,7 +892,8 @@ function fillDatalists() {
   s.forEach((side, i) => {
     const givers = s.filter((x, k) => k !== i && x.team != null).map((x) => x.team);
     const list = [...state.assetMap.values()]
-      .filter((x) => x.value > 0 && (givers.length === 0 || givers.includes(x.roster_id)) && (side.team == null || x.roster_id !== side.team))
+      // Startup picks whose slot has no team yet (Sleeper hasn't set the order) fit any side.
+      .filter((x) => x.value > 0 && (givers.length === 0 || givers.includes(x.roster_id) || (x.startup && x.roster_id == null)) && (side.team == null || x.roster_id !== side.team))
       .sort((x, y) => y.value - x.value)
       .slice(0, 600);
     document.getElementById(`assets-${i}`).innerHTML = list
@@ -910,6 +913,7 @@ function calcSourceName() {
   return calc.source === "engine" ? "league value" : `${n} values`;
 }
 function siteValue(a, src) {
+  if (a.startup) return a.market || null; // startup picks: what the room pays (market mock)
   if (a.kind === "pick") return null;
   const v = src === "sites" ? a.sites_avg : (a.sources_raw || {})[src];
   return v > 0 ? v : null;
@@ -1792,7 +1796,7 @@ function renderOdds() {
 // kicker taken is that draft's Nth pick, worth kicker_picks.values[N-1].
 const SD_POLL_MS = 20000;
 const SD_CAPS = { QB: 4, TE: 3, KP: 6 }; // most of each a mock opponent takes
-const sd = { league: null, picks: [], status: null, order: null, at: null, timer: null, slot: null };
+const sd = { league: null, picks: [], status: null, order: null, at: null, timer: null, slot: null, traded: [], slotRid: null };
 const sdOpen = () => !!(state.data && state.data.startup) && sd.status !== "complete";
 
 function setupStartup() {
@@ -1800,11 +1804,20 @@ function setupStartup() {
   const btn = document.querySelector('.tabs button[data-tab="draft"]');
   if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
   if (!S) { btn.classList.add("hidden"); $("#draft").innerHTML = ""; if (btn.classList.contains("active")) document.querySelector('.tabs button[data-tab="rankings"]').click(); return; }
-  sd.league = state.data.league.id; sd.picks = S.picks || []; sd.status = S.status; sd.order = S.draft_order; sd.at = null;
-  sd.slot = Number(localStorageGet(`startup.slot.${sd.league}`)) || null;
+  if (sd.league !== state.data.league.id) sdInit();
   btn.classList.remove("hidden");
   btn.click();
   refreshStartup();
+}
+
+// Draft state from the build's snapshot. Runs when a league loads, before any tab
+// renders, so the calculator and Trade Finder see the startup picks from the start.
+function sdInit() {
+  const S = state.data.startup;
+  sd.league = state.data.league.id; sd.picks = S.picks || []; sd.status = S.status; sd.order = S.draft_order; sd.at = null;
+  sd.traded = S.traded_picks || []; sd.slotRid = S.slot_to_roster_id || null; sd.curves = null;
+  sd.slot = Number(localStorageGet(`startup.slot.${sd.league}`)) || null;
+  sdAssets();
 }
 
 async function refreshStartup() {
@@ -1814,12 +1827,15 @@ async function refreshStartup() {
   if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
   try {
     const get = (u) => fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
-    const [d, rows] = await Promise.all([get(`https://api.sleeper.app/v1/draft/${S.draft_id}`), get(`https://api.sleeper.app/v1/draft/${S.draft_id}/picks`)]);
+    const [d, rows, traded] = await Promise.all([get(`https://api.sleeper.app/v1/draft/${S.draft_id}`), get(`https://api.sleeper.app/v1/draft/${S.draft_id}/picks`),
+      get(`https://api.sleeper.app/v1/draft/${S.draft_id}/traded_picks`).catch(() => null)]);
     if (!state.data || state.data.league.id !== key) return;
-    sd.status = d.status; sd.order = d.draft_order || sd.order; sd.at = new Date();
+    sd.status = d.status; sd.order = d.draft_order || sd.order; sd.slotRid = d.slot_to_roster_id || sd.slotRid; sd.at = new Date();
+    if (Array.isArray(traded)) sd.traded = traded.filter((t) => t && t.round && t.roster_id && t.owner_id).map((t) => ({ round: Number(t.round), roster_id: t.roster_id, owner_id: t.owner_id }));
     sd.picks = rows.map((r) => ({ pick_no: r.pick_no, round: r.round, slot: r.draft_slot, roster_id: r.roster_id, player_id: r.player_id,
       pos: (r.metadata || {}).position, name: [(r.metadata || {}).first_name, (r.metadata || {}).last_name].filter(Boolean).join(" ") })).sort((a, b) => a.pick_no - b.pick_no);
   } catch (e) { /* keep the build's snapshot */ }
+  sdAssets();
   safely("draft", renderStartup);
   const tabOn = !document.querySelector("#tab-draft").classList.contains("hidden");
   if (state.data.startup && sd.status !== "complete" && tabOn) sd.timer = setTimeout(refreshStartup, sd.status === "drafting" ? SD_POLL_MS : 5 * SD_POLL_MS);
@@ -1843,6 +1859,54 @@ function sdMySlot() {
   const me = myTeam();
   if (sd.order && me && state.user && sd.order[state.user.user_id]) return Number(sd.order[state.user.user_id]);
   return sd.slot;
+}
+
+// Who holds each startup pick: the team in that slot (once Sleeper has the order),
+// unless a trade in Sleeper moved that team's pick in that round to someone else.
+function sdRidOfSlot(slot) {
+  // Sleeper fills slot_to_roster_id with 1..12 as a placeholder until it sets the
+  // order, so it only counts once draft_order exists.
+  if (!sd.order) return null;
+  if (sd.slotRid && sd.slotRid[slot] != null) return Number(sd.slotRid[slot]);
+  const t = sdSlotTeam(slot);
+  return t ? t.roster_id : null;
+}
+function sdOwnerRid(o) {
+  const n = state.data.startup.teams, rnd = Math.ceil(o / n), slot = sdSlotOf(o, n, state.data.startup), orig = sdRidOfSlot(slot);
+  if (orig == null) { const me = myTeam(); return me && sd.slot === slot ? me.roster_id : null; } // no order yet: your chosen slot is yours
+  const t = sd.traded.find((x) => x.round === rnd && Number(x.roster_id) === orig);
+  return t ? Number(t.owner_id) : orig;
+}
+// Is pick o yours? By who holds it when the order is known, else by your chosen slot.
+function sdIsMine(o, mySlot) {
+  const me = myTeam(), own = sdOwnerRid(o);
+  if (me && own != null) return own === me.roster_id;
+  return !!mySlot && sdSlotOf(o, state.data.startup.teams, state.data.startup) === mySlot;
+}
+
+// The calculator and Trade Finder trade startup picks too. Before and during the
+// draft the league's own "this season" rookie picks are the startup itself, and
+// next year's are whatever kickers get drafted, so those two years' Sleeper picks
+// give way to every startup pick still to be made, priced like the Pick trades view
+// (value = what it gets you in this league; market = what the room pays for it).
+function sdAssets() {
+  const S = state.data && state.data.startup;
+  if (!S || !state.assetMap) return;
+  const season = Number(state.data.league.season) || (S.kicker_picks ? S.kicker_picks.year - 1 : null);
+  for (const [id, a] of [...state.assetMap]) {
+    if (id.startsWith("sp:") || (a.kind === "pick" && (a.year === season || (S.kicker_picks && a.year === S.kicker_picks.year)))) state.assetMap.delete(id);
+  }
+  const c = sdCurves(), n = S.teams;
+  for (let o = sd.picks.length + 1; o <= c.total; o++) {
+    const rid = sdOwnerRid(o), slot = sdSlotOf(o, n, S), orig = sdRidOfSlot(slot);
+    const lab = `Startup ${sdLabel(o, n)}`;
+    const who = rid != null ? teamName(rid) : `slot ${slot}`;
+    const via = rid != null && orig != null && rid !== orig ? ` via ${teamName(orig)}` : "";
+    state.assetMap.set(`sp:${o}`, { id: `sp:${o}`, kind: "pick", pos: "PICK", startup: true, name: lab, label: `${lab} (${who}${via})`,
+      year: season, round: Math.ceil(o / n), slot, overall: o, value: Math.round(c.E[o]), market: Math.round(c.M[o]),
+      roster_id: rid, original_roster_id: orig });
+  }
+  if (document.getElementById("assets-0")) safely("trade", fillDatalists);
 }
 
 // Everyone draftable, with kicker picks folded into one "next kicker pick" entry.
@@ -1902,10 +1966,11 @@ function sdSimulate(mySlot) {
     const slot = sdSlotOf(o, n, S), h = have[slot];
     const kp = sdKickerEntry(kTaken);
     let pick, adv = null;
-    if (slot === mySlot) {
+    const isMine = mySlot != null && sdIsMine(o, mySlot);
+    if (isMine) {
       // What the others take between this pick and your next one.
       let next = o + 1;
-      while (next <= total && sdSlotOf(next, n, S) !== mySlot) next++;
+      while (next <= total && !sdIsMine(next, mySlot)) next++;
       const gone = { ids: new Set(), kicker: false };
       let p2 = pool, k2 = kTaken;
       const h2 = Object.fromEntries(Object.entries(have).map(([k, v]) => [k, { ...v }]));
@@ -1930,7 +1995,7 @@ function sdSimulate(mySlot) {
     if (pick.id === "KP") kTaken++; else pool = pool.filter((p) => p.id !== pick.id);
     h[pick.pos] = (h[pick.pos] || 0) + 1;
     out.push({ overall: o, slot, pick, best });
-    if (slot === mySlot) mine.push({ overall: o, pick, adv, gone: adv && adv.gone });
+    if (isMine) mine.push({ overall: o, pick, adv, gone: adv && adv.gone });
   }
   return { out, mine };
 }
@@ -1961,7 +2026,7 @@ function renderStartup() {
   const taken = new Set(sd.picks.map((p) => p.player_id));
   const pool = sdPool(taken);
   const statusTxt = sd.status === "drafting" ? `Draft under way: ${sd.picks.length} of ${total} picks made` : sd.status === "complete" ? "Draft complete" : "Draft not started yet";
-  const myPicks = mySlot ? Array.from({ length: total }, (_, i) => i + 1).filter((o) => sdSlotOf(o, n, S) === mySlot) : [];
+  const myPicks = mySlot ? Array.from({ length: total }, (_, i) => i + 1).filter((o) => sdIsMine(o, mySlot)) : [];
   const onClock = sd.picks.length + 1;
 
   if (sd.status === "complete") {
@@ -2037,7 +2102,7 @@ function renderStartup() {
       ${sd.picks.slice().reverse().slice(0, 36).map((p) => `<tr class="${p.slot === mySlot ? "me" : ""}"><td>${sdLabel(p.pick_no, n)}</td><td>${p.roster_id ? teamHtml(p.roster_id) : "slot " + p.slot}</td><td>${p.pos === "K" && K ? `Kicker = ${K.year} pick ${sdLabel(sd.picks.filter((x) => x.pos === "K" && x.pick_no <= p.pick_no).length, n)}` : esc(p.name)} <span class="muted">${esc(p.pos || "")}</span></td></tr>`).join("")}
       </tbody></table></div>` : ""}`}`;
   el.querySelectorAll("#sd-mode button").forEach((b) => (b.onclick = () => { sdTrade.mode = b.dataset.mode; renderStartup(); }));
-  $("#sd-slot").onchange = (e) => { sd.slot = Number(e.target.value); localStorageSet(`startup.slot.${sd.league}`, String(sd.slot)); renderStartup(); };
+  $("#sd-slot").onchange = (e) => { sd.slot = Number(e.target.value); localStorageSet(`startup.slot.${sd.league}`, String(sd.slot)); sdAssets(); renderStartup(); };
   if (sd.order && sdMySlot() && sd.order[state.user?.user_id]) $("#sd-slot").disabled = true;
 }
 
@@ -2153,7 +2218,9 @@ function renderDraftBoard(mySlot) {
       first = esc(sp > 0 ? name.slice(0, sp) : ""); last = esc(sp > 0 ? name.slice(sp + 1) : name);
     }
     const pid = m ? m.player_id : q && q.id !== "KP" ? q.id : null;
-    return `<td class="${cls.join(" ")} sdb-${pos}"><span class="sdb-no">${lab}${m ? "" : " · mock"}</span>
+    const own = m ? null : sdOwnerRid(o), orig = sdRidOfSlot(sdSlotOf(o, n, S));
+    const moved = own != null && orig != null && own !== orig ? ` · to ${esc(teamName(own))}` : "";
+    return `<td class="${cls.join(" ")} sdb-${pos}"><span class="sdb-no">${lab}${m ? "" : " · mock"}${moved}</span>
       <span class="sdb-first">${first}</span><span class="sdb-last ${pid ? "player-link" : ""}" ${pid ? `data-pid="${esc(pid)}"` : ""}>${last}</span>
       <span class="sdb-pos">${pos === "K" && K ? "PICK" : pos}${o === onClock ? " · on the clock" : ""}</span></td>`;
   };
@@ -2165,7 +2232,7 @@ function renderDraftBoard(mySlot) {
     const by = new Array(n);
     for (let i = 1; i <= n; i++) { const o = r * n + i; by[sdSlotOf(o, n, S) - 1] = o; }
     const fwd = sdSlotOf(r * n + 1, n, S) === 1;
-    return `<tr><th class="sdb-rd">R${r + 1}<span>${fwd ? "→" : "←"}</span></th>${by.map((o, i) => cell(o).replace('class="sdb-cell', `class="sdb-cell${i + 1 === mySlot ? " mine" : ""}`)).join("")}</tr>`;
+    return `<tr><th class="sdb-rd">R${r + 1}<span>${fwd ? "→" : "←"}</span></th>${by.map((o) => cell(o).replace('class="sdb-cell', `class="sdb-cell${mySlot && sdIsMine(o, mySlot) ? " mine" : ""}`)).join("")}</tr>`;
   }).join("");
   return `<p class="muted">${sd.picks.length} of ${total} picks made${sd.at ? `, live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}. Solid cells are real picks; faded cells are the mock.${K ? ` Kickers show as the ${K.year} rookie pick they stand for.` : ""}${sd.order ? "" : " Columns are slots until Sleeper sets the order."}</p>
     <div class="table-wrap sdb-wrap"><table id="sd-grid"><thead><tr><th class="sdb-rd"></th>${heads}</tr></thead><tbody>${rows}</tbody></table></div>`;
