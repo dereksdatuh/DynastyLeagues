@@ -770,3 +770,21 @@ def test_landing_sim_prices_picks_over_where_they_can_land():
     # A snake draft's second round runs backwards.
     _, s2 = landing.pick_value(counts[1], 2, 12, True, value)
     assert s2 > s1
+
+
+def test_startup_draft_block_maps_kickers_and_picks(monkeypatch):
+    from engine import draft
+    d = {"draft_id": "9", "status": "drafting", "type": "snake", "created": 1,
+         "settings": {"rounds": 30, "teams": 12, "reversal_round": 3, "slots_qb": 1, "slots_super_flex": 1}}
+    monkeypatch.setattr(draft, "drafts", lambda lid: [{**d, "settings": {"rounds": 4}, "draft_id": "old"}, d])
+    picks = [{"pick_no": 2, "round": 1, "draft_slot": 2, "roster_id": 5, "player_id": "17", "metadata": {"position": "K", "first_name": "A", "last_name": "B"}},
+             {"pick_no": 1, "round": 1, "draft_slot": 1, "picked_by": "u1", "player_id": "4046", "metadata": {"position": "QB"}}]
+    monkeypatch.setattr(draft, "get_json", lambda key, url, ttl=0: picks if url.endswith("/picks") else d)
+    out = draft.startup_draft({"league_id": "L"}, [{"roster_id": 3, "owner_id": "u1"}], [900, 800], {"year": 2027, "names": []})
+    assert out["draft_id"] == "9" and out["rounds"] == 30 and out["reversal_round"] == 3
+    assert [p["pick_no"] for p in out["picks"]] == [1, 2] and out["picks"][0]["roster_id"] == 3
+    assert out["picks"][1]["name"] == "A B" and out["slots"]["super_flex"] == 1
+    assert out["kicker_picks"]["values"] == [900, 800] and out["kicker_picks"]["year"] == 2027
+    # A finished startup (or none at all) means no draft mode.
+    monkeypatch.setattr(draft, "drafts", lambda lid: [{**d, "status": "complete"}])
+    assert draft.startup_draft({"league_id": "L"}, []) is None
