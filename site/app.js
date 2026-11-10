@@ -228,6 +228,7 @@ async function loadLeague(key) {
   safely("odds", renderOdds);
   rosView.pos = "ALL"; rosView.owner = "mine";
   safely("ros", renderROS);
+  safely("draft", setupStartup);
   pickProj.year = null;
   safely("picks", renderPickProj);
   devyView.year = null;
@@ -516,6 +517,7 @@ document.querySelectorAll(".tabs button").forEach((btn) =>
     const L = state.live;
     if (btn.dataset.tab === "trades") refreshTrades();
     if (btn.dataset.tab === "lineups") safely("lineups", renderLab);
+    if (btn.dataset.tab === "draft") refreshStartup();
     if (btn.dataset.tab === "matchups" && L && L.week && (!L.at || Date.now() - L.at > LIVE_MS)) refreshLive();
   })
 );
@@ -1777,6 +1779,259 @@ function renderOdds() {
     </tbody></table></div>`}`;
   el.insertAdjacentHTML("beforeend", `<div id="whatif"></div>`);
   renderWhatIf();
+}
+
+// ---------- startup draft mode ----------
+// While a league's startup draft is ahead or under way (data.startup, which the build
+// only writes then), a Startup Draft tab opens first: a guide for your slot (a mock of
+// the whole draft, format edges, when to take kicker picks) and live advice that
+// follows Sleeper's draft board every 20 seconds. Values are this league's own, in its
+// scoring. Once Sleeper finishes the draft the tab hides and the next hourly build
+// drops data.startup, so the league reads like every other.
+// Kickers can stand in for next year's rookie picks (startup.kicker_picks): the Nth
+// kicker taken is that draft's Nth pick, worth kicker_picks.values[N-1].
+const SD_POLL_MS = 20000;
+const SD_CAPS = { QB: 4, TE: 3, KP: 6 }; // most of each a mock opponent takes
+const sd = { league: null, picks: [], status: null, order: null, at: null, timer: null, slot: null };
+const sdOpen = () => !!(state.data && state.data.startup) && sd.status !== "complete";
+
+function setupStartup() {
+  const S = state.data.startup;
+  const btn = document.querySelector('.tabs button[data-tab="draft"]');
+  if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
+  if (!S) { btn.classList.add("hidden"); $("#draft").innerHTML = ""; if (btn.classList.contains("active")) document.querySelector('.tabs button[data-tab="rankings"]').click(); return; }
+  sd.league = state.data.league.id; sd.picks = S.picks || []; sd.status = S.status; sd.order = S.draft_order; sd.at = null;
+  sd.slot = Number(localStorageGet(`startup.slot.${sd.league}`)) || null;
+  btn.classList.remove("hidden");
+  btn.click();
+  refreshStartup();
+}
+
+async function refreshStartup() {
+  const S = state.data && state.data.startup;
+  if (!S) return;
+  const key = state.data.league.id;
+  if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
+  try {
+    const get = (u) => fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+    const [d, rows] = await Promise.all([get(`https://api.sleeper.app/v1/draft/${S.draft_id}`), get(`https://api.sleeper.app/v1/draft/${S.draft_id}/picks`)]);
+    if (!state.data || state.data.league.id !== key) return;
+    sd.status = d.status; sd.order = d.draft_order || sd.order; sd.at = new Date();
+    sd.picks = rows.map((r) => ({ pick_no: r.pick_no, round: r.round, slot: r.draft_slot, roster_id: r.roster_id, player_id: r.player_id,
+      pos: (r.metadata || {}).position, name: [(r.metadata || {}).first_name, (r.metadata || {}).last_name].filter(Boolean).join(" ") })).sort((a, b) => a.pick_no - b.pick_no);
+  } catch (e) { /* keep the build's snapshot */ }
+  safely("draft", renderStartup);
+  const tabOn = !document.querySelector("#tab-draft").classList.contains("hidden");
+  if (state.data.startup && sd.status !== "complete" && tabOn) sd.timer = setTimeout(refreshStartup, sd.status === "drafting" ? SD_POLL_MS : 5 * SD_POLL_MS);
+}
+
+// Slot that makes the overall-th pick: snake, with the 3rd-round reversal if set
+// (round 3 runs the same way as round 2, then it alternates again).
+function sdSlotOf(overall, n, S) {
+  const r = Math.ceil(overall / n), i = (overall - 1) % n + 1;
+  let fwd = true;
+  if (S.type !== "linear") {
+    const rev = S.reversal_round || 0;
+    fwd = r % 2 === 1;
+    if (rev && r >= rev) fwd = !fwd;
+  }
+  return fwd ? i : n + 1 - i;
+}
+const sdLabel = (overall, n) => `${Math.ceil(overall / n)}.${String((overall - 1) % n + 1).padStart(2, "0")}`;
+
+function sdMySlot() {
+  const me = myTeam();
+  if (sd.order && me && state.user && sd.order[state.user.user_id]) return Number(sd.order[state.user.user_id]);
+  return sd.slot;
+}
+
+// Everyone draftable, with kicker picks folded into one "next kicker pick" entry.
+function sdPool(taken) {
+  const offense = new Set(["QB", "RB", "WR", "TE"]);
+  return state.data.players.filter((p) => offense.has(p.pos) && p.value > 0 && !taken.has(p.id))
+    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: p.market || p.value, injury: p.injury }))
+    .sort((a, b) => b.value - a.value);
+}
+function sdKickerEntry(kTaken) {
+  const K = state.data.startup.kicker_picks;
+  if (!K || kTaken >= K.values.length) return null;
+  const n = state.data.startup.teams, cls = K.class[kTaken];
+  return { id: "KP", name: `Kicker = ${K.year} pick ${sdLabel(kTaken + 1, n)}`, pos: "KP", value: K.values[kTaken], market: K.values[kTaken],
+    note: cls ? `about ${cls.name} (${cls.pos})` : "" };
+}
+
+// Roster shape a team aims for: what the Nth player at a position adds, as a share
+// of his value. Starters count fully (superflex makes two QBs starters, and one more
+// covers byes); depth past what the lineup can use fades fast, so a mock doesn't
+// stack a ninth tight end because the TE premium inflates their values.
+function sdNeedFactor(pos, have, slots) {
+  if (pos === "KP") return (have.KP || 0) < 4 ? 1 : 0.85;
+  const qb = (slots.qb || 0) + (slots.super_flex || 0), flex = slots.flex || 0;
+  const k = have[pos] || 0; // already on the roster
+  const curves = {
+    // In superflex both starting QBs are the scarcest thing in a startup: few teams
+    // trade them and the waiver wire has none, so they count for more than their price.
+    QB: qb > 1 ? [1.3, 1.25, 0.9, 0.55, 0.3] : [1.15, 0.8, 0.5, 0.3],
+    RB: [1.05, 1.05, flex ? 1 : 0.9, 1, 0.85, 0.7, 0.5],
+    WR: [1.05, 1.05, 1.05, flex ? 1 : 0.9, 1, 0.85, 0.7, 0.5],
+    TE: [1.08, flex ? 0.95 : 0.6, 0.55, 0.3],
+  }[pos] || [1];
+  return curves[Math.min(k, curves.length - 1)];
+}
+
+// Play the draft out from where it stands: each other team takes the best player by
+// market value for its roster (or a kicker pick when that's worth more), within
+// SD_CAPS; you take the advice's pick, which looks ahead to what the others will take
+// before your next turn. Returns every pick, and yours with the advice behind each.
+function sdOther(pool, kp, h, slots) {
+  const cand = pool.slice(0, 30).filter((p) => (h[p.pos] || 0) < (SD_CAPS[p.pos] || 99));
+  let pick = cand.sort((a, b) => b.market * sdNeedFactor(b.pos, h, slots) - a.market * sdNeedFactor(a.pos, h, slots))[0];
+  if (kp && (h.KP || 0) < SD_CAPS.KP && (!pick || kp.market >= pick.market * sdNeedFactor(pick.pos, h, slots))) pick = kp;
+  return pick;
+}
+function sdSimulate(mySlot) {
+  const S = state.data.startup, n = S.teams, total = n * S.rounds;
+  const taken = new Set(sd.picks.map((p) => p.player_id));
+  let kTaken = sd.picks.filter((p) => p.pos === "K").length;
+  const have = {}, mine = [];
+  for (let s = 1; s <= n; s++) have[s] = {};
+  for (const p of sd.picks) { const pos = p.pos === "K" ? "KP" : p.pos; if (have[p.slot]) have[p.slot][pos] = (have[p.slot][pos] || 0) + 1; }
+  let pool = sdPool(taken);
+  const out = [];
+  for (let o = sd.picks.length + 1; o <= total; o++) {
+    const slot = sdSlotOf(o, n, S), h = have[slot];
+    const kp = sdKickerEntry(kTaken);
+    let pick, adv = null;
+    if (slot === mySlot) {
+      // What the others take between this pick and your next one.
+      let next = o + 1;
+      while (next <= total && sdSlotOf(next, n, S) !== mySlot) next++;
+      const gone = { ids: new Set(), kicker: false };
+      let p2 = pool, k2 = kTaken;
+      const h2 = Object.fromEntries(Object.entries(have).map(([k, v]) => [k, { ...v }]));
+      for (let x = o + 1; x < next; x++) {
+        const sl = sdSlotOf(x, n, S), q = sdOther(p2, sdKickerEntry(k2), h2[sl], S.slots);
+        if (!q) break;
+        if (q.id === "KP") { k2++; gone.kicker = true; } else { gone.ids.add(q.id); p2 = p2.filter((p) => p.id !== q.id); }
+        h2[sl][q.pos] = (h2[sl][q.pos] || 0) + 1;
+      }
+      adv = sdAdvice(pool, kp, h, o, mySlot, gone);
+      adv.ahead = out.filter((x) => x.overall > sd.picks.length).map((x) => x.pick);
+      pick = adv.best;
+    } else {
+      pick = sdOther(pool, kp, h, S.slots);
+    }
+    if (!pick) break;
+    if (pick.id === "KP") kTaken++; else pool = pool.filter((p) => p.id !== pick.id);
+    h[pick.pos] = (h[pick.pos] || 0) + 1;
+    out.push({ overall: o, slot, pick });
+    if (slot === mySlot) mine.push({ overall: o, pick, adv, gone: adv && adv.gone });
+  }
+  return { out, mine };
+}
+
+// Your pick: the best value for your roster among players who won't make it back to
+// you, judged by playing the draft out to your next turn.
+function sdAdvice(pool, kp, have, overall, mySlot, lookahead) {
+  const S = state.data.startup;
+  const cands = [...pool.slice(0, 40), ...(kp ? [kp] : [])].map((p) => ({ ...p, score: p.value * sdNeedFactor(p.pos, have, S.slots) }))
+    .sort((a, b) => b.score - a.score);
+  if (!lookahead) return { best: cands[0], cands };
+  const gone = lookahead; // ids the mock takes before your next pick
+  const willGo = cands.filter((c) => c.id === "KP" ? gone.kicker : gone.ids.has(c.id));
+  // Take the top player, unless he'll likely still be there next time and someone
+  // nearly as good won't be.
+  const lasts = (c) => !(c.id === "KP" ? gone.kicker : gone.ids.has(c.id));
+  const best = lasts(cands[0]) && willGo[0] && willGo[0].score >= 0.95 * cands[0].score ? willGo[0] : cands[0];
+  return { best, cands, gone };
+}
+
+function renderStartup() {
+  const el = $("#draft"), S = state.data.startup;
+  if (!el || !S) return;
+  const n = S.teams, total = n * S.rounds, me = myTeam();
+  const mySlot = sdMySlot();
+  const K = S.kicker_picks;
+  const kTaken = sd.picks.filter((p) => p.pos === "K").length;
+  const taken = new Set(sd.picks.map((p) => p.player_id));
+  const pool = sdPool(taken);
+  const statusTxt = sd.status === "drafting" ? `Draft under way: ${sd.picks.length} of ${total} picks made` : sd.status === "complete" ? "Draft complete" : "Draft not started yet";
+  const myPicks = mySlot ? Array.from({ length: total }, (_, i) => i + 1).filter((o) => sdSlotOf(o, n, S) === mySlot) : [];
+  const onClock = sd.picks.length + 1;
+
+  if (sd.status === "complete") {
+    el.innerHTML = `<div class="lab-head"><div><p class="kicker">${esc(state.data.league.name)}</p><h2>Startup draft complete</h2></div></div>
+      <p>Sleeper has the draft finished. The next hourly build switches this league to the full engine (rosters, trade tools, odds); this tab goes away by itself.</p>`;
+    return;
+  }
+
+  // Advice for the pick you're on (or your next one): the first of your picks in the
+  // played-out draft, so the advice and the mock below always agree.
+  let advice = "";
+  const sim = mySlot ? sdSimulate(mySlot) : null;
+  if (sim && sim.mine.length) {
+    const m = sim.mine[0], adv = m.adv, goneBy = adv.gone;
+    const beforeNext = adv.ahead;
+    const onYou = m.overall === onClock && sd.status === "drafting";
+    const lasts = (c) => !(c.id === "KP" ? goneBy.kicker : goneBy.ids.has(c.id));
+    const line = (c) => `<li><b>${esc(c.name)}</b> <span class="pos pos-${c.pos === "KP" ? "K" : c.pos}">${c.pos === "KP" ? "K" : c.pos}</span> ${fmt(c.value)}${c.note ? ` <span class="muted">${esc(c.note)}</span>` : ""}${lasts(c) ? ' <span class="muted">· likely still there at your next pick</span>' : ""}</li>`;
+    const why = adv.best.id !== adv.cands[0].id ? ` ${esc(adv.cands[0].name)} rates a hair higher for your roster but should still be there at your next pick; ${esc(adv.best.name)} won't.` : "";
+    advice = `<div class="card ${onYou ? "me" : ""}"><h3>${onYou ? "You're on the clock" : `Your next pick: ${sdLabel(m.overall, n)} (${m.overall - onClock} pick${m.overall - onClock === 1 ? "" : "s"} away)`}</h3>
+      <p><b>Take ${esc(adv.best.name)}</b> (${adv.best.pos === "KP" ? "kicker pick" : adv.best.pos}, worth ${fmt(adv.best.value)})${adv.best.note ? `, ${esc(adv.best.note)}` : ""}.${why}
+      ${beforeNext.length ? ` <span class="muted">Assumes the ${beforeNext.length} picks ahead of you go by market value: ${beforeNext.slice(0, 6).map((x) => esc(x.id === "KP" ? "a kicker" : x.name)).join(", ")}${beforeNext.length > 6 ? "…" : ""}.</span>` : ""}</p>
+      <p class="muted">Other good options:</p><ol>${adv.cands.filter((c) => c.id !== adv.best.id).slice(0, 5).map(line).join("")}</ol></div>`;
+  } else if (!mySlot) {
+    advice = `<p class="muted">Sleeper hasn't set the draft order yet. Pick your slot to see the guide for it; it switches to the real slot once the order is set.</p>`;
+  }
+
+  // Guide: a mock of your whole draft from here.
+  let guide = "";
+  if (sim) {
+    const kRounds = sim.out.filter((x) => x.pick.id === "KP").map((x) => Math.ceil(x.overall / n));
+    const myK = sim.mine.filter((x) => x.pick.id === "KP");
+    guide = `<h3>Your draft, played out <span class="muted">(slot ${mySlot}; other teams by market value, you by this guide)</span></h3>
+      <div class="table-wrap"><table id="sd-mock"><thead><tr><th>Pick</th><th>Take</th><th>Pos</th><th class="num">Value</th></tr></thead><tbody>
+      ${sim.mine.map((x) => `<tr><td>${sdLabel(x.overall, n)} <span class="muted">#${x.overall}</span></td><td>${esc(x.pick.name)}${x.pick.note ? ` <span class="muted">${esc(x.pick.note)}</span>` : ""}</td><td><span class="pos pos-${x.pick.pos === "KP" ? "K" : x.pick.pos}">${x.pick.pos === "KP" ? "K" : x.pick.pos}</span></td><td class="num">${fmt(x.pick.value)}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${K ? `<p class="muted">In this mock the league's kicker picks go in rounds ${kRounds.length ? `${Math.min(...kRounds)}-${Math.max(...kRounds)}` : "none"}; you take ${myK.length ? myK.map((x) => `${sdLabel(x.overall, n)} (${esc(x.pick.name.replace("Kicker = ", ""))})`).join(", ") : "none"}.</p>` : ""}`;
+  }
+
+  // Format edges: this league's scoring against the generic market.
+  const ranked = pool.slice(0, 220).map((p, i) => ({ ...p, lr: i + 1 }));
+  const mrank = new Map(ranked.slice().sort((a, b) => b.market - a.market).map((p, i) => [p.id, i + 1]));
+  const edge = ranked.map((p) => ({ ...p, mr: mrank.get(p.id), d: mrank.get(p.id) - p.lr })).filter((p) => p.lr <= 150);
+  const up = edge.filter((p) => p.d >= 8).sort((a, b) => b.d - a.d).slice(0, 12);
+  const down = edge.filter((p) => p.d <= -8).sort((a, b) => a.d - b.d).slice(0, 10);
+  const edgeRow = (p) => `<tr><td>${esc(p.name)}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="num">${p.lr}</td><td class="num">${p.mr}</td></tr>`;
+
+  const kTable = K ? `<h3>Kicker picks = ${K.year} rookie picks</h3>
+    <p class="muted">${esc(S.notes || "")} The next one taken is <b>${sdLabel(kTaken + 1, n)}</b>, worth ${fmt(K.values[kTaken] || 0)}. Take one when it's worth more than the best player who won't make it back to you; the advice above does that check every pick.</p>
+    <div class="table-wrap"><table id="sd-kickers"><thead><tr><th>${K.year} pick</th><th class="num">Value</th><th>Prospect at that slot</th><th>Taken</th></tr></thead><tbody>
+    ${K.values.slice(0, n * 2).map((v, i) => { const c = K.class[i]; const t = sd.picks.filter((p) => p.pos === "K")[i];
+      return `<tr class="${i === kTaken ? "me" : ""}"><td>${sdLabel(i + 1, n)}</td><td class="num">${fmt(v)}</td><td>${c ? `${esc(c.name)} <span class="muted">${c.pos}</span>` : ""}</td><td>${t ? `${esc(teamOf(t.roster_id)?.name || "slot " + t.slot)} at ${sdLabel(t.pick_no, n)}` : ""}</td></tr>`; }).join("")}
+    </tbody></table></div>` : "";
+
+  const best = pool.slice(0, 60);
+  el.innerHTML = `
+    <div class="lab-head"><div><p class="kicker">${esc(statusTxt)}${sd.at ? ` · live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}</p><h2>Startup draft guide</h2></div>
+      <label>Your slot <select id="sd-slot">${Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${mySlot === i + 1 ? "selected" : ""}>${i + 1}</option>`).join("")}</select></label></div>
+    <p class="muted">${n} teams, ${S.rounds} rounds, ${S.type}${S.reversal_round ? ` with a round-${S.reversal_round} reversal` : ""}. Values are this league's own, in its scoring and lineup. ${myPicks.length ? `Your picks: ${myPicks.slice(0, 10).map((o) => sdLabel(o, n)).join(", ")}…` : ""}</p>
+    ${advice}
+    ${guide}
+    ${kTable}
+    <h3>Best available</h3>
+    <div class="table-wrap"><table id="sd-best"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th class="num">Age</th><th class="num">Value here</th><th class="num">Market</th><th>Tier</th></tr></thead><tbody>
+    ${best.map((p, i) => { const pl = playerOf(p.id); return `<tr><td>${i + 1}</td><td class="name"><span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}${pl.pos_rank || ""}</span></td><td class="num">${p.age ?? ""}</td><td class="num"><b>${fmt(p.value)}</b></td><td class="num muted">${fmt(p.market)}</td><td>${pl.pos_tier ?? ""}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div class="cols two"><div><h3>Worth more in this league</h3><p class="muted">Rank here vs. rank on the generic market (TE 1.75 per catch, RB first downs and catches, WR 1.0, superflex).</p>
+      <div class="table-wrap"><table><thead><tr><th>Player</th><th>Pos</th><th class="num">Here</th><th class="num">Market</th></tr></thead><tbody>${up.map(edgeRow).join("")}</tbody></table></div></div>
+    <div><h3>Worth less here</h3><p class="muted">Let someone else pay the market price.</p>
+      <div class="table-wrap"><table><thead><tr><th>Player</th><th>Pos</th><th class="num">Here</th><th class="num">Market</th></tr></thead><tbody>${down.map(edgeRow).join("")}</tbody></table></div></div></div>
+    ${sd.picks.length ? `<h3>Board so far</h3><div class="table-wrap"><table id="sd-board"><thead><tr><th>Pick</th><th>Team</th><th>Player</th></tr></thead><tbody>
+      ${sd.picks.slice().reverse().slice(0, 36).map((p) => `<tr class="${p.slot === mySlot ? "me" : ""}"><td>${sdLabel(p.pick_no, n)}</td><td>${p.roster_id ? teamHtml(p.roster_id) : "slot " + p.slot}</td><td>${p.pos === "K" && K ? `Kicker = ${K.year} pick ${sdLabel(sd.picks.filter((x) => x.pos === "K" && x.pick_no <= p.pick_no).length, n)}` : esc(p.name)} <span class="muted">${esc(p.pos || "")}</span></td></tr>`).join("")}
+      </tbody></table></div>` : ""}`;
+  $("#sd-slot").onchange = (e) => { sd.slot = Number(e.target.value); localStorageSet(`startup.slot.${sd.league}`, String(sd.slot)); renderStartup(); };
+  if (sd.order && sdMySlot() && sd.order[state.user?.user_id]) $("#sd-slot").disabled = true;
 }
 
 // ---------- rest-of-season points ----------
