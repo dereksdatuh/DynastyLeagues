@@ -26,6 +26,7 @@ from .sources import SOURCES
 ROOT = Path(__file__).resolve().parent.parent
 LEAGUES_FILE = ROOT / "data" / "leagues.json"
 PROSPECTS_FILE = ROOT / "data" / "prospects.json"
+INJURY_FILE = ROOT / "data" / "injury_overrides.json"
 DEFAULT_OUT = ROOT / "site" / "data"
 SITE_URL = os.environ.get("SITE_URL", "https://dereksdatuh.github.io/DynastyLeagues/")
 
@@ -49,6 +50,7 @@ class Shared:
     def __init__(self):
         self.state = sleeper.nfl_state()
         self.players = sleeper.players()
+        apply_injury_overrides(self.players, int(self.state.get("week") or 0))
         try:
             crosswalk = ids.load_crosswalk()
         except Exception as exc:  # name matching still works without it
@@ -182,6 +184,41 @@ def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> 
     }
 
 
+def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE) -> list:
+    """Team news Sleeper hasn't caught up to yet (data/injury_overrides.json): a player
+    reported out until week N (from week out_from, if he got hurt after this week's
+    game) is marked out until then, everywhere the build reads his
+    status. An override stops applying once its return week arrives or Sleeper already
+    has him on IR/PUP/NFI/Sus, so a stale entry can't keep a healthy player out."""
+    try:
+        rows = json.loads(path.read_text()).get("players") or {}
+    except FileNotFoundError:
+        return []
+    except Exception as exc:
+        print(f"warning: injury overrides unreadable: {exc}", file=sys.stderr)
+        return []
+    used = []
+    for pid, o in rows.items():
+        info = players_db.get(pid)
+        back = int(o.get("back_week") or 0)
+        if not info or (week and back and week >= back):
+            continue
+        sleeper_status = info.get("injury_status")
+        info["injury_override"] = {"sleeper_status": sleeper_status, "source": o.get("source"),
+                                   "reported": o.get("reported"), "back_week": back or None}
+        if sleeper_status not in week_sim.LONG:
+            info["injury_status"] = o.get("status") or "IR"
+            info["injury_notes"] = o.get("note") or info.get("injury_notes")
+            if o.get("body_part"):
+                info["injury_body_part"] = o["body_part"]
+        if back:
+            info["out_until"] = back
+            if o.get("out_from"):
+                info["out_from"] = int(o["out_from"])  # first week missed, when the injury came mid-week
+        used.append(pid)
+    return used
+
+
 def prospect_overrides() -> list:
     """Prospects pinned to a positional rank (data/prospects.json); none if unreadable."""
     try:
@@ -276,6 +313,11 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         if g:
             p["games"] = g
         p["roster_id"] = owner_of.get(p["id"])
+        info = shared.players.get(p["id"]) or {}
+        if info.get("out_until"):
+            p["out_until"] = info["out_until"]
+            if info.get("out_from"):
+                p["out_from"] = info["out_from"]
         p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
         p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
     by_id = {p["id"]: p for p in players}
@@ -517,6 +559,26 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "source": {k: v for k, v in devy.items() if k != "players"},
         }
 
+    # Startup draft mode: while the league's startup is ahead or under way the site
+    # runs a draft guide and live pick advice; once Sleeper calls the league in season
+    # this block disappears and the league reads like every other.
+    startup = None
+    if league.get("status") in draft.STARTUP_STATUSES:
+        def kicker_picks():
+            yr = int(league.get("season") or datetime.now().year) + 1
+            krounds = int(config["startup"].get("kicker_rounds") or (league.get("settings") or {}).get("draft_rounds") or 4)
+            dv = shared.devy(fmt.superflex)
+            cls = draft.rookie_class(dv["players"], yr, players, pick_values, n, krounds, draft.devy_scale(players, market),
+                                     prospect_overrides()) if dv["players"] else []
+            sfn = draft.class_slot_fn(pick_values, yr, n, cls) if cls else (lambda o: draft.slot_value(pick_values, yr, o, n))
+            return ([round(sfn(i) * mult.get("PICK", 1.0)) for i in range(1, n * krounds + 1)],
+                    {"year": yr, "names": [{"name": p["name"], "pos": p["pos"], "value": p["value"]} for p in cls[: n * krounds]]})
+        kv, kc = (shared.optional(kicker_picks) or (None, None)) if (config.get("startup") or {}).get("kickers_are_picks") \
+            else (None, None)
+        startup = shared.optional(lambda: draft.startup_draft({**league, "league_id": lid}, rosters, kv, kc))
+        if startup:
+            startup["notes"] = (config.get("startup") or {}).get("notes")
+
     teams.sort(key=lambda t: t["total_value"], reverse=True)
     starter_rank = {t["roster_id"]: i for i, t in enumerate(sorted(teams, key=lambda t: -t["starter_value"]), 1)}
     for i, t in enumerate(teams, 1):
@@ -563,6 +625,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         "players": players,
         "picks": picks,
         "rookie_draft": rookie,
+        "startup": startup,
         "next_draft": next_draft,
         "future_classes": future_classes,
         "teams": teams,

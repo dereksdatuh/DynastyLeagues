@@ -71,6 +71,18 @@ def player_weeks(p: dict, weeks: list[int], now: int, base: float, upcoming: dic
             out[w] = 0.0
             continue
         ahead = max(w - now, 0)
+        until = p.get("out_until")
+        if until:
+            # A reported return week beats the generic curve: out from out_from (if he
+            # was hurt after this week's game) until then, back a little under full
+            # the first week.
+            if (p.get("out_from") or 0) <= w < until:
+                out[w] = 0.0
+                continue
+            row = (upcoming.get(w) or {}).get(p["id"])
+            pts = fantasy_points(row.get("stats"), scoring, p["pos"]) if row is not None else (base or 0)
+            out[w] = round(max(pts, 0.0) * (0.85 if w == until else 1.0), 2)
+            continue
         avail = plays(p.get("injury"), ahead)
         table = upcoming.get(w)
         row = table.get(p["id"]) if table else None
