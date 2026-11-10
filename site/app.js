@@ -204,6 +204,8 @@ async function loadLeague(key) {
   state.data = data;
   if (data.lite) finishLite(data);
   state.assetMap = new Map(assets().map((a) => [a.id, a]));
+  sd.league = null;
+  if (data.startup) safely("draft", sdInit);
   state.adjScale = null;
   state.trade = freshTrade();
   state.teamOpen = null;
@@ -1802,13 +1804,20 @@ function setupStartup() {
   const btn = document.querySelector('.tabs button[data-tab="draft"]');
   if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
   if (!S) { btn.classList.add("hidden"); $("#draft").innerHTML = ""; if (btn.classList.contains("active")) document.querySelector('.tabs button[data-tab="rankings"]').click(); return; }
+  if (sd.league !== state.data.league.id) sdInit();
+  btn.classList.remove("hidden");
+  btn.click();
+  refreshStartup();
+}
+
+// Draft state from the build's snapshot. Runs when a league loads, before any tab
+// renders, so the calculator and Trade Finder see the startup picks from the start.
+function sdInit() {
+  const S = state.data.startup;
   sd.league = state.data.league.id; sd.picks = S.picks || []; sd.status = S.status; sd.order = S.draft_order; sd.at = null;
   sd.traded = S.traded_picks || []; sd.slotRid = S.slot_to_roster_id || null; sd.curves = null;
   sd.slot = Number(localStorageGet(`startup.slot.${sd.league}`)) || null;
-  btn.classList.remove("hidden");
-  btn.click();
   sdAssets();
-  refreshStartup();
 }
 
 async function refreshStartup() {
