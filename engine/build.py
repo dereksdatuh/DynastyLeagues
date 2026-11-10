@@ -186,7 +186,8 @@ def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> 
 
 def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE) -> list:
     """Team news Sleeper hasn't caught up to yet (data/injury_overrides.json): a player
-    reported out until week N is marked out until then, everywhere the build reads his
+    reported out until week N (from week out_from, if he got hurt after this week's
+    game) is marked out until then, everywhere the build reads his
     status. An override stops applying once its return week arrives or Sleeper already
     has him on IR/PUP/NFI/Sus, so a stale entry can't keep a healthy player out."""
     try:
@@ -212,6 +213,8 @@ def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE
                 info["injury_body_part"] = o["body_part"]
         if back:
             info["out_until"] = back
+            if o.get("out_from"):
+                info["out_from"] = int(o["out_from"])  # first week missed, when the injury came mid-week
         used.append(pid)
     return used
 
@@ -313,6 +316,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         info = shared.players.get(p["id"]) or {}
         if info.get("out_until"):
             p["out_until"] = info["out_until"]
+            if info.get("out_from"):
+                p["out_from"] = info["out_from"]
         p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
         p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
     by_id = {p["id"]: p for p in players}

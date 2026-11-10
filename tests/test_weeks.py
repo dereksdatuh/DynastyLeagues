@@ -78,6 +78,8 @@ def test_reported_return_week_beats_the_ir_curve():
     wk = weeks.player_weeks(p, [10, 11, 14, 15, 16], 10, 22, {}, {}, {"LA": [11]})
     assert wk[10] == wk[11] == wk[14] == 0
     assert wk[15] == pytest.approx(22 * 0.85) and wk[16] == pytest.approx(22)
+    # Hurt after this week's game: this week still counts.
+    assert weeks.player_weeks({**p, "out_from": 11}, [10, 12], 10, 22, {}, {}, {})[10] == 22
 
 
 def test_injury_overrides_apply_until_the_return_week(tmp_path):

@@ -1849,7 +1849,9 @@ function renderROS() {
     const without = rosLineupWeeks(ps, all, (p, w) => (p.id === r.p.id ? healthyWeek(p, w) : playerWeek(p, w)));
     return sum(without) - sum(teamLoss.get(r.p.roster_id).weeks);
   };
-  const inj = injRows.map((r) => ({ ...r, hit: teamHit(r), i: info.get(r.p.id) || {} }))
+  const injAll = injRows.map((r) => ({ ...r, hit: teamHit(r), i: info.get(r.p.id) || {} }));
+  // Tags that cost nothing (questionable but projected to play, deep bench) go to a count.
+  const inj = injAll.filter((r) => r.lost >= 0.5 || r.hit >= 0.5 || (mine && r.p.roster_id === mine.roster_id))
     .sort((a, b) => (mine ? (b.p.roster_id === mine.roster_id) - (a.p.roster_id === mine.roster_id) : 0) || b.hit - a.hit || b.lost - a.lost);
   const ago = (ms) => { if (!ms) return ""; const h = (Date.now() - ms) / 36e5; return h < 1 ? "just now" : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   const weeksOut = (r) => {
@@ -1873,7 +1875,7 @@ function renderROS() {
       <td><span class="inj">${esc(r.p.injury)}</span>${r.i.override ? ` <span class="tag new" title="Sleeper still lists ${esc(r.i.override.sleeper_status || "no designation")}">TEAM REPORT</span>` : ""}</td><td>${esc(weeksOut(r))}</td>
       <td class="num">${r.lost >= 0.5 ? "-" + fmt(r.lost) : "0"}</td><td class="num ${r.hit >= 5 ? "down" : ""}">${r.hit >= 0.5 ? "-" + fmt(r.hit) : "0"}</td>
       <td>${esc(r.i.body_part || "")}${r.i.notes ? ` <span class="muted">${esc(r.i.notes)}</span>` : ""}${r.i.override && r.i.override.source ? ` <a href="${esc(r.i.override.source)}" target="_blank" rel="noopener">report</a>` : ""}${r.i.updated ? ` <span class="muted">· ${ago(r.i.updated)}</span>` : ""}</td></tr>`).join("")}
-    </tbody></table></div>` : `<p class="muted">No rostered player carries an injury designation.</p>`}
+    </tbody></table></div>${injAll.length > inj.length ? `<p class="muted">${injAll.length - inj.length} more rostered players carry a tag that costs no projected points (the News tab lists every one).</p>` : ""}` : `<p class="muted">No rostered player's injury costs projected points right now.</p>`}
 
     <h3>Players</h3>
     <div class="toolbar"><div class="chips" id="ros-pos">${["ALL", ...ROS_POS].map((p) => `<button class="chip ${p === rosView.pos ? "active" : ""}" data-pos="${p}">${p === "ALL" ? "All" : p}</button>`).join("")}</div>

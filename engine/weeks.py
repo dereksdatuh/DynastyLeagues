@@ -73,9 +73,10 @@ def player_weeks(p: dict, weeks: list[int], now: int, base: float, upcoming: dic
         ahead = max(w - now, 0)
         until = p.get("out_until")
         if until:
-            # A reported return week beats the generic curve: out before it, then
-            # back, a little under full the first week.
-            if w < until:
+            # A reported return week beats the generic curve: out from out_from (if he
+            # was hurt after this week's game) until then, back a little under full
+            # the first week.
+            if (p.get("out_from") or 0) <= w < until:
                 out[w] = 0.0
                 continue
             row = (upcoming.get(w) or {}).get(p["id"])
