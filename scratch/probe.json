@@ -3,7 +3,7 @@
   {
    "league_id": "1420817565600509952",
    "name": "Dynasty Mirage",
-   "status": "pre_draft",
+   "status": "drafting",
    "total_rosters": 12,
    "draft_id": "1420817566355443712"
   },
@@ -52,59 +52,87 @@
  ],
  "mirage": {
   "league": {
-   "last_message_time": 1794334471835,
-   "bracket_overrides_id": null,
+   "bracket_id": null,
+   "group_id": null,
+   "last_read_id": "1426054927691550720",
+   "last_pinned_message_id": "1425983377445490688",
    "metadata": {
     "auto_continue": "on",
     "copy_from_league_id": "1304536310471467008",
-    "keeper_deadline": "0"
+    "current_pick_no": "5",
+    "keeper_deadline": "0",
+    "on_the_clock_user_id": "733377873888587776"
    },
-   "display_order": 0,
-   "last_author_avatar": "a2e9e029c67eb4618627848a508ec84c",
-   "last_author_is_bot": false,
-   "loser_bracket_overrides_id": null,
-   "last_message_id": "1425945762327457792",
-   "season": "2026",
-   "bracket_id": null,
-   "last_transaction_id": null,
-   "status": "pre_draft",
-   "previous_league_id": null,
    "shard": 11,
-   "league_id": "1420817565600509952",
-   "last_pinned_message_id": "1425929754715881472",
-   "name": "Dynasty Mirage",
+   "last_message_id": "1426054927691550720",
    "sport": "nfl",
-   "last_author_display_name": "GR69",
-   "avatar": "1e29a338b3b90bddaa09f08742a0db6f",
+   "settings": {
+    "best_ball": 0,
+    "waiver_budget": 100,
+    "disable_adds": 0,
+    "capacity_override": 0,
+    "waiver_bid_min": 0,
+    "taxi_deadline": 4,
+    "draft_rounds": 4,
+    "reserve_allow_na": 0,
+    "playoff_seed_type": 0,
+    "playoff_teams": 6,
+    "veto_votes_needed": 6,
+    "num_teams": 12,
+    "daily_waivers_hour": 0,
+    "playoff_type": 1,
+    "taxi_slots": 4,
+    "sub_start_time_eligibility": 0,
+    "daily_waivers_days": 5461,
+    "sub_lock_if_starter_active": 0,
+    "playoff_week_start": 15,
+    "waiver_clear_days": 2,
+    "reserve_allow_doubtful": 0,
+    "commissioner_direct_invite": 0,
+    "veto_auto_poll": 0,
+    "reserve_allow_dnr": 0,
+    "taxi_allow_vets": 0,
+    "waiver_day_of_week": 2,
+    "playoff_round_type": 0,
+    "reserve_allow_out": 1,
+    "reserve_allow_sus": 0,
+    "veto_show_votes": 0,
+    "trade_deadline": 13,
+    "taxi_years": 2,
+    "daily_waivers": 0,
+    "faab_suggestions": 0,
+    "disable_trades": 0,
+    "pick_trading": 1,
+    "type": 2,
+    "max_keepers": 1,
+    "waiver_type": 2,
+    "max_subs": 0,
+    "league_average_match": 1,
+    "trade_review_days": 0,
+    "bench_lock": 1,
+    "offseason_adds": 1,
+    "leg": 9,
+    "reserve_slots": 3,
+    "reserve_allow_cov": 1
+   },
+   "last_author_is_bot": true,
+   "draft_id": "1420817566355443712",
+   "last_author_display_name": "sys",
+   "loser_bracket_overrides_id": null,
+   "status": "drafting",
    "loser_bracket_id": null,
-   "roster_positions": [
-    "QB",
-    "RB",
-    "RB",
-    "WR",
-    "WR",
-    "WR",
-    "TE",
-    "FLEX",
-    "FLEX",
-    "FLEX",
-    "SUPER_FLEX",
-    "K",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN",
-    "BN"
-   ],
+   "last_message_attachment": null,
+   "last_author_avatar": null,
+   "season": "2026",
+   "last_transaction_id": 1426033087845761024,
+   "name": "Dynasty Mirage",
+   "bracket_overrides_id": null,
+   "last_message_text_map": null,
+   "total_rosters": 12,
+   "season_type": "regular",
+   "league_id": "1420817565600509952",
+   "avatar": "1e29a338b3b90bddaa09f08742a0db6f",
+   "display_order": 0,
    "scoring_settings": {
     "sack": 0.0,
     "fgm_40_49": 0.0,
@@ -167,66 +195,53 @@
     "pts_allow_7_13": 0.0,
     "st_ff": 0.0
    },
-   "season_type": "regular",
-   "settings": {
-    "best_ball": 0,
-    "waiver_budget": 100,
-    "disable_adds": 0,
-    "capacity_override": 0,
-    "waiver_bid_min": 0,
-    "taxi_deadline": 4,
-    "draft_rounds": 4,
-    "reserve_allow_na": 0,
-    "playoff_seed_type": 0,
-    "playoff_teams": 6,
-    "veto_votes_needed": 6,
-    "num_teams": 12,
-    "daily_waivers_hour": 0,
-    "playoff_type": 1,
-    "taxi_slots": 4,
-    "sub_start_time_eligibility": 0,
-    "daily_waivers_days": 5461,
-    "sub_lock_if_starter_active": 0,
-    "playoff_week_start": 15,
-    "waiver_clear_days": 2,
-    "reserve_allow_doubtful": 0,
-    "commissioner_direct_invite": 0,
-    "veto_auto_poll": 0,
-    "reserve_allow_dnr": 0,
-    "taxi_allow_vets": 0,
-    "waiver_day_of_week": 2,
-    "playoff_round_type": 0,
-    "reserve_allow_out": 1,
-    "reserve_allow_sus": 0,
-    "veto_show_votes": 0,
-    "trade_deadline": 13,
-    "taxi_years": 2,
-    "daily_waivers": 0,
-    "faab_suggestions": 0,
-    "disable_trades": 0,
-    "pick_trading": 1,
-    "type": 2,
-    "max_keepers": 1,
-    "waiver_type": 2,
-    "max_subs": 0,
-    "league_average_match": 1,
-    "trade_review_days": 0,
-    "bench_lock": 1,
-    "offseason_adds": 1,
-    "leg": 9,
-    "reserve_slots": 3,
-    "reserve_allow_cov": 1
-   },
-   "last_message_attachment": null,
-   "last_read_id": "1425931446706536448",
-   "last_author_id": "1266102215714545664",
-   "total_rosters": 12,
-   "draft_id": "1420817566355443712",
+   "previous_league_id": null,
+   "last_author_id": "166666666666666666",
    "company_id": null,
-   "group_id": null,
-   "last_message_text_map": null
+   "last_message_time": 1794360498883,
+   "roster_positions": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "SUPER_FLEX",
+    "K",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN",
+    "BN"
+   ]
   },
   "users": [
+   {
+    "avatar": "5acf528d08362ba530f519c2c8cf9567",
+    "display_name": "RunJordyRun87",
+    "is_bot": false,
+    "is_owner": null,
+    "league_id": "1420817565600509952",
+    "metadata": {
+     "allow_pn": "on",
+     "mention_pn": "on"
+    },
+    "settings": null,
+    "user_id": "391064740769579008"
+   },
    {
     "avatar": "ed0271afddc15a5f8195075b7b9edaff",
     "display_name": "DS107",
@@ -241,31 +256,33 @@
     "user_id": "733377873888587776"
    },
    {
-    "avatar": "99772fbee0913f5e8153b8108ee99f2e",
-    "display_name": "rushend",
-    "is_bot": false,
-    "is_owner": null,
-    "league_id": "1420817565600509952",
-    "metadata": {
-     "allow_pn": "on",
-     "mention_pn": "on"
-    },
-    "settings": null,
-    "user_id": "734804028428529664"
-   },
-   {
-    "avatar": "0161c16cf5fec1e66763af700aa82952",
+    "avatar": "6efd716416daa350ef73258653cc37ac",
     "display_name": "MStanton20",
     "is_bot": false,
     "is_owner": null,
     "league_id": "1420817565600509952",
     "metadata": {
      "allow_pn": "on",
+     "allow_sms": "on",
      "mention_pn": "on",
      "user_message_pn": "off"
     },
     "settings": null,
     "user_id": "739204947706556416"
+   },
+   {
+    "avatar": "b3338675f635c2c1f42b469621d38ec6",
+    "display_name": "dvfusco",
+    "is_bot": false,
+    "is_owner": null,
+    "league_id": "1420817565600509952",
+    "metadata": {
+     "allow_pn": "on",
+     "mention_pn": "on",
+     "team_name": "Jeremiah Smith?"
+    },
+    "settings": null,
+    "user_id": "785920658600271872"
    },
    {
     "avatar": "b319fdf8b7b5b0359d3c78622ba4d70c",
@@ -324,8 +341,8 @@
     "user_id": "1003742511195574272"
    },
    {
-    "avatar": "b319fdf8b7b5b0359d3c78622ba4d70c",
-    "display_name": "ColtenL",
+    "avatar": "e7af4deab0289b4f5505646424895246",
+    "display_name": "jschwartz2521",
     "is_bot": false,
     "is_owner": null,
     "league_id": "1420817565600509952",
@@ -334,21 +351,7 @@
      "mention_pn": "on"
     },
     "settings": null,
-    "user_id": "1071529716915462144"
-   },
-   {
-    "avatar": "f0edbf4278f53f9425db175073df6584",
-    "display_name": "stevinzeske1",
-    "is_bot": false,
-    "is_owner": null,
-    "league_id": "1420817565600509952",
-    "metadata": {
-     "allow_pn": "on",
-     "archived": "off",
-     "mention_pn": "on"
-    },
-    "settings": null,
-    "user_id": "1109243143871975424"
+    "user_id": "1004101487921868800"
    },
    {
     "avatar": "578c6b253dd7b4bab45382e1af102204",
@@ -432,7 +435,7 @@
     "keepers": null,
     "league_id": "1420817565600509952",
     "metadata": null,
-    "owner_id": "734804028428529664",
+    "owner_id": "391064740769579008",
     "player_map": null,
     "players": null,
     "reserve": null,
@@ -504,7 +507,7 @@
     "keepers": null,
     "league_id": "1420817565600509952",
     "metadata": null,
-    "owner_id": "1071529716915462144",
+    "owner_id": "1004101487921868800",
     "player_map": null,
     "players": null,
     "reserve": null,
@@ -540,7 +543,7 @@
     "keepers": null,
     "league_id": "1420817565600509952",
     "metadata": null,
-    "owner_id": "1109243143871975424",
+    "owner_id": "785920658600271872",
     "player_map": null,
     "players": null,
     "reserve": null,
@@ -836,10 +839,23 @@
      "733377873888587776"
     ],
     "draft_id": "1420817566355443712",
-    "draft_order": null,
-    "last_message_id": "1420817566355443712",
-    "last_message_time": 1793111814623,
-    "last_picked": 1793112113451,
+    "draft_order": {
+     "1003742511195574272": 8,
+     "1004101487921868800": 5,
+     "1250883138863775744": 4,
+     "1266102215714545664": 6,
+     "1397748617464303616": 11,
+     "391064740769579008": 10,
+     "733377873888587776": 1,
+     "739204947706556416": 9,
+     "785920658600271872": 2,
+     "846085206283747328": 7,
+     "996014178697527296": 3,
+     "996850427356340224": 12
+    },
+    "last_message_id": "1426054980132962304",
+    "last_message_time": 1794360511386,
+    "last_picked": 1794360511375,
     "league_id": "1420817565600509952",
     "metadata": {
      "description": "",
@@ -851,13 +867,13 @@
     "season_type": "regular",
     "settings": {
      "alpha_sort": 0,
-     "autopause_enabled": 1,
+     "autopause_enabled": 0,
      "autopause_end_time": 720,
-     "autopause_start_time": 960,
+     "autopause_start_time": 360,
      "autostart": 0,
      "cpu_autopick": 1,
      "nomination_timer": 60,
-     "pick_timer": 43200,
+     "pick_timer": 86400,
      "player_type": 0,
      "reversal_round": 3,
      "rounds": 30,
@@ -872,8 +888,8 @@
      "teams": 12
     },
     "sport": "nfl",
-    "start_time": null,
-    "status": "pre_draft",
+    "start_time": 1794349425288,
+    "status": "drafting",
     "type": "snake",
     "detail": {
      "created": 1793111814623,
@@ -881,10 +897,23 @@
       "733377873888587776"
      ],
      "draft_id": "1420817566355443712",
-     "draft_order": null,
-     "last_message_id": "1420817566355443712",
-     "last_message_time": 1793111814623,
-     "last_picked": 1793112113451,
+     "draft_order": {
+      "1003742511195574272": 8,
+      "1004101487921868800": 5,
+      "1250883138863775744": 4,
+      "1266102215714545664": 6,
+      "1397748617464303616": 11,
+      "391064740769579008": 10,
+      "733377873888587776": 1,
+      "739204947706556416": 9,
+      "785920658600271872": 2,
+      "846085206283747328": 7,
+      "996014178697527296": 3,
+      "996850427356340224": 12
+     },
+     "last_message_id": "1426054980132962304",
+     "last_message_time": 1794360511386,
+     "last_picked": 1794360511375,
      "league_id": "1420817565600509952",
      "metadata": {
       "description": "",
@@ -896,13 +925,13 @@
      "season_type": "regular",
      "settings": {
       "alpha_sort": 0,
-      "autopause_enabled": 1,
+      "autopause_enabled": 0,
       "autopause_end_time": 720,
-      "autopause_start_time": 960,
+      "autopause_start_time": 360,
       "autostart": 0,
       "cpu_autopick": 1,
       "nomination_timer": 60,
-      "pick_timer": 43200,
+      "pick_timer": 86400,
       "player_type": 0,
       "reversal_round": 3,
       "rounds": 30,
@@ -918,25 +947,409 @@
      },
      "slot_to_roster_id": {
       "1": 1,
-      "10": 10,
+      "10": 2,
       "11": 11,
       "12": 12,
-      "2": 2,
-      "3": 3,
-      "4": 4,
-      "5": 5,
-      "6": 6,
-      "7": 7,
-      "8": 8,
-      "9": 9
+      "2": 5,
+      "3": 10,
+      "4": 9,
+      "5": 4,
+      "6": 3,
+      "7": 8,
+      "8": 6,
+      "9": 7
      },
      "sport": "nfl",
-     "start_time": null,
-     "status": "pre_draft",
+     "start_time": 1794349425288,
+     "status": "drafting",
      "type": "snake"
     },
-    "picks": [],
-    "traded_picks": []
+    "picks": [
+     {
+      "draft_id": "1420817566355443712",
+      "draft_slot": 1,
+      "is_keeper": null,
+      "metadata": {
+       "first_name": "Jahmyr",
+       "injury_status": "",
+       "last_name": "Gibbs",
+       "news_updated": "1794183623879",
+       "number": "0",
+       "player_id": "9221",
+       "position": "RB",
+       "sport": "nfl",
+       "status": "Active",
+       "team": "DET",
+       "team_abbr": "",
+       "team_changed_at": "",
+       "years_exp": "3"
+      },
+      "pick_no": 1,
+      "picked_by": "1250883138863775744",
+      "player_id": "9221",
+      "reactions": null,
+      "roster_id": 9,
+      "round": 1
+     },
+     {
+      "draft_id": "1420817566355443712",
+      "draft_slot": 2,
+      "is_keeper": null,
+      "metadata": {
+       "first_name": "Brock",
+       "injury_status": "",
+       "last_name": "Bowers",
+       "news_updated": "1794205526443",
+       "number": "89",
+       "player_id": "11604",
+       "position": "TE",
+       "sport": "nfl",
+       "status": "Active",
+       "team": "LV",
+       "team_abbr": "",
+       "team_changed_at": "",
+       "years_exp": "2"
+      },
+      "pick_no": 2,
+      "picked_by": "785920658600271872",
+      "player_id": "11604",
+      "reactions": null,
+      "roster_id": 5,
+      "round": 1
+     },
+     {
+      "draft_id": "1420817566355443712",
+      "draft_slot": 3,
+      "is_keeper": null,
+      "metadata": {
+       "first_name": "Jaxon",
+       "injury_status": "",
+       "last_name": "Smith-Njigba",
+       "news_updated": "1794204926464",
+       "number": "11",
+       "player_id": "9488",
+       "position": "WR",
+       "sport": "nfl",
+       "status": "Active",
+       "team": "SEA",
+       "team_abbr": "",
+       "team_changed_at": "",
+       "years_exp": "3"
+      },
+      "pick_no": 3,
+      "picked_by": "996014178697527296",
+      "player_id": "9488",
+      "reactions": null,
+      "roster_id": 10,
+      "round": 1
+     },
+     {
+      "draft_id": "1420817566355443712",
+      "draft_slot": 4,
+      "is_keeper": null,
+      "metadata": {
+       "first_name": "Josh",
+       "injury_status": "",
+       "last_name": "Allen",
+       "news_updated": "1794322550611",
+       "number": "17",
+       "player_id": "4984",
+       "position": "QB",
+       "sport": "nfl",
+       "status": "Active",
+       "team": "BUF",
+       "team_abbr": "",
+       "team_changed_at": "",
+       "years_exp": "8"
+      },
+      "pick_no": 4,
+      "picked_by": "1004101487921868800",
+      "player_id": "4984",
+      "reactions": null,
+      "roster_id": 4,
+      "round": 1
+     }
+    ],
+    "traded_picks": [
+     {
+      "round": 1,
+      "season": "2026",
+      "roster_id": 1,
+      "owner_id": 9,
+      "previous_owner_id": 1
+     },
+     {
+      "round": 2,
+      "season": "2026",
+      "roster_id": 1,
+      "owner_id": 9,
+      "previous_owner_id": 1
+     },
+     {
+      "round": 3,
+      "season": "2026",
+      "roster_id": 1,
+      "owner_id": 4,
+      "previous_owner_id": 1
+     },
+     {
+      "round": 5,
+      "season": "2026",
+      "roster_id": 1,
+      "owner_id": 4,
+      "previous_owner_id": 1
+     },
+     {
+      "round": 1,
+      "season": "2026",
+      "roster_id": 4,
+      "owner_id": 1,
+      "previous_owner_id": 4
+     },
+     {
+      "round": 3,
+      "season": "2026",
+      "roster_id": 4,
+      "owner_id": 1,
+      "previous_owner_id": 4
+     },
+     {
+      "round": 5,
+      "season": "2026",
+      "roster_id": 4,
+      "owner_id": 1,
+      "previous_owner_id": 4
+     },
+     {
+      "round": 1,
+      "season": "2026",
+      "roster_id": 9,
+      "owner_id": 4,
+      "previous_owner_id": 1
+     },
+     {
+      "round": 2,
+      "season": "2026",
+      "roster_id": 9,
+      "owner_id": 1,
+      "previous_owner_id": 9
+     }
+    ]
+   }
+  ],
+  "transactions": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": [],
+   "8": [],
+   "9": [
+    {
+     "status": "complete",
+     "type": "trade",
+     "metadata": null,
+     "created": 1794352708778,
+     "settings": null,
+     "leg": 9,
+     "draft_picks": [
+      {
+       "round": 3,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 1,
+       "owner_id": 4,
+       "previous_owner_id": 1
+      },
+      {
+       "round": 5,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 1,
+       "owner_id": 4,
+       "previous_owner_id": 1
+      },
+      {
+       "round": 1,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 4,
+       "owner_id": 1,
+       "previous_owner_id": 4
+      },
+      {
+       "round": 3,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 4,
+       "owner_id": 1,
+       "previous_owner_id": 4
+      },
+      {
+       "round": 5,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 4,
+       "owner_id": 1,
+       "previous_owner_id": 4
+      },
+      {
+       "round": 1,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 9,
+       "owner_id": 4,
+       "previous_owner_id": 1
+      }
+     ],
+     "creator": "733377873888587776",
+     "transaction_id": "1426022253622988800",
+     "adds": null,
+     "consenter_ids": [
+      1,
+      4
+     ],
+     "drops": null,
+     "roster_ids": [
+      1,
+      4
+     ],
+     "status_updated": 1794360498867,
+     "waiver_budget": []
+    },
+    {
+     "status": "complete",
+     "type": "trade",
+     "metadata": null,
+     "created": 1794351490403,
+     "settings": null,
+     "leg": 9,
+     "draft_picks": [
+      {
+       "round": 1,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 1,
+       "owner_id": 9,
+       "previous_owner_id": 1
+      },
+      {
+       "round": 2,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 1,
+       "owner_id": 9,
+       "previous_owner_id": 1
+      },
+      {
+       "round": 1,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 9,
+       "owner_id": 1,
+       "previous_owner_id": 9
+      },
+      {
+       "round": 2,
+       "season": "2026",
+       "league_id": null,
+       "roster_id": 9,
+       "owner_id": 1,
+       "previous_owner_id": 9
+      }
+     ],
+     "creator": "1250883138863775744",
+     "transaction_id": "1426017143387856896",
+     "adds": null,
+     "consenter_ids": [
+      1,
+      9
+     ],
+     "drops": null,
+     "roster_ids": [
+      1,
+      9
+     ],
+     "status_updated": 1794351587237,
+     "waiver_budget": []
+    }
+   ],
+   "10": [],
+   "11": [],
+   "12": [],
+   "13": [],
+   "14": [],
+   "15": [],
+   "16": [],
+   "17": [],
+   "18": []
+  },
+  "traded_picks_league": [
+   {
+    "round": 1,
+    "season": "2026",
+    "roster_id": 1,
+    "owner_id": 9,
+    "previous_owner_id": 1
+   },
+   {
+    "round": 2,
+    "season": "2026",
+    "roster_id": 1,
+    "owner_id": 9,
+    "previous_owner_id": 1
+   },
+   {
+    "round": 3,
+    "season": "2026",
+    "roster_id": 1,
+    "owner_id": 4,
+    "previous_owner_id": 1
+   },
+   {
+    "round": 5,
+    "season": "2026",
+    "roster_id": 1,
+    "owner_id": 4,
+    "previous_owner_id": 1
+   },
+   {
+    "round": 1,
+    "season": "2026",
+    "roster_id": 4,
+    "owner_id": 1,
+    "previous_owner_id": 4
+   },
+   {
+    "round": 3,
+    "season": "2026",
+    "roster_id": 4,
+    "owner_id": 1,
+    "previous_owner_id": 4
+   },
+   {
+    "round": 5,
+    "season": "2026",
+    "roster_id": 4,
+    "owner_id": 1,
+    "previous_owner_id": 4
+   },
+   {
+    "round": 1,
+    "season": "2026",
+    "roster_id": 9,
+    "owner_id": 4,
+    "previous_owner_id": 1
+   },
+   {
+    "round": 2,
+    "season": "2026",
+    "roster_id": 9,
+    "owner_id": 1,
+    "previous_owner_id": 9
    }
   ]
  }
