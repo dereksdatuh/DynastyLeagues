@@ -172,6 +172,7 @@ def value_players(
             "team": info.get("team"),
             "age": info.get("age"),
             "exp": info.get("years_exp"),
+            "college": info.get("college"),
             "injury": info.get("injury_status"),
             "value": round(value),
             "market": mkt.get("market", 0),
