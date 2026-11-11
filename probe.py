@@ -12,5 +12,7 @@ for lg in g(f"user/{uid}/leagues/nfl/2026"):
             d["detail"] = g(f"draft/{d['draft_id']}")
             d["picks"] = g(f"draft/{d['draft_id']}/picks")
             d["traded_picks"] = g(f"draft/{d['draft_id']}/traded_picks")
+        m["transactions"] = {w: g(f"league/{lid}/transactions/{w}") for w in range(0, 19)}
+        m["traded_picks_league"] = g(f"league/{lid}/traded_picks")
         out["mirage"] = m
 json.dump(out, open("scratch/probe.json", "w"), indent=1)
