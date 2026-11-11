@@ -160,13 +160,17 @@ thead th[aria-sort="ascending"]::after { content: " ▲"; }
 .lineup { width: 100%; font-size: 13px; }
 .lineup tr.done td { opacity: 0.75; }
 .cols.two { grid-template-columns: 1fr 1fr; }
+.cols.three { grid-template-columns: 1fr 1fr 1fr; }
+.sdt .grade { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 5px; background: var(--accent); color: #fff; font-weight: 700; }
+.sdt ul { margin: 4px 0 0; padding-left: 18px; } .sdt li { display: list-item; border: none; padding: 1px 0; }
+.sdt li .num { float: right; }
 .mine { color: #eab308; }
 .news { list-style: none; padding: 0; }
 .news li { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .news li.mine-row { border-left: 3px solid #eab308; padding-left: 8px; }
 @media (max-width: 760px) {
   .matchup .head { grid-template-columns: 1fr 60px 1fr; }
-  .matchup .lineups, .cols.two { grid-template-columns: 1fr; }
+  .matchup .lineups, .cols.two, .cols.three { grid-template-columns: 1fr; }
 }
 
 /* rookie mock */
