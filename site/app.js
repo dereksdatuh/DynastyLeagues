@@ -1922,10 +1922,19 @@ function sdAssets() {
 }
 
 // Everyone draftable, with kicker picks folded into one "next kicker pick" entry.
-function sdPool(taken) {
+// src picks what the other teams draft by: the room's market mix (default), this
+// league's values, or one site's own numbers (put on the market scale by its typical
+// ratio, so kicker = rookie-pick values still compare).
+function sdRoomValue(p, src) {
+  if (!src || src === "market") return p.market || p.value;
+  if (src === "engine") return p.value;
+  const v = siteValue(p, src);
+  return v ? Math.round(v / calcRatio(src)) : p.market || p.value;
+}
+function sdPool(taken, src) {
   const offense = new Set(["QB", "RB", "WR", "TE"]);
   return state.data.players.filter((p) => offense.has(p.pos) && p.value > 0 && !taken.has(p.id))
-    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: p.market || p.value, injury: p.injury }))
+    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: sdRoomValue(p, src), injury: p.injury }))
     .sort((a, b) => b.value - a.value);
 }
 function sdKickerEntry(kTaken) {
@@ -1965,7 +1974,7 @@ function sdOther(pool, kp, h, slots) {
   if (kp && (h.KP || 0) < SD_CAPS.KP && (!pick || kp.market >= pick.market * sdNeedFactor(pick.pos, h, slots))) pick = kp;
   return pick;
 }
-function sdSimulate(mySlot) {
+function sdSimulate(mySlot, src) {
   const S = state.data.startup, n = S.teams, total = n * S.rounds;
   const taken = new Set(sd.picks.map((p) => p.player_id));
   let kTaken = sd.picks.filter((p) => p.pos === "K").length;
@@ -1976,7 +1985,7 @@ function sdSimulate(mySlot) {
   const hv = (k) => (have[k] = have[k] || {});
   for (const p of sd.picks) { const pos = p.pos === "K" ? "KP" : p.pos, h0 = hv(keyOf(p.roster_id ?? null, p.slot, false)); h0[pos] = (h0[pos] || 0) + 1; }
   const keyAt = (o) => keyOf(sdOwnerRid(o), sdSlotOf(o, n, S), mySlot != null && sdIsMine(o, mySlot));
-  let pool = sdPool(taken);
+  let pool = sdPool(taken, src);
   const out = [];
   for (let o = sd.picks.length + 1; o <= total; o++) {
     const slot = sdSlotOf(o, n, S), h = hv(keyAt(o));
@@ -2118,6 +2127,7 @@ function renderStartup() {
       ${sd.picks.slice().reverse().slice(0, 36).map((p) => `<tr class="${p.slot === mySlot ? "me" : ""}"><td>${sdLabel(p.pick_no, n)}</td><td>${p.roster_id ? teamHtml(p.roster_id) : "slot " + p.slot}</td><td>${p.pos === "K" && K ? `Kicker = ${K.year} pick ${sdLabel(sd.picks.filter((x) => x.pos === "K" && x.pick_no <= p.pick_no).length, n)}` : esc(p.name)} <span class="muted">${esc(p.pos || "")}</span></td></tr>`).join("")}
       </tbody></table></div>` : ""}`}`;
   el.querySelectorAll("#sd-mode button").forEach((b) => (b.onclick = () => { sdTrade.mode = b.dataset.mode; renderStartup(); }));
+  el.querySelectorAll("#sd-board-src [data-src]").forEach((b) => (b.onclick = () => { sdTrade.boardSrc = b.dataset.src; localStorageSet("sd.board.src", b.dataset.src); renderStartup(); }));
   const lt = $("#sd-lineup-team");
   if (lt) lt.onchange = (e) => { sdTrade.lineupTeam = e.target.value; renderStartup(); };
   $("#sd-slot").onchange = (e) => { sd.slot = Number(e.target.value); localStorageSet(`startup.slot.${sd.league}`, String(sd.slot)); sdAssets(); renderStartup(); };
@@ -2133,7 +2143,8 @@ function renderStartup() {
 // with the calculator's value adjustment for 2-for-1s) while you gain on "here".
 const SD_FAIR = 0.03;   // partner may lose up to 3% at market
 const SD_TRADE_ROUNDS = 14;
-const sdTrade = { mode: "guide" };
+const sdTrade = { mode: "guide", boardSrc: localStorageGet("sd.board.src") || "market" };
+const SD_BOARD_SRC = [["market", "Market mix"], ["engine", "League value"], ["fantasycalc", "FantasyCalc"], ["ktc", "KTC"]];
 function sdCurves() {
   const S = state.data.startup, n = S.teams, total = n * S.rounds;
   const key = `${state.data.league.id}:${sd.picks.length}`;
@@ -2211,7 +2222,8 @@ function sdSlotTeam(slot) {
 function renderDraftBoard(mySlot) {
   const S = state.data.startup, n = S.teams, total = n * S.rounds, K = S.kicker_picks;
   const made = new Map(sd.picks.map((p) => [p.pick_no, p]));
-  const sim = sdSimulate(mySlot || null);
+  const src = SD_BOARD_SRC.some(([k]) => k === sdTrade.boardSrc) ? sdTrade.boardSrc : "market";
+  const sim = sdSimulate(mySlot || null, src);
   const proj = new Map(sim.out.map((x) => [x.overall, x.pick]));
   const onClock = sd.status === "drafting" ? sd.picks.length + 1 : null;
   // Which rookie pick each kicker stands for: kickers in the order they go (made, then mocked).
@@ -2252,7 +2264,9 @@ function renderDraftBoard(mySlot) {
     const fwd = sdSlotOf(r * n + 1, n, S) === 1;
     return `<tr><th class="sdb-rd">R${r + 1}<span>${fwd ? "→" : "←"}</span></th>${by.map((o) => cell(o).replace('class="sdb-cell', `class="sdb-cell${mySlot && sdIsMine(o, mySlot) ? " mine" : ""}`)).join("")}</tr>`;
   }).join("");
-  return `<p class="muted">${sd.picks.length} of ${total} picks made${sd.at ? `, live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}. Solid cells are real picks; faded cells are the mock.${K ? ` Kickers show as the ${K.year} rookie pick they stand for.` : ""}${sd.order ? "" : " Columns are slots until Sleeper sets the order."}</p>
+  const srcName = SD_BOARD_SRC.find(([k]) => k === src)[1];
+  return `<div class="chips" id="sd-board-src"><span class="muted">Mock by:</span> ${SD_BOARD_SRC.map(([k, l]) => `<button class="chip ${k === src ? "active" : ""}" data-src="${k}">${l}</button>`).join("")}</div>
+    <p class="muted">${sd.picks.length} of ${total} picks made${sd.at ? `, live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}. Solid cells are real picks; faded cells are the mock, with every team drafting by ${esc(srcName)} (plus roster needs).${K ? ` Kickers show as the ${K.year} rookie pick they stand for.` : ""}${sd.order ? "" : " Columns are slots until Sleeper sets the order."}</p>
     <div class="table-wrap sdb-wrap"><table id="sd-grid"><thead><tr><th class="sdb-rd"></th>${heads}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
