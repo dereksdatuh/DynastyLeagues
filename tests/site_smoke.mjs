@@ -63,6 +63,8 @@ for (const [id, liteRun] of runs) {
   // A new league that hasn't drafted yet has empty rosters: no max PF, no trades to judge.
   const drafted = await page.evaluate(() => state.data.teams.some((t) => t.players.length));
   if (!drafted) console.log(`${id}: rosters are empty (not drafted yet), skipping roster-based checks`);
+  // Mid-startup, rosters fill as the draft goes, so a team can still have no max PF.
+  const midStartup = await page.evaluate(() => !!state.data.startup && sd.status !== "complete");
   // A league whose startup draft is ahead or under way opens on the Startup Draft tab:
   // check it rendered its advice and mock, then go on from Rankings like any league.
   if (await page.$('.tabs button[data-tab="draft"]:not(.hidden)')) {
@@ -94,7 +96,7 @@ for (const [id, liteRun] of runs) {
   const maxCol = await page.$$eval("#teams thead th", (ths) => ths.findIndex((th) => th.textContent.includes("max PF")));
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   const maxPF = await page.$$eval("#teams tbody tr", (rs, c) => rs.map((r) => Number(r.cells[c].dataset.sort)), maxCol);
-  if (maxCol < 0 || maxPF.some((v, i) => i && v > maxPF[i - 1]) || (drafted && maxPF.some((v) => !(v > 0)))) errors.push(`${id}: max PF column missing or not sorted: ${maxPF}`);
+  if (maxCol < 0 || maxPF.some((v, i) => i && v > maxPF[i - 1]) || (drafted && !midStartup && maxPF.some((v) => !(v > 0)))) errors.push(`${id}: max PF column missing or not sorted: ${maxPF}`);
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`);
   await page.click(`#teams thead th:nth-child(${maxCol + 1})`); // back to original order
   await page.click('button[data-tab="trade"]');
