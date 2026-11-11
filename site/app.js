@@ -3017,6 +3017,7 @@ function pitchFor(i, ctx) {
   if (ageIn != null && ageOut != null && ageOut - ageIn >= 2) reasons.push(`You get younger: the players you get average ${ageIn.toFixed(1)} years old vs ${ageOut.toFixed(1)} for the ones you send.`);
   else if (ageIn == null && ageOut != null && ageOut >= 28 && picks.length) reasons.push(`You turn ${ageOut >= 30 ? "older" : "aging"} talent into picks before the value drops.`);
   const fit = getsA.filter((x) => x.kind === "player" && x.premium >= 1.08).map((x) => x.name);
+  if (typeof deepPitch === "function") reasons.push(...deepPitch(rid, getsA, sendsA));
   if (fit.length) reasons.push(`${listNames(fit)} ${fit.length > 1 ? "score" : "scores"} better in our scoring settings than in standard scoring, so ${fit.length > 1 ? "they're" : "he's"} worth more here than most trade charts say.`);
 
   const owner = team.owner || team.name;
@@ -3740,6 +3741,7 @@ function managersHtml() {
     return `<div class="mgr-row ${n.block ? "blocked" : ""}" data-rid="${rid}">
       <div class="mgr-head">${teamAvatar(t)}<b>${esc(t.name)}</b>${managerOf(t) ? ` <span class="muted">${esc(managerOf(t))}</span>` : ""}</div>
       <p class="muted small">${esc(historyText(managerHistory(rid)))}</p>
+      ${typeof deepCardHtml === "function" ? deepCardHtml(rid) : ""}
       <div class="chips"><label class="chip"><input type="checkbox" data-note="block" ${n.block ? "checked" : ""}> Won't trade with me</label>
         <label class="chip"><input type="checkbox" data-note="picksOnly" ${n.picksOnly ? "checked" : ""}> Picks only from me</label></div>
       <input class="mgr-keep" type="search" placeholder="Won't move: add a piece" list="mgr-list-${rid}" />
@@ -3749,13 +3751,15 @@ function managersHtml() {
   }).join("");
   const noted = others.filter((t) => { const n = managerNotes(t.roster_id); return n.block || n.picksOnly || lockedIds(t.roster_id).size; }).length;
   return `<details class="card managers" ${finder.mgrOpen ? "open" : ""}><summary>Manager profiles <span class="muted">(${noted ? `${noted} with your notes` : "add notes the finder will follow"})</span></summary>
-    <p class="muted">Trade history comes from this season's trades in this league on Sleeper. Your notes stay in this browser only. The finder skips managers who won't trade with you, sends only picks to "picks only" managers, never asks for a piece they won't move, and ranks deals that match a manager's habits a little higher.</p>
+    <p class="muted">The short line under each manager is this season's trades in this league; load a deep profile for everything they've done across their Sleeper leagues. Your notes stay in this browser only. The finder skips managers who won't trade with you, sends only picks to "picks only" managers, never asks for a piece they won't move, and ranks deals that match a manager's habits a little higher.</p>
+    ${typeof deepPanelHtml === "function" ? deepPanelHtml() : ""}
     <div class="mgr-grid">${rows}</div></details>`;
 }
 function bindManagers(el) {
   const box = el.querySelector("details.managers");
   if (!box) return;
   box.addEventListener("toggle", () => (finder.mgrOpen = box.open));
+  if (typeof bindDeep === "function") bindDeep(box);
   box.querySelectorAll(".mgr-row").forEach((row) => {
     const rid = Number(row.dataset.rid);
     row.querySelectorAll("[data-note]").forEach((c) => (c.onchange = () => { const n = managerNotes(rid); n[c.dataset.note] = c.checked; setManagerNotes(rid, n); finder.last = null; renderFinder(); }));
@@ -4001,6 +4005,9 @@ function findTrades() {
     // Deals that look like what this manager has done before rank a little higher.
     d.fits = historyFits(d.B, d.gives, d.gets);
     d.score += 0.6 * d.fits.length;
+    // How likely they are to say yes, from their deep profile when it's loaded.
+    d.accept = acceptChance(d.B, d.gives, d.gets, -d.mkt, d.them);
+    d.score += 1.2 * (d.accept.p - 0.5);
     top.push(d);
   }
   top.sort((a, b) => b.score - a.score);
@@ -4162,7 +4169,8 @@ function finderResults3(r) {
       <h4>Gets</h4>${list(x.gets)}<h4>Gives</h4>${list(x.gives)}
       <p>Market <b class="${cls(netOf(x.gets, x.gives))}">${pct(netOf(x.gets, x.gives))}</b> · by its goal <b class="${cls(d.g[rid])}">${pct(d.g[rid])}</b></p>
       <p>${directionHtml(...d.dir[rid])}${sp.aim ? ` <span class="${aim.hit ? "up" : "muted"}">${aim.hit ? "reaches" : "closer to"} ${esc(BUILD_INFO[sp.aim][0])}</span>` : ""}</p>
-      <p class="muted">Lineup ${d.dppg[rid] >= 0 ? "+" : ""}${d.dppg[rid].toFixed(1)} pts/wk · ${recordText(d.rec[rid][0])} → ${recordText(d.rec[rid][1])}</p></div>`;
+      <p class="muted">Lineup ${d.dppg[rid] >= 0 ? "+" : ""}${d.dppg[rid].toFixed(1)} pts/wk · ${recordText(d.rec[rid][0])} → ${recordText(d.rec[rid][1])}</p>
+      ${rid === me ? "" : (() => { const a = acceptChance(rid, x.gets, x.gives, netOf(x.gets, x.gives), d.g[rid]); return `<p class="${a.p >= 0.5 ? "up" : a.p < 0.25 ? "down" : ""}">${esc(acceptTxt(a))}</p>`; })()}</div>`;
   };
   return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} ${finder.winBy ? `three-team deals where you win by about ${Math.round(finder.winBy * 100)}%` : "fair three-team deals"}. You: ${esc(goalLabel(finder.target ? "aim:" + finder.target : finder.goal))}. ${esc(teamOf(finder.three.teams[0]).name)}: ${esc(goalLabel(finder.three.goals[0]))}. ${esc(teamOf(finder.three.teams[1]).name)}: ${esc(goalLabel(finder.three.goals[1]))}.</p>
     ${r.picked.map((d, i) => `<div class="trade-log finder-deal">
@@ -4203,6 +4211,11 @@ function finderResults(r) {
     if (d.fits && d.fits.length) bits.push(`Fits their trade history: ${d.fits.join(", ")}.`);
     return bits.join(" ");
   };
+  const acceptLine = (d) => {
+    if (!d.accept) return "";
+    const a = d.accept;
+    return `<p><strong class="${a.p >= 0.5 ? "up" : a.p < 0.25 ? "down" : ""}">${esc(acceptTxt(a))}</strong>${a.why.length ? ` <span class="muted">(${esc(a.why.join("; "))})</span>` : ""}</p>`;
+  };
   return `<p class="muted">${r.picked.length} best of ${fmt(r.total)} ${finder.winBy ? "winning" : "fair"} deals found, ranked for ${goalName}.
 ${winNote}${aimNote}
       Market is league value with the value adjustment. Your goal is the deal valued for ${goalName}. Their needs is the other team's own lens.</p>
@@ -4221,7 +4234,9 @@ ${winNote}${aimNote}
       </tbody></table>
       <p>${d.why.meFill.length ? `<span class="up">Helps your need at ${d.why.meFill.join(", ")}.</span> ` : ""}${d.why.meOpen.length ? `<span class="down">Opens a need at ${d.why.meOpen.join(", ")} for you.</span> ` : ""}
         <strong>Why they'd say yes:</strong> ${esc(themWhy(d))}</p>
+      ${acceptLine(d)}
       <button class="chip finder-open" data-i="${i}">Open in Trade Calculator</button>
+      ${offerLogHtml(i)}
     </div>`).join("")}`;
 }
 
