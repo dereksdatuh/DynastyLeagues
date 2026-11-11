@@ -1965,13 +1965,17 @@ function sdSimulate(mySlot) {
   const S = state.data.startup, n = S.teams, total = n * S.rounds;
   const taken = new Set(sd.picks.map((p) => p.player_id));
   let kTaken = sd.picks.filter((p) => p.pos === "K").length;
-  const have = {}, mine = [];
-  for (let s = 1; s <= n; s++) have[s] = {};
-  for (const p of sd.picks) { const pos = p.pos === "K" ? "KP" : p.pos; if (have[p.slot]) have[p.slot][pos] = (have[p.slot][pos] || 0) + 1; }
+  // Each team's roster so far, keyed by who holds the pick (traded picks count for
+  // the team that has them), so its needs follow its real roster.
+  const have = {}, mine = [], meRid = myTeam()?.roster_id;
+  const keyOf = (rid, slot, isMe) => (isMe ? "me" : rid != null ? (rid === meRid && mySlot != null ? "me" : `r${rid}`) : `s${slot}`);
+  const hv = (k) => (have[k] = have[k] || {});
+  for (const p of sd.picks) { const pos = p.pos === "K" ? "KP" : p.pos, h0 = hv(keyOf(p.roster_id ?? null, p.slot, false)); h0[pos] = (h0[pos] || 0) + 1; }
+  const keyAt = (o) => keyOf(sdOwnerRid(o), sdSlotOf(o, n, S), mySlot != null && sdIsMine(o, mySlot));
   let pool = sdPool(taken);
   const out = [];
   for (let o = sd.picks.length + 1; o <= total; o++) {
-    const slot = sdSlotOf(o, n, S), h = have[slot];
+    const slot = sdSlotOf(o, n, S), h = hv(keyAt(o));
     const kp = sdKickerEntry(kTaken);
     let pick, adv = null;
     const isMine = mySlot != null && sdIsMine(o, mySlot);
@@ -1983,10 +1987,10 @@ function sdSimulate(mySlot) {
       let p2 = pool, k2 = kTaken;
       const h2 = Object.fromEntries(Object.entries(have).map(([k, v]) => [k, { ...v }]));
       for (let x = o + 1; x < next; x++) {
-        const sl = sdSlotOf(x, n, S), q = sdOther(p2, sdKickerEntry(k2), h2[sl], S.slots);
+        const kx = keyAt(x), hx = (h2[kx] = h2[kx] || {}), q = sdOther(p2, sdKickerEntry(k2), hx, S.slots);
         if (!q) break;
         if (q.id === "KP") { k2++; gone.kicker = true; } else { gone.ids.add(q.id); p2 = p2.filter((p) => p.id !== q.id); }
-        h2[sl][q.pos] = (h2[sl][q.pos] || 0) + 1;
+        hx[q.pos] = (hx[q.pos] || 0) + 1;
       }
       adv = sdAdvice(pool, kp, h, o, mySlot, gone);
       adv.ahead = out.filter((x) => x.overall > sd.picks.length).map((x) => x.pick);
