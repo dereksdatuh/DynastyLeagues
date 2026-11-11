@@ -1794,7 +1794,7 @@ function renderOdds() {
 // drops data.startup, so the league reads like every other.
 // Kickers can stand in for next year's rookie picks (startup.kicker_picks): the Nth
 // kicker taken is that draft's Nth pick, worth kicker_picks.values[N-1].
-const SD_POLL_MS = 20000;
+const SD_POLL_MS = 30000; // live startup refresh, on every tab
 const SD_CAPS = { QB: 4, TE: 3, KP: 6 }; // most of each a mock opponent takes
 const sd = { league: null, picks: [], status: null, order: null, at: null, timer: null, slot: null, traded: [], slotRid: null, trades: null };
 const sdOpen = () => !!(state.data && state.data.startup) && sd.status !== "complete";
@@ -1820,11 +1820,15 @@ function sdInit() {
   sdAssets();
 }
 
+document.addEventListener("visibilitychange", () => { if (!document.hidden && sdOpen()) refreshStartup(); });
+
 async function refreshStartup() {
   const S = state.data && state.data.startup;
   if (!S) return;
   const key = state.data.league.id;
   if (sd.timer) { clearTimeout(sd.timer); sd.timer = null; }
+  // Background tab: skip the fetch, check again later (visibilitychange refreshes on return).
+  if (document.hidden) { sd.timer = setTimeout(refreshStartup, SD_POLL_MS); return; }
   try {
     const get = (u) => fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
     const [d, rows, traded] = await Promise.all([get(`https://api.sleeper.app/v1/draft/${S.draft_id}`), get(`https://api.sleeper.app/v1/draft/${S.draft_id}/picks`),
@@ -1845,8 +1849,8 @@ async function refreshStartup() {
   } catch (e) { /* keep the build's snapshot */ }
   sdAssets();
   safely("draft", renderStartup);
-  const tabOn = !document.querySelector("#tab-draft").classList.contains("hidden");
-  if (state.data.startup && sd.status !== "complete" && tabOn) sd.timer = setTimeout(refreshStartup, sd.status === "drafting" ? SD_POLL_MS : 5 * SD_POLL_MS);
+  // Keep polling whichever tab is open, so the calculator and Trade Finder track the live board too.
+  if (state.data.startup && sd.status !== "complete") sd.timer = setTimeout(refreshStartup, sd.status === "drafting" ? SD_POLL_MS : 5 * SD_POLL_MS);
 }
 
 // Slot that makes the overall-th pick: snake, with the 3rd-round reversal if set
