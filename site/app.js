@@ -543,31 +543,82 @@ function fitBadge(premium) {
   return `<span class="fit ${pct > 0 ? "up" : "down"}" title="Scoring fit vs. generic market scoring">${pct > 0 ? "+" : ""}${pct}%</span>`;
 }
 
+// During a startup draft Sleeper's rosters stay empty until the draft ends, so the
+// live board (refreshed every 30 seconds) says who took each player.
+let rankTakenMemo = null;
+function rankOwner(p) {
+  if (state.data.startup && sd.picks && sd.picks.length) {
+    if (!rankTakenMemo || rankTakenMemo.picks !== sd.picks) rankTakenMemo = { picks: sd.picks, by: new Map(sd.picks.filter((m) => m.player_id).map((m) => [String(m.player_id), m.roster_id])) };
+    const r = rankTakenMemo.by.get(String(p.id));
+    if (r != null) return r;
+  }
+  return p.roster_id || null;
+}
+// Next year's rookie picks, one row each. In a league whose startup kickers stand in
+// for them, the Nth kicker drafted is pick N, so the owner is whoever drafts it (live
+// during the draft); after the draft the build ships them as kicker_pick picks.
+function rankPickRows() {
+  const S = state.data.startup, K = S && S.kicker_picks;
+  if (K && Array.isArray(K.values) && K.values.length) {
+    const n = S.teams, kicks = (sd.picks || []).filter((m) => m.pos === "K");
+    return K.values.map((v, i) => {
+      const c = (K.class || [])[i], k = kicks[i];
+      return { pick: true, id: `kp:${i + 1}`, name: `${K.year} pick ${sdLabel(i + 1, n)}`, value: Math.round(v), roster_id: k ? k.roster_id : null,
+        open: !k, note: c ? `${c.name} (${c.pos}) projects here` : "" };
+    });
+  }
+  return (state.data.picks || []).filter((p) => p.kicker_pick).map((p) => ({ pick: true, id: p.id, name: p.label, value: p.value, roster_id: p.roster_id, open: false, note: "" }));
+}
+const startupLive = () => !!(state.data.startup && sd.status !== "complete");
+function rankOwnerHtml(rid, isPick) {
+  if (rid) return teamHtml(rid);
+  return `<span class="muted">${startupLive() ? (isPick ? "Not drafted yet" : "Available") : "FA"}</span>`;
+}
+
 function renderRankings() {
   const table = $("#rankings");
   const q = $("#search").value.trim().toLowerCase();
   const owner = $("#owner-filter").value;
+  const pickRows = rankPickRows();
   if (state.pos === "PICKS") {
-    const picks = [...state.data.picks].sort((a, b) => b.value - a.value);
+    const K = state.data.startup && state.data.startup.kicker_picks;
+    // During a startup, this season's Sleeper picks are the startup itself and next
+    // year's are the kicker picks, so neither year's default picks are listed.
+    const swap = K && pickRows.length ? new Set([Number(K.year), Number(state.data.league.season) || Number(K.year) - 1]) : new Set();
+    const picks = [...state.data.picks.filter((p) => !p.kicker_pick && !swap.has(Number(p.year)))
+      .map((p) => ({ name: p.label, value: p.value, roster_id: p.roster_id, note: "" })), ...pickRows].sort((a, b) => b.value - a.value);
     table.innerHTML = `<thead><tr><th>#</th><th>Pick</th><th>Owner</th><th class="num">Value</th></tr></thead><tbody>${picks
-      .filter((p) => !q || p.label.toLowerCase().includes(q) || teamName(p.roster_id).toLowerCase().includes(q))
-      .map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.label)}</td><td>${teamHtml(p.roster_id)}</td><td class="num strong">${fmt(p.value)}</td></tr>`)
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || teamName(p.roster_id).toLowerCase().includes(q))
+      .map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}${p.note ? ` <span class="muted">${esc(p.note)}</span>` : ""}</td><td>${rankOwnerHtml(p.roster_id, true)}</td><td class="num strong">${fmt(p.value)}</td></tr>`)
       .join("")}</tbody>`;
     return;
   }
   const byPos = state.pos !== "ALL";
-  let rows = state.data.players.filter((p) => (!byPos || p.pos === state.pos) && p.value > 0);
-  if (owner === "rostered") rows = rows.filter((p) => p.roster_id);
-  if (owner === "fa") rows = rows.filter((p) => !p.roster_id);
-  if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q) || (p.team || "").toLowerCase().includes(q));
+  let rows = state.data.players.filter((p) => (!byPos || p.pos === state.pos) && p.value > 0 && !(pickRows.length && p.pos === "K" && state.data.startup?.kicker_picks));
+  // Overall view: the individual rookie picks rank right alongside the players.
+  const merged = !byPos && pickRows.length;
+  if (merged) {
+    rows = [...rows, ...pickRows].sort((a, b) => b.value - a.value);
+    let tier = null;
+    rows = rows.map((r, i) => { if (!r.pick) tier = r.tier; return { ...r, rank: i + 1, tier: r.pick ? tier : r.tier }; });
+  }
+  if (owner === "rostered") rows = rows.filter((p) => rankOwner(p));
+  if (owner === "fa") rows = rows.filter((p) => !rankOwner(p));
+  if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q) || (p.team || "").toLowerCase().includes(q) || (p.pick && teamName(p.roster_id).toLowerCase().includes(q)));
   rows = rows.slice(0, 400);
   const tierKey = byPos ? "pos_tier" : "tier";
   let lastTier = null;
   const body = rows
     .map((p) => {
-      const sep = p[tierKey] !== lastTier ? `<tr class="tier-row"><td colspan="12">Tier ${p[tierKey]}</td></tr>` : "";
-      lastTier = p[tierKey];
+      const sep = p[tierKey] != null && p[tierKey] !== lastTier ? `<tr class="tier-row"><td colspan="12">Tier ${p[tierKey]}</td></tr>` : "";
+      if (p[tierKey] != null) lastTier = p[tierKey];
+      if (p.pick) return `${sep}<tr class="pick-row">
+        <td>${p.rank}</td><td><b>${esc(p.name)}</b>${p.note ? ` <span class="muted">${esc(p.note)}</span>` : ""}</td>
+        <td><span class="pos pos-PICK">PICK</span></td><td></td><td></td>
+        <td class="num strong">${fmt(p.value)}</td><td class="num muted">–</td><td class="num muted">${fmt(p.value)}</td><td class="num muted">–</td><td></td><td></td>
+        <td class="muted">${rankOwnerHtml(p.roster_id, true)}</td></tr>`;
       const src = Object.entries(p.sources || {}).map(([k, v]) => `${k}: ${fmt(v)}${(p.sources_raw || {})[k] != null ? ` (site's own ${fmt(p.sources_raw[k])})` : ""}`).join("\n");
+      const rid = rankOwner(p);
       return `${sep}<tr>
         <td>${byPos ? p.pos_rank : p.rank}</td>
         <td><span class="name player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td>
@@ -580,7 +631,7 @@ function renderRankings() {
         <td class="num muted">${p.model ? fmt(p.model) : "–"}</td>
         <td>${fitBadge(p.premium)}</td>
         <td class="num">${p.ppg ?? ""}${p.proj_week != null ? ` <span class="muted">/ ${p.proj_week}</span>` : ""}</td>
-        <td class="muted">${p.roster_id ? teamHtml(p.roster_id) : "FA"}</td>
+        <td class="muted">${rankOwnerHtml(rid, false)}</td>
       </tr>`;
     })
     .join("");
@@ -1849,6 +1900,7 @@ async function refreshStartup() {
   } catch (e) { /* keep the build's snapshot */ }
   sdAssets();
   safely("draft", renderStartup);
+  safely("rankings", renderRankings); // owners and kicker picks follow the live board
   // Keep polling whichever tab is open, so the calculator and Trade Finder track the live board too.
   if (state.data.startup && sd.status !== "complete") sd.timer = setTimeout(refreshStartup, sd.status === "drafting" ? SD_POLL_MS : 5 * SD_POLL_MS);
 }
