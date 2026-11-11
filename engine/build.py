@@ -425,6 +425,13 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     picks = []
     owned = pick_ownership(league, rosters, traded, tables["season"])
     first_year = min((p["year"] for p in owned), default=None)
+    # Leagues whose startup kickers stood in for next year's rookie picks: once the
+    # startup is done, those picks belong to whoever drafted each kicker, in the order
+    # the kickers went, instead of Sleeper's one-per-team default.
+    kicker_slots = shared.optional(lambda: draft.kicker_pick_slots({**league, "league_id": lid}, rosters, n)) \
+        if first_year and (config.get("startup") or {}).get("kickers_are_picks") else None
+    if kicker_slots:
+        owned = draft.apply_kicker_picks(owned, kicker_slots, first_year, traded)
     # The coming class, priced from its pick slots and its own KTC devy values; its
     # picks then carry the class's strength (a loaded class lifts the early picks).
     rounds = max((p["round"] for p in owned if p["year"] == first_year), default=0)
@@ -439,6 +446,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     # draft sits at its listed slot, whatever the standings do.
     round_orders = draft.fixed_round_orders((stated.get("fixed") or {}).get(str(first_year)), teams) \
         if first_year else None
+    if kicker_slots:
+        round_orders = {r: list(range(1, n + 1)) for r in range(1, rounds + 1)}
     if round_orders:
         order = order_now = round_orders[1]
         rule = {**rule, "basis": "league_rule", "fixed": True}
@@ -458,8 +467,9 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
         slot = draft.slot_in_round(order, pk["round"], pk["original_roster_id"], snake, round_orders) if first else None
         overall = (pk["round"] - 1) * n + slot if slot else None
         label = slot_pick_label(pk["year"], pk["round"], slot) if slot else pick_label(pk["year"], pk["round"], tier)
-        if pk["original_roster_id"] != pk["owner_roster_id"]:
-            label += f" (via {name_of.get(pk['original_roster_id'], pk['original_roster_id'])})"
+        orig_team = pk.get("drafter", pk["original_roster_id"])
+        if orig_team != pk["owner_roster_id"]:
+            label += f" (via {name_of.get(orig_team, orig_team)})"
         value = slot_fn(overall) if overall else pick_values.value(pk["year"], pk["round"], tier)
         land = None
         if first and landing_counts and pk["original_roster_id"] in landing_counts:
@@ -474,7 +484,9 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             # Where the pick would fall if the season ended today.
             "slot_now": draft.slot_in_round(order_now, pk["round"], pk["original_roster_id"], snake, round_orders)
             if first else None,
-            "roster_id": pk["owner_roster_id"], "original_roster_id": pk["original_roster_id"],
+            # A kicker pick's id carries its slot; its original team is whoever drafted the kicker.
+            "roster_id": pk["owner_roster_id"], "original_roster_id": orig_team,
+            **({"kicker_pick": True} if "drafter" in pk else {}),
             **({"landing": land} if land else {}),
         })
     # The draft after: each team projected a season ahead (aging plus the rookies its
@@ -553,7 +565,10 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             "year": first_year, "rounds": rounds, "type": "snake" if snake else "linear",
             "playoff_teams": playoff_teams, "rule": rule, "last_draft_season": (last or {}).get("season"),
             "order": order, "order_now": order_now, "round_orders": round_orders,
-            "board": draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn, round_orders),
+            "board": [{**b, "original_roster_id": kicker_slots.get((b["round"], b["slot"]), b["original_roster_id"])}
+                      if kicker_slots else b
+                      for b in draft.draft_board(order, picks, first_year, rounds, snake, pick_values, slot_fn, round_orders)],
+            "kicker_picks": bool(kicker_slots),
             "class": class_rows[: n * rounds + 24],
             "class_weight": {"slot": draft.CLASS_MARKET_WEIGHT, "ktc_devy": 1 - draft.CLASS_MARKET_WEIGHT if scale else 0},
             "source": {k: v for k, v in devy.items() if k != "players"},

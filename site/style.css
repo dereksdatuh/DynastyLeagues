@@ -425,3 +425,21 @@ details.muted { margin: 0 0 12px; } details.muted summary { cursor: pointer; col
 #draft .card ol { margin: 4px 0 0; padding-left: 20px; }
 #draft .card li { display: list-item; border: none; padding: 2px 0; }
 #draft .lab-head label select { margin-left: 6px; }
+#sd-grid { border-collapse: separate; border-spacing: 3px; table-layout: fixed; min-width: 1100px; }
+#sd-grid th { font-size: 11px; text-align: center; padding: 4px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sd-grid th.mine { color: var(--accent); }
+#sd-grid th .sdb-no { display: block; font-size: 10px; opacity: .7; }
+#sd-grid .sdb-rd { width: 34px; font-size: 11px; color: var(--muted); }
+#sd-grid .sdb-rd span { display: block; font-size: 10px; }
+.sdb-cell { height: 58px; padding: 4px 6px; border-radius: 6px; vertical-align: top; background: var(--surface); border: 1px solid var(--border); font-size: 11px; line-height: 1.2; overflow: hidden; }
+.sdb-cell > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sdb-cell .sdb-no { font-size: 10px; opacity: .75; }
+.sdb-cell .sdb-last { font-weight: 700; font-size: 12px; }
+.sdb-cell .sdb-pos { font-size: 10px; opacity: .85; }
+.sdb-QB { background: var(--QB); } .sdb-RB { background: var(--RB); } .sdb-WR { background: var(--WR); } .sdb-TE { background: var(--TE); } .sdb-K { background: var(--PICK); }
+.sdb-QB, .sdb-RB, .sdb-WR, .sdb-TE, .sdb-K { color: #fff; border-color: transparent; }
+.sdb-cell.proj { opacity: .38; }
+.sdb-cell.mine:not(.proj) { box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
+.sdb-cell.mine.proj { opacity: .55; }
+.sdb-cell.clock { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
+.sdb-clock { color: var(--accent); font-weight: 700; }
