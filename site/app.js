@@ -2028,7 +2028,7 @@ function sdRoomValue(p, src) {
 function sdPool(taken, src) {
   const offense = new Set(["QB", "RB", "WR", "TE"]);
   return state.data.players.filter((p) => offense.has(p.pos) && p.value > 0 && !taken.has(p.id))
-    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: sdRoomValue(p, src), injury: p.injury }))
+    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: sdRoomValue(p, src), injury: p.injury, sites: p.sites_avg, ros: p.ros_ppg }))
     .sort((a, b) => b.value - a.value);
 }
 function sdKickerEntry(kTaken) {
@@ -2119,11 +2119,60 @@ function sdSimulate(mySlot, src) {
   return { out, mine };
 }
 
+// ---------- your build steers your picks ----------
+// The guide used to pick on value times roster need alone, so a 30-year-old on IR
+// could top the advice for a team drafting for 2027. Your build reweights only YOUR
+// picks (advice and your rows in the mock); the other teams still draft by market.
+// Age factors run per position: RBs fade first, QBs last.
+const SD_BUILDS = {
+  juggernaut: { name: "Dynasty Juggernaut", about: "Strong for years: young core, extra rookie picks, nothing that ages out in the next two seasons.", kp: 1.1,
+    age: { QB: [[27, 1], [28, 0.9], [29, 0.8], [30, 0.6], [99, 0.35]], RB: [[24, 1.05], [25, 1], [26, 0.85], [27, 0.65], [99, 0.35]],
+      WR: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.72], [29, 0.55], [99, 0.35]], TE: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.72], [29, 0.55], [99, 0.35]] } },
+  young: { name: "Young Contender", about: "Good now with a young core: mild age penalty, no tilt toward rookie picks.", kp: 1,
+    age: { QB: [[28, 1], [29, 0.92], [30, 0.82], [99, 0.7]], RB: [[25, 1], [26, 0.92], [27, 0.85], [99, 0.7]],
+      WR: [[26, 1], [27, 0.93], [28, 0.85], [99, 0.75]], TE: [[26, 1], [27, 0.93], [28, 0.85], [99, 0.75]] } },
+  win_now: { name: "Win Now", about: "Points this season come first: weighted by rest-of-season points, rookie picks discounted.", kp: 0.6, age: null },
+  rebuild: { name: "Rebuild", about: "Youth and picks only: steep age penalty, rookie picks favored.", kp: 1.25,
+    age: { QB: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.7], [99, 0.45]], RB: [[23, 1.1], [24, 1], [25, 0.85], [26, 0.7], [99, 0.4]],
+      WR: [[24, 1.08], [25, 1], [26, 0.88], [27, 0.75], [99, 0.45]], TE: [[24, 1.08], [25, 1], [26, 0.88], [27, 0.75], [99, 0.45]] } },
+};
+const sdBuildKey = () => (sd.league && localStorageGet(`startup.build.${sd.league}`)) || "auto";
+// Auto reads your own picks: an early kicker pick (a rookie pick) or a young haul is
+// a juggernaut; a veteran haul is win-now; anything else a young contender.
+function sdAutoBuild(mySlot) {
+  if (!mySlot) return "young";
+  const mine = sd.picks.filter((p) => sdIsMine(p.pick_no, mySlot));
+  const n = state.data.startup.teams;
+  if (mine.some((p) => p.pos === "K" && p.pick_no <= 4 * n)) return "juggernaut";
+  const ages = mine.filter((p) => p.pos !== "K").map((p) => playerOf(String(p.player_id)).age).filter(Boolean);
+  if (!ages.length) return "young";
+  const avg = ages.reduce((a, b) => a + b, 0) / ages.length;
+  return avg <= 24.5 ? "juggernaut" : avg >= 28 ? "win_now" : "young";
+}
+function sdBuild(mySlot) {
+  const k = sdBuildKey();
+  return SD_BUILDS[k] ? k : sdAutoBuild(mySlot);
+}
+const sdRosMid = (pool) => { const r = pool.slice(0, 120).map((p) => p.ros || 0).filter((x) => x > 0).sort((a, b) => a - b); return r.length ? r[r.length >> 1] : 12; };
+function sdBuildFactor(p, key, rosMid) {
+  const b = SD_BUILDS[key];
+  if (!b) return 1;
+  if (p.pos === "KP") return b.kp;
+  let f = 1;
+  if (b.age && b.age[p.pos] && p.age) f *= b.age[p.pos].find(([max]) => p.age <= max)[1];
+  // Juggernaut and rebuild lean on value the market protects: a young player the sites
+  // price above this league's number holds his trade value through a slow start or an injury.
+  if ((key === "juggernaut" || key === "rebuild") && p.age && p.age <= 25 && p.sites > p.value) f *= Math.min(1.25, 1 + 0.35 * (p.sites - p.value) / p.value);
+  if (key === "win_now") f *= Math.max(0.4, Math.min(1.6, 0.4 + 0.6 * (p.ros || 0) / rosMid));
+  return f;
+}
+
 // Your pick: the best value for your roster among players who won't make it back to
 // you, judged by playing the draft out to your next turn.
 function sdAdvice(pool, kp, have, overall, mySlot, lookahead) {
   const S = state.data.startup;
-  const cands = [...pool.slice(0, 40), ...(kp ? [kp] : [])].map((p) => ({ ...p, score: p.value * sdNeedFactor(p.pos, have, S.slots) }))
+  const build = sdBuild(mySlot), ros = sdRosMid(pool);
+  const cands = [...pool.slice(0, 60), ...(kp ? [kp] : [])].map((p) => ({ ...p, score: p.value * sdNeedFactor(p.pos, have, S.slots) * sdBuildFactor(p, build, ros) }))
     .sort((a, b) => b.score - a.score);
   if (!lookahead) return { best: cands[0], cands };
   const gone = lookahead; // ids the mock takes before your next pick
@@ -2164,11 +2213,12 @@ function renderStartup() {
     const onYou = m.overall === onClock && sd.status === "drafting";
     const lasts = (c) => !(c.id === "KP" ? goneBy.kicker : goneBy.ids.has(c.id));
     const line = (c) => `<li><b>${esc(c.name)}</b> <span class="pos pos-${c.pos === "KP" ? "K" : c.pos}">${c.pos === "KP" ? "K" : c.pos}</span> ${fmt(c.value)}${c.note ? ` <span class="muted">${esc(c.note)}</span>` : ""}${lasts(c) ? ' <span class="muted">· likely still there at your next pick</span>' : ""}</li>`;
+    const bName = SD_BUILDS[sdBuild(mySlot)].name;
     const why = adv.best.id !== adv.cands[0].id ? ` ${esc(adv.cands[0].name)} rates a hair higher for your roster but should still be there at your next pick; ${esc(adv.best.name)} won't.` : "";
     advice = `<div class="card ${onYou ? "me" : ""}"><h3>${onYou ? "You're on the clock" : `Your next pick: ${sdLabel(m.overall, n)} (${m.overall - onClock} pick${m.overall - onClock === 1 ? "" : "s"} away)`}</h3>
       <p><b>Take ${esc(adv.best.name)}</b> (${adv.best.pos === "KP" ? "kicker pick" : adv.best.pos}, worth ${fmt(adv.best.value)})${adv.best.note ? `, ${esc(adv.best.note)}` : ""}.${why}
       ${beforeNext.length ? ` <span class="muted">Assumes the ${beforeNext.length} picks ahead of you go by market value: ${beforeNext.slice(0, 6).map((x) => esc(x.id === "KP" ? "a kicker" : x.name)).join(", ")}${beforeNext.length > 6 ? "…" : ""}.</span>` : ""}</p>
-      <p class="muted">Other good options:</p><ol>${adv.cands.filter((c) => c.id !== adv.best.id).slice(0, 5).map(line).join("")}</ol></div>`;
+      <p class="muted">Ranked for your build (${esc(bName)}): value times roster need times age and window fit. Other good options:</p><ol>${adv.cands.filter((c) => c.id !== adv.best.id).slice(0, 5).map(line).join("")}</ol></div>`;
   } else if (!mySlot) {
     advice = `<p class="muted">Sleeper hasn't set the draft order yet. Pick your slot to see the guide for it; it switches to the real slot once the order is set.</p>`;
   }
@@ -2205,6 +2255,9 @@ function renderStartup() {
     <div class="lab-head"><div><p class="kicker">${esc(statusTxt)}${sd.at ? ` · live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}</p><h2>Startup draft guide</h2></div>
       <label>Your slot <select id="sd-slot">${Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${mySlot === i + 1 ? "selected" : ""}>${i + 1}</option>`).join("")}</select></label></div>
     <p class="muted">${n} teams, ${S.rounds} rounds, ${S.type}${S.reversal_round ? ` with a round-${S.reversal_round} reversal` : ""}. Values are this league's own, in its scoring and lineup. ${myPicks.length ? `Your picks: ${myPicks.slice(0, 10).map((o) => sdLabel(o, n)).join(", ")}…` : ""}</p>
+    ${mySlot ? (() => { const cur = sdBuildKey(), auto = sdAutoBuild(mySlot), on = sdBuild(mySlot);
+      return `<div class="chips" id="sd-build"><span class="muted">Your build:</span> ${[["auto", `Auto (${SD_BUILDS[auto].name})`], ...Object.entries(SD_BUILDS).map(([k, b]) => [k, b.name])].map(([k, t]) => `<button class="chip ${cur === k || (k === "auto" && !SD_BUILDS[cur]) ? "active" : ""}" data-build="${k}">${esc(t)}</button>`).join("")}</div>
+      <p class="muted">${esc(SD_BUILDS[on].about)} Your advice and your picks in the mock follow it; other teams still draft by market value.</p>`; })() : ""}
     <div class="chips" id="sd-mode">${[["guide", "Guide"], ["board", "Draft board"], ["lineups", "Lineups"], ["log", "Trades made"], ["trades", "Trade ideas"]].map(([k, t]) => `<button class="chip ${sdTrade.mode === k ? "active" : ""}" data-mode="${k}">${t}</button>`).join("")}</div>
     ${sdTrade.mode === "lineups" ? renderStartupLineups(mySlot) : sdTrade.mode === "log" ? renderStartupTrades(mySlot) : sdTrade.mode === "board" ? renderDraftBoard(mySlot) : sdTrade.mode === "trades" ? renderPickTrades(mySlot) : `${advice}
     ${guide}
@@ -2221,6 +2274,7 @@ function renderStartup() {
       ${sd.picks.slice().reverse().slice(0, 36).map((p) => `<tr class="${p.slot === mySlot ? "me" : ""}"><td>${sdLabel(p.pick_no, n)}</td><td>${p.roster_id ? teamHtml(p.roster_id) : "slot " + p.slot}</td><td>${p.pos === "K" && K ? `Kicker = ${K.year} pick ${sdLabel(sd.picks.filter((x) => x.pos === "K" && x.pick_no <= p.pick_no).length, n)}` : esc(p.name)} <span class="muted">${esc(p.pos || "")}</span></td></tr>`).join("")}
       </tbody></table></div>` : ""}`}`;
   el.querySelectorAll("#sd-mode button").forEach((b) => (b.onclick = () => { sdTrade.mode = b.dataset.mode; renderStartup(); }));
+  el.querySelectorAll("#sd-build [data-build]").forEach((b) => (b.onclick = () => { localStorageSet(`startup.build.${sd.league}`, b.dataset.build); renderStartup(); }));
   el.querySelectorAll("#sd-board-src [data-src]").forEach((b) => (b.onclick = () => { sdTrade.boardSrc = b.dataset.src; localStorageSet("sd.board.src", b.dataset.src); renderStartup(); }));
   const lt = $("#sd-lineup-team");
   if (lt) lt.onchange = (e) => { sdTrade.lineupTeam = e.target.value; renderStartup(); };
