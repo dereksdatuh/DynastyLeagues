@@ -1,0 +1,41 @@
+name: Mirage plan data (scratch)
+on:
+  push:
+    branches: ["claude/mirage-plan-data"]
+permissions:
+  contents: write
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Raw Sleeper pulls
+        run: |
+          mkdir -p scratch
+          B=https://api.sleeper.app/v1
+          curl -sS $B/draft/1420817566355443712 -o scratch/draft.json
+          curl -sS $B/draft/1420817566355443712/picks -o scratch/picks.json
+          curl -sS $B/draft/1420817566355443712/traded_picks -o scratch/traded_picks.json
+          curl -sS $B/league/1420817565600509952 -o scratch/league.json
+          curl -sS $B/league/1420817565600509952/users -o scratch/users.json
+          curl -sS $B/league/1420817565600509952/rosters -o scratch/rosters.json
+          for w in 9 10 11; do curl -sS $B/league/1420817565600509952/transactions/$w -o scratch/tx$w.json; done
+          curl -sS $B/players/nfl -o /tmp/players.json
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/players.json'))
+          keep={k:{f:v.get(f) for f in ('full_name','position','team','age','years_exp','injury_status','birth_date','depth_chart_order','status')} for k,v in p.items() if v.get('position') in ('QB','RB','WR','TE','K')}
+          json.dump(keep,open('scratch/players_slim.json','w'))
+          PY
+      - name: Build site data
+        run: python -m engine.build --out site/data > scratch/build.out 2>&1 || true
+      - name: Commit
+        run: |
+          cp site/data/*.json scratch/ || true
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add -f scratch/ && git commit -qm "scratch data [skip ci]" && git push -q origin HEAD:claude/mirage-plan-data
