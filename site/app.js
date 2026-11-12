@@ -2028,7 +2028,7 @@ function sdRoomValue(p, src) {
 function sdPool(taken, src) {
   const offense = new Set(["QB", "RB", "WR", "TE"]);
   return state.data.players.filter((p) => offense.has(p.pos) && p.value > 0 && !taken.has(p.id))
-    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: sdRoomValue(p, src), injury: p.injury, sites: p.sites_avg, ros: p.ros_ppg }))
+    .map((p) => ({ id: p.id, name: p.name, pos: p.pos, team: p.team, age: p.age, value: p.value, market: sdRoomValue(p, src), injury: p.injury, sites: p.sites_avg, ros: p.ros_ppg, arch: p.situation && p.situation.archetype }))
     .sort((a, b) => b.value - a.value);
 }
 function sdKickerEntry(kTaken) {
@@ -2119,60 +2119,116 @@ function sdSimulate(mySlot, src) {
   return { out, mine };
 }
 
-// ---------- your build steers your picks ----------
-// The guide used to pick on value times roster need alone, so a 30-year-old on IR
-// could top the advice for a team drafting for 2027. Your build reweights only YOUR
-// picks (advice and your rows in the mock); the other teams still draft by market.
-// Age factors run per position: RBs fade first, QBs last.
-const SD_BUILDS = {
-  juggernaut: { name: "Dynasty Juggernaut", about: "Strong for years: young core, extra rookie picks, nothing that ages out in the next two seasons.", kp: 1.1,
-    age: { QB: [[27, 1], [28, 0.9], [29, 0.8], [30, 0.6], [99, 0.35]], RB: [[24, 1.05], [25, 1], [26, 0.85], [27, 0.65], [99, 0.35]],
-      WR: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.72], [29, 0.55], [99, 0.35]], TE: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.72], [29, 0.55], [99, 0.35]] } },
-  young: { name: "Young Contender", about: "Good now with a young core: mild age penalty, no tilt toward rookie picks.", kp: 1,
-    age: { QB: [[28, 1], [29, 0.92], [30, 0.82], [99, 0.7]], RB: [[25, 1], [26, 0.92], [27, 0.85], [99, 0.7]],
-      WR: [[26, 1], [27, 0.93], [28, 0.85], [99, 0.75]], TE: [[26, 1], [27, 0.93], [28, 0.85], [99, 0.75]] } },
-  win_now: { name: "Win Now", about: "Points this season come first: weighted by rest-of-season points, rookie picks discounted.", kp: 0.6, age: null },
-  rebuild: { name: "Rebuild", about: "Youth and picks only: steep age penalty, rookie picks favored.", kp: 1.25,
-    age: { QB: [[25, 1.05], [26, 1], [27, 0.85], [28, 0.7], [99, 0.45]], RB: [[23, 1.1], [24, 1], [25, 0.85], [26, 0.7], [99, 0.4]],
-      WR: [[24, 1.08], [25, 1], [26, 0.88], [27, 0.75], [99, 0.45]], TE: [[24, 1.08], [25, 1], [26, 0.88], [27, 0.75], [99, 0.45]] } },
-};
-const sdBuildKey = () => (sd.league && localStorageGet(`startup.build.${sd.league}`)) || "auto";
-// Auto reads your own picks: an early kicker pick (a rookie pick) or a young haul is
-// a juggernaut; a veteran haul is win-now; anything else a young contender.
-function sdAutoBuild(mySlot) {
-  if (!mySlot) return "young";
-  const mine = sd.picks.filter((p) => sdIsMine(p.pick_no, mySlot));
-  const n = state.data.startup.teams;
-  if (mine.some((p) => p.pos === "K" && p.pick_no <= 4 * n)) return "juggernaut";
-  const ages = mine.filter((p) => p.pos !== "K").map((p) => playerOf(String(p.player_id)).age).filter(Boolean);
-  if (!ages.length) return "young";
-  const avg = ages.reduce((a, b) => a + b, 0) / ages.length;
-  return avg <= 24.5 ? "juggernaut" : avg >= 28 ? "win_now" : "young";
+// ---------- the live startup brain ----------
+// Every render (the tab refreshes from Sleeper every 30 seconds while the draft runs)
+// re-reads every roster from the picks made so far: who holds which players and
+// rookie (kicker) picks, how good each lineup is now, how young its value is, where
+// its QBs stand, and what picks it has left. Your own read is not a preset: it is
+// measured from your picks, and it sets how your advice weighs age, rookie picks
+// and this season's points.
+const SD_OFFENSE = ["QB", "RB", "WR", "TE"];
+const SD_PEAK = { QB: 30, RB: 26, WR: 27, TE: 27 }; // last age (next season) at full value
+// Rushing QBs lean on their legs, so they age like the position below them.
+const sdPeak = (p) => (p.pos === "QB" && (p.arch || (p.situation && p.situation.archetype)) === "QB_rush" ? 28 : SD_PEAK[p.pos]);
+const sdOver = (p) => (p.age ? Math.max(0, p.age + 1 - sdPeak(p)) : 0); // years past peak by next season
+const SD_DECAY = { QB: 0.09, RB: 0.16, WR: 0.11, TE: 0.11 }; // value lost per year past it
+const SD_STARTABLE_QB = 16; // rest-of-season points a week that make a QB a real starter
+// A QB a team can start: real points now, or real value that lasts past next season.
+const sdStartableQB = (p) => (p.ros_ppg ?? p.ros ?? 0) >= SD_STARTABLE_QB && p.value >= 1500 || p.value * sdFutureMult(p) >= 2500;
+
+// A lineup's rest-of-season points a week: best players into the league's slots.
+function sdLineupPts(players, slots) {
+  const pool = players.filter((p) => SD_OFFENSE.includes(p.pos)).map((p) => ({ pos: p.pos, pts: p.ros_ppg || 0 })).sort((a, b) => b.pts - a.pts);
+  let tot = 0;
+  const take = (ok, k) => { for (let i = 0; i < k; i++) { const j = pool.findIndex((p) => ok(p.pos)); if (j < 0) return; tot += pool[j].pts; pool.splice(j, 1); } };
+  take((x) => x === "QB", slots.qb || 0); take((x) => x === "RB", slots.rb || 0); take((x) => x === "WR", slots.wr || 0); take((x) => x === "TE", slots.te || 0);
+  take((x) => x === "RB" || x === "WR" || x === "TE", slots.flex || 0); take((x) => SD_OFFENSE.includes(x), slots.super_flex || 0);
+  return tot;
 }
-function sdBuild(mySlot) {
-  const k = sdBuildKey();
-  return SD_BUILDS[k] ? k : sdAutoBuild(mySlot);
+// What a player is worth to a team whose window opens next year: full value through
+// his position's peak age, less each year past it.
+const sdFutureMult = (p) => Math.max(0.25, 1 - SD_DECAY[p.pos] * sdOver(p));
+
+function sdTeamReads() {
+  const S = state.data.startup, slots = S.slots, total = S.teams * S.rounds, done = sd.picks.length;
+  const kps = [...state.assetMap.values()].filter((a) => a.id && String(a.id).startsWith("kp:"));
+  const reads = state.data.teams.map((t) => {
+    const players = state.data.players.filter((p) => p.roster_id === t.roster_id && SD_OFFENSE.includes(p.pos));
+    const mine = kps.filter((k) => k.roster_id === t.roster_id);
+    const pv = players.reduce((a, p) => a + p.value, 0), kv = mine.reduce((a, k) => a + k.value, 0);
+    const fut = players.reduce((a, p) => a + p.value * sdFutureMult(p), 0) + kv;
+    const core = players.slice().sort((a, b) => b.value - a.value).slice(0, 8), cw = core.reduce((a, p) => a + p.value, 0);
+    const age = cw ? core.reduce((a, p) => a + (p.age || 26) * p.value, 0) / cw : null;
+    const qbs = players.filter((p) => p.pos === "QB").sort((a, b) => b.value - a.value);
+    const startQB = qbs.filter(sdStartableQB).length;
+    const left = []; for (let o = done + 1; o <= total; o++) if (sdOwnerRid(o) === t.roster_id) left.push(o);
+    const cnt = (pos) => players.filter((p) => p.pos === pos).length;
+    const needs = [];
+    const qbNeed = (slots.qb || 0) + (slots.super_flex || 0);
+    if (qbs.length < qbNeed) needs.push(`${qbNeed - qbs.length} QB`);
+    if (cnt("RB") < (slots.rb || 0)) needs.push("RB");
+    if (cnt("WR") < (slots.wr || 0)) needs.push("WR");
+    if (cnt("TE") < (slots.te || 0)) needs.push("TE");
+    return { rid: t.roster_id, name: t.name, me: t.is_me || (myTeam() && myTeam().roster_id === t.roster_id), players, kps: mine, pv, kv, fut, total: pv + kv,
+      age, qbs, startQB, left, needs, now: sdLineupPts(players, slots), futShare: (pv + kv) ? fut / (pv + kv) : 1, kShare: (pv + kv) ? kv / (pv + kv) : 0 };
+  });
+  const rank = (key) => { const o = reads.slice().sort((a, b) => b[key] - a[key]); o.forEach((r, i) => (r[key + "Rank"] = i + 1)); };
+  rank("now"); rank("fut"); rank("total");
+  const n = reads.length;
+  for (const r of reads) {
+    // Direction from the numbers: how future-weighted the value is, against how
+    // strong the lineup is right now.
+    const lean = (r.futShare - 0.8) * 2.5 + r.kShare * 1.5 + ((r.age ? 26 - r.age : 0) * 0.15); // > 0 leans future
+    const strongNow = r.nowRank <= Math.ceil(n / 3), weakNow = r.nowRank > Math.ceil((2 * n) / 3);
+    r.lean = lean;
+    r.dir = !r.players.length && !r.kps.length ? "Not started"
+      : lean > 0.35 && !strongNow ? "Building for 2027+"
+      : lean > 0.35 ? "Young and good now"
+      : lean < -0.1 && strongNow ? "Win now (2026-27)"
+      : lean < -0.1 ? "Aging, not winning yet"
+      : strongNow ? "Contending" : weakNow ? "Behind on starters" : "Balanced";
+  }
+  return reads;
 }
-const sdRosMid = (pool) => { const r = pool.slice(0, 120).map((p) => p.ros || 0).filter((x) => x > 0).sort((a, b) => a - b); return r.length ? r[r.length >> 1] : 12; };
-function sdBuildFactor(p, key, rosMid) {
-  const b = SD_BUILDS[key];
-  if (!b) return 1;
-  if (p.pos === "KP") return b.kp;
+
+// Your profile: how far your value leans to the future, measured from your picks.
+// 0 = all about this season, 1 = all about 2027 and later. Kicker (rookie) picks and
+// young players push it up; veterans pull it down. With no picks yet it sits at 0.5.
+function sdProfile(reads) {
+  const r = reads.find((x) => x.me);
+  if (!r || (!r.players.length && !r.kps.length)) return { lean: 0.5, r, empty: true };
+  const lean = Math.max(0.05, Math.min(0.95, 0.5 + r.lean * 0.3));
+  return { lean, r };
+}
+function sdProfileName(lean, kShare = 0) {
+  return kShare >= 0.45 ? "Rookie-pick heavy rebuild" : lean >= 0.8 ? "Young core built for 2027 and beyond" : lean >= 0.6 ? "Young core that can compete now" : lean >= 0.42 ? "Balanced now and later" : lean >= 0.25 ? "Contend now, keep some youth" : "All-in on this season";
+}
+// How your profile reweights a candidate for your pick: age past the position's peak
+// costs more the further you lean to the future, rookie picks gain, and this season's
+// points matter more the further you lean to now. Young players the market prices
+// above this league's number get a lift when you lean future (their value holds).
+function sdProfileFactor(p, prof, rosMid) {
+  const L = prof.lean;
+  if (p.pos === "KP") return 0.6 + 0.7 * L;
   let f = 1;
-  if (b.age && b.age[p.pos] && p.age) f *= b.age[p.pos].find(([max]) => p.age <= max)[1];
-  // Juggernaut and rebuild lean on value the market protects: a young player the sites
-  // price above this league's number holds his trade value through a slow start or an injury.
-  if ((key === "juggernaut" || key === "rebuild") && p.age && p.age <= 25 && p.sites > p.value) f *= Math.min(1.25, 1 + 0.35 * (p.sites - p.value) / p.value);
-  if (key === "win_now") f *= Math.max(0.4, Math.min(1.6, 0.4 + 0.6 * (p.ros || 0) / rosMid));
+  const over = sdOver(p);
+  if (over) f *= Math.max(0.3, 1 - over * SD_DECAY[p.pos] * (0.4 + 1.6 * L));
+  // A veteran on IR now gives a future-leaning team neither points nor a safe price.
+  if (L > 0.5 && p.age >= 27 && /IR|Out|PUP/.test(p.injury || "")) f *= 1 - 0.3 * (L - 0.5);
+  if (L > 0.5 && p.age && p.age <= 25 && p.sites > p.value) f *= Math.min(1.25, 1 + (L - 0.5) * 0.9 * (p.sites - p.value) / p.value);
+  if (L < 0.5) f *= Math.max(0.5, Math.min(1.5, 1 + (0.5 - L) * 1.6 * ((p.ros || 0) / rosMid - 1)));
   return f;
 }
+const sdRosMid = (pool) => { const r = pool.slice(0, 120).map((p) => p.ros || 0).filter((x) => x > 0).sort((a, b) => a - b); return r.length ? r[r.length >> 1] : 12; };
+let sdReadsCache = null;
+function sdReads() { const key = `${sd.league}:${sd.picks.length}:${(sd.trades || []).length}:${sd.traded.length}`; if (!sdReadsCache || sdReadsCache.at !== key) sdReadsCache = { at: key, reads: sdTeamReads() }; return sdReadsCache.reads; }
 
 // Your pick: the best value for your roster among players who won't make it back to
 // you, judged by playing the draft out to your next turn.
 function sdAdvice(pool, kp, have, overall, mySlot, lookahead) {
   const S = state.data.startup;
-  const build = sdBuild(mySlot), ros = sdRosMid(pool);
-  const cands = [...pool.slice(0, 60), ...(kp ? [kp] : [])].map((p) => ({ ...p, score: p.value * sdNeedFactor(p.pos, have, S.slots) * sdBuildFactor(p, build, ros) }))
+  const prof = sdProfile(sdReads()), ros = sdRosMid(pool);
+  const cands = [...pool.slice(0, 60), ...(kp ? [kp] : [])].map((p) => ({ ...p, score: p.value * sdNeedFactor(p.pos, have, S.slots) * sdProfileFactor(p, prof, ros) * (p.pos === "KP" ? Math.max(0.55, 1 - 0.15 * Math.max(0, (have.KP || 0) - 1)) : 1) }))
     .sort((a, b) => b.score - a.score);
   if (!lookahead) return { best: cands[0], cands };
   const gone = lookahead; // ids the mock takes before your next pick
@@ -2213,7 +2269,7 @@ function renderStartup() {
     const onYou = m.overall === onClock && sd.status === "drafting";
     const lasts = (c) => !(c.id === "KP" ? goneBy.kicker : goneBy.ids.has(c.id));
     const line = (c) => `<li><b>${esc(c.name)}</b> <span class="pos pos-${c.pos === "KP" ? "K" : c.pos}">${c.pos === "KP" ? "K" : c.pos}</span> ${fmt(c.value)}${c.note ? ` <span class="muted">${esc(c.note)}</span>` : ""}${lasts(c) ? ' <span class="muted">· likely still there at your next pick</span>' : ""}</li>`;
-    const bName = SD_BUILDS[sdBuild(mySlot)].name;
+    const bName = sdProfileName(sdProfile(sdReads()).lean, sdProfile(sdReads()).r?.kShare);
     const why = adv.best.id !== adv.cands[0].id ? ` ${esc(adv.cands[0].name)} rates a hair higher for your roster but should still be there at your next pick; ${esc(adv.best.name)} won't.` : "";
     advice = `<div class="card ${onYou ? "me" : ""}"><h3>${onYou ? "You're on the clock" : `Your next pick: ${sdLabel(m.overall, n)} (${m.overall - onClock} pick${m.overall - onClock === 1 ? "" : "s"} away)`}</h3>
       <p><b>Take ${esc(adv.best.name)}</b> (${adv.best.pos === "KP" ? "kicker pick" : adv.best.pos}, worth ${fmt(adv.best.value)})${adv.best.note ? `, ${esc(adv.best.note)}` : ""}.${why}
@@ -2255,14 +2311,12 @@ function renderStartup() {
     <div class="lab-head"><div><p class="kicker">${esc(statusTxt)}${sd.at ? ` · live from Sleeper ${sd.at.toLocaleTimeString()}` : ""}</p><h2>Startup draft guide</h2></div>
       <label>Your slot <select id="sd-slot">${Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${mySlot === i + 1 ? "selected" : ""}>${i + 1}</option>`).join("")}</select></label></div>
     <p class="muted">${n} teams, ${S.rounds} rounds, ${S.type}${S.reversal_round ? ` with a round-${S.reversal_round} reversal` : ""}. Values are this league's own, in its scoring and lineup. ${myPicks.length ? `Your picks: ${myPicks.slice(0, 10).map((o) => sdLabel(o, n)).join(", ")}…` : ""}</p>
-    ${mySlot ? (() => { const cur = sdBuildKey(), auto = sdAutoBuild(mySlot), on = sdBuild(mySlot);
-      return `<div class="chips" id="sd-build"><span class="muted">Your build:</span> ${[["auto", `Auto (${SD_BUILDS[auto].name})`], ...Object.entries(SD_BUILDS).map(([k, b]) => [k, b.name])].map(([k, t]) => `<button class="chip ${cur === k || (k === "auto" && !SD_BUILDS[cur]) ? "active" : ""}" data-build="${k}">${esc(t)}</button>`).join("")}</div>
-      <p class="muted">${esc(SD_BUILDS[on].about)} Your advice and your picks in the mock follow it; other teams still draft by market value.</p>`; })() : ""}
-    <div class="chips" id="sd-mode">${[["guide", "Guide"], ["board", "Draft board"], ["lineups", "Lineups"], ["log", "Trades made"], ["trades", "Trade ideas"]].map(([k, t]) => `<button class="chip ${sdTrade.mode === k ? "active" : ""}" data-mode="${k}">${t}</button>`).join("")}</div>
-    ${sdTrade.mode === "lineups" ? renderStartupLineups(mySlot) : sdTrade.mode === "log" ? renderStartupTrades(mySlot) : sdTrade.mode === "board" ? renderDraftBoard(mySlot) : sdTrade.mode === "trades" ? renderPickTrades(mySlot) : `${advice}
+    ${mySlot ? (() => { const pr = sdProfile(sdReads()); return `<p class="muted">Your build, read live from your picks: <b>${esc(sdProfileName(pr.lean, pr.r?.kShare))}</b> (${Math.round(pr.lean * 100)}% weighted to 2027 and later). Your advice and your picks in the mock follow it; see Live plan for why.</p>`; })() : ""}
+    <div class="chips" id="sd-mode">${[["plan", "Live plan"], ["guide", "Guide"], ["board", "Draft board"], ["lineups", "Lineups"], ["log", "Trades made"], ["trades", "Trade ideas"]].map(([k, t]) => `<button class="chip ${sdTrade.mode === k ? "active" : ""}" data-mode="${k}">${t}</button>`).join("")}</div>
+    ${sdTrade.mode === "plan" ? renderStartupPlan(mySlot, sim, pool) : sdTrade.mode === "lineups" ? renderStartupLineups(mySlot) : sdTrade.mode === "log" ? renderStartupTrades(mySlot) : sdTrade.mode === "board" ? renderDraftBoard(mySlot) : sdTrade.mode === "trades" ? renderPickTrades(mySlot) : `${advice}
     ${guide}
     ${kTable}`}
-    ${["board", "log", "lineups"].includes(sdTrade.mode) ? "" : `<h3>Best available</h3>
+    ${["board", "log", "lineups", "plan"].includes(sdTrade.mode) ? "" : `<h3>Best available</h3>
     <div class="table-wrap"><table id="sd-best"><thead><tr><th>#</th><th>Player</th><th>Pos</th><th class="num">Age</th><th class="num">Value here</th><th class="num">Market</th><th>Tier</th></tr></thead><tbody>
     ${best.map((p, i) => { const pl = playerOf(p.id); return `<tr><td>${i + 1}</td><td class="name"><span class="player-link" data-pid="${esc(p.id)}">${esc(p.name)}</span>${p.injury ? ` <span class="inj">${esc(p.injury)}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}${pl.pos_rank || ""}</span></td><td class="num">${p.age ?? ""}</td><td class="num"><b>${fmt(p.value)}</b></td><td class="num muted">${fmt(p.market)}</td><td>${pl.pos_tier ?? ""}</td></tr>`; }).join("")}
     </tbody></table></div>
@@ -2274,7 +2328,6 @@ function renderStartup() {
       ${sd.picks.slice().reverse().slice(0, 36).map((p) => `<tr class="${p.slot === mySlot ? "me" : ""}"><td>${sdLabel(p.pick_no, n)}</td><td>${p.roster_id ? teamHtml(p.roster_id) : "slot " + p.slot}</td><td>${p.pos === "K" && K ? `Kicker = ${K.year} pick ${sdLabel(sd.picks.filter((x) => x.pos === "K" && x.pick_no <= p.pick_no).length, n)}` : esc(p.name)} <span class="muted">${esc(p.pos || "")}</span></td></tr>`).join("")}
       </tbody></table></div>` : ""}`}`;
   el.querySelectorAll("#sd-mode button").forEach((b) => (b.onclick = () => { sdTrade.mode = b.dataset.mode; renderStartup(); }));
-  el.querySelectorAll("#sd-build [data-build]").forEach((b) => (b.onclick = () => { localStorageSet(`startup.build.${sd.league}`, b.dataset.build); renderStartup(); }));
   el.querySelectorAll("#sd-board-src [data-src]").forEach((b) => (b.onclick = () => { sdTrade.boardSrc = b.dataset.src; localStorageSet("sd.board.src", b.dataset.src); renderStartup(); }));
   const lt = $("#sd-lineup-team");
   if (lt) lt.onchange = (e) => { sdTrade.lineupTeam = e.target.value; renderStartup(); };
@@ -2291,7 +2344,7 @@ function renderStartup() {
 // with the calculator's value adjustment for 2-for-1s) while you gain on "here".
 const SD_FAIR = 0.03;   // partner may lose up to 3% at market
 const SD_TRADE_ROUNDS = 14;
-const sdTrade = { mode: "guide", boardSrc: localStorageGet("sd.board.src") || "market" };
+const sdTrade = { mode: "plan", boardSrc: localStorageGet("sd.board.src") || "market" };
 const SD_BOARD_SRC = [["market", "Market mix"], ["engine", "League value"], ["fantasycalc", "FantasyCalc"], ["ktc", "KTC"]];
 function sdCurves() {
   const S = state.data.startup, n = S.teams, total = n * S.rounds;
@@ -2457,6 +2510,109 @@ function sdLineup(items) {
   return { lineup, bench: pool.filter((p) => !used.has(p.id)), picks: items.filter((p) => p.kp), ppg: lineup.reduce((t, x) => t + (x.p ? pts(x.p) : 0), 0),
     value: items.filter((p) => !p.kp).reduce((t, p) => t + (p.value || 0), 0) };
 }
+// Live plan: the whole startup read in one place, rebuilt from the board on every
+// refresh. Your build (measured, not chosen), what's happening in the draft, your
+// next picks from the played-out mock, trade plays, and every team's read.
+function renderStartupPlan(mySlot, sim, pool) {
+  const S = state.data.startup, n = S.teams, K = S.kicker_picks;
+  const reads = sdReads(), prof = sdProfile(reads), me = prof.r;
+  const others = reads.filter((r) => !r.me);
+  const ord = (k) => `${k}${k % 10 === 1 && k !== 11 ? "st" : k % 10 === 2 && k !== 12 ? "nd" : k % 10 === 3 && k !== 13 ? "rd" : "th"}`;
+  const nm = (r) => esc(r.name);
+  const lab = (o) => `${sdLabel(o, n)} (#${o})`;
+  const done = sd.picks.length;
+  const myNext = me && me.left.length ? me.left[0] : null;
+  const out = [];
+
+  // 1. Your build, measured.
+  if (me && !prof.empty) {
+    const L = prof.lean, name = sdProfileName(L, me.kShare);
+    const cut = (pos) => { // first age where a player at this position counts 20%+ less for you
+      for (let a = 21; a <= 38; a++) { const f = sdProfileFactor({ pos, age: a, value: 1, sites: 0 }, prof, 12); if (f < 0.8) return a; }
+      return null; };
+    const kpW = sdProfileFactor({ pos: "KP" }, prof, 12);
+    out.push(`<div class="card me"><h3>Your build: ${esc(name)}</h3>
+      <p>${Math.round(L * 100)}% of the weight is on 2027 and later. Read from your ${me.players.length} players and ${me.kps.length} rookie pick${me.kps.length === 1 ? "" : "s"}, and it moves with every pick you make.</p>
+      <ul><li>Core age ${me.age ? me.age.toFixed(1) : "?"}, ${ord(reads.slice().sort((a, b) => (a.age || 99) - (b.age || 99)).findIndex((x) => x.me) + 1)} youngest of ${reads.length}.</li>
+      <li>${Math.round(me.kShare * 100)}% of your value is in ${K ? K.year : "next year's"} rookie picks; ${Math.round(me.futShare * 100)}% of it holds up through next season.</li>
+      <li>Lineup this season: ${me.now.toFixed(1)} points a week, ${ord(me.nowRank)}. Value two years out: ${ord(me.futRank)}.</li>
+      <li>QBs: ${me.qbs.length ? me.qbs.map((q) => esc(q.name) + (q.injury ? ` (${esc(q.injury)})` : "")).join(", ") : "none yet"}. ${me.qbs.length < 2 ? "You still need a second starter for superflex." : me.qbs.length < 3 ? "One more young QB gives you a bye fill and a trade chip." : ""}</li></ul>
+      <p class="muted">So your advice: ${["QB", "RB", "WR", "TE"].map((p) => { const c = cut(p); return c ? `${p}s count 20%+ less from age ${c}` : null; }).filter(Boolean).join(", ")}; rookie picks count ×${kpW.toFixed(2)}${L > 0.55 ? "; young players the sites price above this league's number get a lift, since their value holds" : ""}${L < 0.45 ? "; this season's points count extra" : ""}.</p></div>`);
+  } else {
+    out.push(`<div class="card"><h3>Your build</h3><p class="muted">No picks of yours yet. The read starts with your first pick and updates with each one.</p></div>`);
+  }
+
+  // 2. What's happening in the draft.
+  const recent = sd.picks.slice(-12), qbRun = recent.filter((p) => p.pos === "QB").length;
+  const kTaken = sd.picks.filter((p) => p.pos === "K").length;
+  const kBy = {}; sd.picks.filter((p) => p.pos === "K").forEach((p) => { const r = reads.find((x) => x.rid === (sd.owner && sd.owner.get(String(p.player_id)))); if (r) kBy[r.name] = (kBy[r.name] || 0) + 1; });
+  const qbLeft = pool.filter((p) => p.pos === "QB" && sdStartableQB(p));
+  const qbShort = others.map((r) => ({ r, short: Math.max(0, 2 - r.startQB) })).filter((x) => x.short > 0);
+  const qbDemand = qbShort.reduce((a, x) => a + x.short, 0);
+  const alerts = [];
+  if (myNext) alerts.push(`You pick next at <b>${lab(myNext)}</b>, ${myNext - done - 1} picks from now.`);
+  alerts.push(`QBs: ${qbRun} of the last ${recent.length} picks. ${qbDemand} starting QB spots still open across ${qbShort.length} other teams, and ${qbLeft.length} startable QBs left (${qbLeft.slice(0, 5).map((p) => esc(p.name)).join(", ")}${qbLeft.length > 5 ? "…" : ""}). ${qbDemand > qbLeft.length ? "<b>The room will run out of QBs:</b> expect a run and expect QBs to cost more in trades after the draft." : "Supply covers demand for now."}`);
+  if (K) {
+    const nextK = kTaken < K.values.length ? `next kicker is ${K.year} pick <b>${sdLabel(kTaken + 1, n)}</b> (worth ${fmt(K.values[kTaken])}${K.class[kTaken] ? `, about ${esc(K.class[kTaken].name)}` : ""})` : "all rookie picks are gone";
+    const bestP = pool[0];
+    alerts.push(`Rookie picks: ${kTaken} kicker${kTaken === 1 ? "" : "s"} taken${Object.keys(kBy).length ? ` (${Object.entries(kBy).map(([k, v]) => `${esc(k)} ${v}`).join(", ")})` : ""}; ${nextK}.${bestP && kTaken < K.values.length && K.values[kTaken] > bestP.value ? ` That's worth more than the best player left (${esc(bestP.name)}, ${fmt(bestP.value)}), so the room is still sleeping on rookie picks.` : ""}`);
+  }
+  const posRun = ["RB", "WR", "TE"].map((p) => [p, recent.filter((x) => x.pos === p).length]).sort((a, b) => b[1] - a[1])[0];
+  if (posRun && posRun[1] >= 5) alerts.push(`${posRun[0]} run: ${posRun[1]} of the last ${recent.length} picks.`);
+  out.push(`<h3>Right now</h3><ul>${alerts.map((a) => `<li>${a}</li>`).join("")}</ul>`);
+
+  // 3. Your next picks, from the played-out draft.
+  if (sim && sim.mine.length) {
+    out.push(`<h3>Your next picks</h3><p class="muted">From the draft played out to the end: other teams by market value and need, you by your build. Re-run on every refresh.</p>
+      <div class="table-wrap"><table><thead><tr><th>Pick</th><th>Take</th><th>Also good</th></tr></thead><tbody>
+      ${sim.mine.slice(0, 8).map((x) => { const alt = x.adv ? x.adv.cands.filter((c) => c.id !== x.pick.id).slice(0, 3) : [];
+        return `<tr><td>${lab(x.overall)}</td><td><b>${esc(x.pick.name)}</b> <span class="muted">${x.pick.pos === "KP" ? "rookie pick" : `${x.pick.pos} ${x.pick.age ?? ""}`}</span></td><td class="muted">${alt.map((c) => `${esc(c.name)}${c.pos === "KP" ? "" : ` ${c.pos} ${c.age ?? ""}`}`).join(", ")}</td></tr>`; }).join("")}
+      </tbody></table></div>`);
+  }
+
+  // 4. Trade plays, generated from the board.
+  const plays = [];
+  if (me) {
+    if (qbDemand > qbLeft.length && qbShort.length) {
+      const hungry = qbShort.sort((a, b) => b.short - a.short).slice(0, 4).map((x) => `${nm(x.r)} (${x.r.startQB} starter${x.r.startQB === 1 ? "" : "s"})`);
+      plays.push(`<b>Sell QB depth.</b> ${hungry.join(", ")} can't all find two starters. ${me.qbs.length >= 2 ? "Draft one more young QB than you need" : "Lock in your second starter first, then draft one more young QB"} and sell him to whichever of them is stuck once their lineup is set.`);
+    }
+    const qbRich = others.filter((r) => r.startQB >= 3);
+    if (me.startQB < 2 && qbRich.length) plays.push(`<b>Buy a QB from a team with three:</b> ${qbRich.map((r) => `${nm(r)} (${r.qbs.slice(0, 3).map((q) => esc(q.name)).join(", ")})`).join("; ")}.`);
+    const vetBuyers = others.filter((r) => /Win now|Contending/.test(r.dir));
+    if (vetBuyers.length) plays.push(`<b>Buyers of this season's points:</b> ${vetBuyers.map(nm).join(", ")}. ${prof.lean > 0.55 ? "Any veteran that lands on your roster goes to them for picks or young players." : "Partners for rookie picks if you want to push now."}`);
+    const rivals = others.filter((r) => r.lean > 0.35);
+    if (rivals.length) plays.push(`<b>Competing with you for youth:</b> ${rivals.map((r) => `${nm(r)} (core ${r.age ? r.age.toFixed(1) : "?"}${r.kps.length ? `, ${r.kps.length} rookie pick${r.kps.length === 1 ? "" : "s"}` : ""})`).join(", ")}. Young players and rookie picks won't fall past them.`);
+    if (myNext) {
+      const waiting = others.filter((r) => r.left.length && r.left[0] > myNext + n && r.needs.length);
+      for (const r of waiting.slice(0, 3)) plays.push(`<b>${nm(r)}</b> doesn't pick until ${lab(r.left[0])} and still needs ${r.needs.join(", ")}. Your ${lab(myNext)} could bring back their ${lab(r.left[0])}${r.left[1] ? ` plus ${lab(r.left[1])}` : ""}${r.kps.length ? ` or a rookie pick` : ""}.`);
+    }
+    const myNeeds = me.needs.filter((x) => !/QB/.test(x));
+    for (const need of myNeeds) {
+      const deep = others.filter((r) => r.players.filter((p) => p.pos === need).length >= ((S.slots[need.toLowerCase()] || 0) + 2));
+      if (deep.length) plays.push(`<b>You're short at ${need}.</b> Deepest there: ${deep.map(nm).join(", ")}.`);
+    }
+  }
+  if (plays.length) out.push(`<h3>Trade plays</h3><ul>${plays.map((x) => `<li>${x}</li>`).join("")}</ul>`);
+
+  // 5. Every team.
+  const use = (r) => {
+    const t = [];
+    if (r.startQB < 2 && r.left.length) t.push("short a starting QB: a buyer");
+    if (r.startQB >= 3) t.push("QB surplus: ask for one");
+    if (/Win now|Contending/.test(r.dir)) t.push("buys vets, sells picks");
+    if (r.lean > 0.35) t.push("youth rival");
+    if (myNext && r.left.length && r.left[0] > myNext + n) t.push(`long wait (${lab(r.left[0])})`);
+    return t.join("; ") || "no clear angle yet";
+  };
+  out.push(`<h3>Every team</h3><p class="muted">Rosters as of pick ${done}, including players and picks moved by trades. Lineup = rest-of-season points a week from the best possible lineup. Value two years out discounts players past their position's peak.</p>
+    <div class="table-wrap"><table id="sd-reads"><thead><tr><th>Team</th><th>Reads as</th><th class="num">Lineup now</th><th class="num">Value later</th><th class="num">Core age</th><th>QBs</th><th class="num">Rookie picks</th><th>Needs</th><th>Next pick</th><th>Angle</th></tr></thead><tbody>
+    ${reads.slice().sort((a, b) => b.fut - a.fut).map((r) => `<tr class="${r.me ? "me" : ""}"><td>${teamHtml(r.rid)}</td><td>${esc(r.dir)}</td><td class="num">${r.now.toFixed(1)} <span class="muted">${ord(r.nowRank)}</span></td><td class="num">${fmt(Math.round(r.fut))} <span class="muted">${ord(r.futRank)}</span></td><td class="num">${r.age ? r.age.toFixed(1) : ""}</td>
+      <td>${r.qbs.length ? r.qbs.map((q) => esc(q.name.split(" ").slice(-1)[0])).join(", ") : '<span class="muted">none</span>'}</td><td class="num">${r.kps.length ? r.kps.map((k) => sdLabel(k.overall, n)).join(", ") : ""}</td><td>${esc(r.needs.join(", "))}</td><td>${r.left.length ? lab(r.left[0]) : ""}</td><td class="muted">${r.me ? "you" : esc(use(r))}</td></tr>`).join("")}
+    </tbody></table></div>`);
+  return out.join("\n");
+}
+
 function renderStartupLineups(mySlot) {
   const n = state.data.startup.teams, me = myTeam();
   const now = sdRosters(false), proj = sdRosters(true, mySlot);
