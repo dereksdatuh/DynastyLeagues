@@ -789,7 +789,17 @@ function adjScale() {
     const all = [...state.assetMap.values()].map((a) => a.value || 0);
     const rostered = state.data.players.filter((p) => p.roster_id != null && p.value > 0).map((p) => p.value).sort((a, b) => b - a);
     state.adjScale = Math.max(...all, 1);
-    state.rosterSpot = rostered.length ? rostered[Math.min(rostered.length - 1, Math.floor(rostered.length * ROSTER_SPOT_PCTL))] : 300;
+    // A league that isn't full yet (a startup draft still running) has few rostered
+    // players, all of them good, so their 70th percentile is far too high a "cut"
+    // player. Read the same percentile off every team's full roster instead: the
+    // player who'd be that far down once all roster spots are filled.
+    const f = state.data.league.format || {};
+    const capacity = (f.num_teams || 12) * (f.roster_size || 0);
+    const pool = capacity && rostered.length < 0.8 * capacity
+      ? state.data.players.filter((p) => p.value > 0).map((p) => p.value).sort((a, b) => b - a)
+      : rostered;
+    const at = pool === rostered ? Math.floor(rostered.length * ROSTER_SPOT_PCTL) : Math.floor(capacity * ROSTER_SPOT_PCTL);
+    state.rosterSpot = pool.length ? pool[Math.min(pool.length - 1, at)] : 300;
   }
   return state.adjScale;
 }
@@ -3235,10 +3245,13 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
   const ovB = overall(false), ovA = overall(true);
   // Playoff and title odds: the week-by-week season sim (each week's best lineup,
   // byes and injuries out) on today's rosters and on the post-trade ones, same draws.
-  const inSeason = Object.keys((state.data.schedule || {}).weeks || {}).length > 0;
+  // During a startup draft rosters are half built and there's no schedule yet, so a
+  // record or playoff projection would just say "the team that drafted less loses".
+  const midStartup = sdOpen();
+  const inSeason = !midStartup && Object.keys((state.data.schedule || {}).weeks || {}).length > 0;
   const oddsB = inSeason ? simulateOdds(WHATIF_SIMS) : null, oddsA = inSeason ? simulateOdds(WHATIF_SIMS, {}, overrides) : null;
   const oddsCell = (rid) => {
-    if (!oddsB) return '<span class="muted">season over</span>';
+    if (!oddsB) return `<span class="muted">${midStartup ? "after the startup" : "season over"}</span>`;
     const p = (o, k) => (100 * o.acc[rid][k]) / o.sims;
     const show = (v) => (v >= 99.5 && v < 100 ? ">99%" : v > 0 && v < 0.5 ? "<1%" : `${Math.round(v)}%`);
     const d = (k) => { const x = Math.round(p(oddsA, k) - p(oddsB, k)); return `<span class="${x > 0 ? "up" : x < 0 ? "down" : "muted"}">(${x > 0 ? "+" : ""}${x})</span>`; };
@@ -3257,7 +3270,7 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
       opened.length ? `<span class="down">creates a need at ${opened.join(", ")}</span>` : "",
     ].filter(Boolean).join(" · ");
     const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
-    const recCell = `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk · max PF ${fmt(rb.maxPF)} → ${fmt(ra.maxPF)}</span>`;
+    const recCell = midStartup ? '<span class="muted">after the startup</span>' : `${recordText(rb)} → ${recordText(ra)} <span class="${dw > 0.05 ? "up" : dw < -0.05 ? "down" : "muted"}">(${dw >= 0 ? "+" : ""}${dw.toFixed(1)} W)</span><br><span class="muted">${ordinal(rb.rank)} → ${ordinal(ra.rank)} · ${rb.ppg.toFixed(1)} → ${ra.ppg.toFixed(1)} pts/wk · max PF ${fmt(rb.maxPF)} → ${fmt(ra.maxPF)}</span>`;
     return `<tr><td class="name">${teamHtml(rid)}</td>
       <td>${directionHtml(dirBefore[rid], dirAfter[rid])}</td>
       <td>${recCell}</td>
@@ -3271,10 +3284,11 @@ function tradeImpact(s, overrides, before, after, recBefore, recAfter) {
   return `<h3>Roster impact</h3><div class="table-wrap"><table class="impact"><thead><tr><th>Team</th><th>Direction</th><th>Projected record</th><th title="${fmt(WHATIF_SIMS)} simulated seasons, week by week with byes and injuries, before and after">Playoff odds</th><th class="num">Starter value</th><th>Starters rank</th><th class="num" title="Every player on the roster plus every pick">Overall value</th><th>Position rooms (league rank)</th><th>Needs</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
     <p class="muted">Ranks are among all ${state.data.teams.length} teams after the trade. A room is its starters' value plus a little credit for the next ${DEPTH_COUNT} backups. Picks don't change these ranks. Overall value counts the whole roster, bench included, plus every pick, with its league rank underneath.
     Direction is the team's build (see the Teams tab) before and after, re-run on the new rosters and pick totals.
-    ${recordNote()} Playoff odds replay the rest of the season ${fmt(WHATIF_SIMS)} times week by week (each week's best lineup, byes and injuries out) on today's rosters and on the rosters after the trade.</p>`;
+    ${recordNote()}${midStartup ? "" : ` Playoff odds replay the rest of the season ${fmt(WHATIF_SIMS)} times week by week (each week's best lineup, byes and injuries out) on today's rosters and on the rosters after the trade.`}</p>`;
 }
 
 function recordNote() {
+  if (sdOpen()) return "Projected records and playoff odds wait until the startup draft is done: rosters are still being filled and there's no schedule yet.";
   const sch = state.data.schedule;
   const games = sch ? Object.keys(sch.weeks).length : 0;
   return games
@@ -3311,7 +3325,7 @@ function pitchFor(i, ctx) {
   const sb = before.ranks.starters[rid], sa = after.ranks.starters[rid];
   if (sa < sb) reasons.push(`Your starting lineup moves from ${ordinal(sb)} to ${ordinal(sa)} in the league.`);
   const rb = recBefore[rid], ra = recAfter[rid], dw = ra.wins - rb.wins;
-  if (dw >= 0.15 && Object.keys(state.data.schedule?.weeks || {}).length) {
+  if (dw >= 0.15 && !sdOpen() && Object.keys(state.data.schedule?.weeks || {}).length) {
     const moves = [recordText(rb) !== recordText(ra) ? `${recordText(rb)} → ${recordText(ra)}` : "",
       ra.rank < rb.rank ? `${ordinal(rb.rank)} → ${ordinal(ra.rank)} in projected standings` : ""].filter(Boolean).join(", ");
     reasons.push(`It projects to about ${dw.toFixed(1)} more wins the rest of the way${moves ? ` (${moves})` : ""}.`);
