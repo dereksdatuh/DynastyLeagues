@@ -444,8 +444,12 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
     # A league can also write down the coming draft's exact order, round by round
     # (`fixed`: year -> one list of original owners per round). Then every pick of that
     # draft sits at its listed slot, whatever the standings do.
-    round_orders = draft.fixed_round_orders((stated.get("fixed") or {}).get(str(first_year)), teams) \
-        if first_year else None
+    fixed_rounds = (stated.get("fixed") or {}).get(str(first_year)) if first_year else None
+    round_orders = draft.fixed_round_orders(fixed_rounds, teams) if fixed_rounds else None
+    if fixed_rounds and not round_orders:
+        known = {(t.get("owner") or "").lower() for t in teams}
+        missing = sorted({str(nm) for r in fixed_rounds for nm in r if str(nm).lstrip("@").lower() not in known})
+        print(f"  {config['id']}: fixed {first_year} draft order not used; names not matched to a team: {missing or 'none (a round lists a team twice or misses one)'}")
     if kicker_slots:
         round_orders = {r: list(range(1, n + 1)) for r in range(1, rounds + 1)}
     if round_orders:
