@@ -181,9 +181,9 @@
       },
       "notes": "Derek is commissioner. Startup: 30-round snake with 3rd-round reversal; bench 25 during the startup, 16 after.",
       "startup": {
-        "kickers_are_picks": true,
+        "kickers_are_picks": false,
         "kicker_rounds": 4,
-        "notes": "Kickers drafted in the startup stand in for 2027 rookie picks: the 1st kicker taken is 1.01, the 13th is 2.01, and so on through 4.12. Kickers are cut once the 2027 pick list is posted, and kickers score nothing this season."
+        "notes": "The startup's kickers stood in for 2027 rookie picks until Derek posted the 2027 pick list (2026-11-16) and moved the picks to their holders in Sleeper; that list is now the record, so kickers no longer stand for picks."
       },
       "draft_order": {
         "non_playoff": "max_pf",
@@ -195,7 +195,67 @@
           7,
           8
         ],
-        "notes": "From 2028: bottom 6 by max PF (lowest 1.01), 5th-place game W 1.07 / L 1.08, 3rd-place game W 1.09 / L 1.10, runner-up 1.11, champion 1.12. The 2027 draft goes by the startup's kicker slots."
+        "notes": "2027: linear, fixed slots from Derek's pick list (2026-11-16), one list of original owners per round, the same order every round; holders come from Sleeper's traded picks. From 2028: snake, bottom 6 by max PF (lowest 1.01), 5th-place game W 1.07 / L 1.08, 3rd-place game W 1.09 / L 1.10, runner-up 1.11, champion 1.12.",
+        "fixed": {
+          "2027": [
+            [
+              "DS107",
+              "MStanton20",
+              "Jman617",
+              "GR69",
+              "RunJordyRun87",
+              "NoTownKing",
+              "peterman82",
+              "dvfusco",
+              "Bigs11",
+              "hiaustinn",
+              "jschwartz2521",
+              "dwade2211"
+            ],
+            [
+              "DS107",
+              "MStanton20",
+              "Jman617",
+              "GR69",
+              "RunJordyRun87",
+              "NoTownKing",
+              "peterman82",
+              "dvfusco",
+              "Bigs11",
+              "hiaustinn",
+              "jschwartz2521",
+              "dwade2211"
+            ],
+            [
+              "DS107",
+              "MStanton20",
+              "Jman617",
+              "GR69",
+              "RunJordyRun87",
+              "NoTownKing",
+              "peterman82",
+              "dvfusco",
+              "Bigs11",
+              "hiaustinn",
+              "jschwartz2521",
+              "dwade2211"
+            ],
+            [
+              "DS107",
+              "MStanton20",
+              "Jman617",
+              "GR69",
+              "RunJordyRun87",
+              "NoTownKing",
+              "peterman82",
+              "dvfusco",
+              "Bigs11",
+              "hiaustinn",
+              "jschwartz2521",
+              "dwade2211"
+            ]
+          ]
+        }
       }
     }
   ]
