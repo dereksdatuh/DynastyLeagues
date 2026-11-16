@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-11-16T05:00:55+00:00",
- "build": "d6a1825",
+ "generated_at": "2026-11-16T13:44:29+00:00",
+ "build": "b1339b1",
  "leagues": [
   {
    "id": "league-1",
@@ -65,7 +65,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -74,11 +74,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:11+00:00"
+   "generated_at": "2026-11-16T13:43:29+00:00"
   },
   {
    "id": "league-2",
@@ -131,7 +131,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -140,11 +140,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:23+00:00"
+   "generated_at": "2026-11-16T13:43:48+00:00"
   },
   {
    "id": "league-3",
@@ -197,7 +197,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -206,11 +206,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:28+00:00"
+   "generated_at": "2026-11-16T13:43:55+00:00"
   },
   {
    "id": "league-4",
@@ -263,7 +263,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -272,11 +272,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:38+00:00"
+   "generated_at": "2026-11-16T13:44:10+00:00"
   },
   {
    "id": "league-5",
@@ -328,7 +328,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -337,11 +337,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:44+00:00"
+   "generated_at": "2026-11-16T13:44:16+00:00"
   },
   {
    "id": "league-6",
@@ -394,7 +394,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -403,11 +403,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:50+00:00"
+   "generated_at": "2026-11-16T13:44:23+00:00"
   },
   {
    "id": "league-7",
@@ -432,10 +432,9 @@
      "FLEX",
      "FLEX",
      "FLEX",
-     "SUPER_FLEX",
-     "K"
+     "SUPER_FLEX"
     ],
-    "roster_size": 26,
+    "roster_size": 25,
     "taxi_slots": 4,
     "draft_rounds": 4
    },
@@ -461,7 +460,7 @@
      "players": 463,
      "matched": 463,
      "picks": 36,
-     "shared_with_reference": 379,
+     "shared_with_reference": 378,
      "reference": "fantasycalc"
     },
     {
@@ -470,11 +469,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 393,
+     "shared_with_reference": 394,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-16T05:00:54+00:00"
+   "generated_at": "2026-11-16T13:44:29+00:00"
   }
  ]
 }
