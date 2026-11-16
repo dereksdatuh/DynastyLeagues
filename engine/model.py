@@ -178,10 +178,15 @@ def replacement_levels(ppg_by_group: dict[str, list[float]], fmt: LeagueFormat):
 def dynasty_score(ppg: float, group: str, age: float | None, repl: float, archetype: str | None = None,
                   later: float = 1.0) -> float:
     """Points over replacement over the horizon. `later` scales the years after this
-    one for what's known about the player beyond age: availability, contract, depth chart."""
+    one for what's known about the player beyond age: availability, contract, depth chart.
+
+    `later` is about how many games he plays, so it scales his edge over replacement,
+    not his points per game: a game he misses is started by a replacement-level player
+    (zero edge), not played at a lower level. Cutting his ppg instead wiped out almost
+    all future value for a starter just above replacement after one injured season."""
     total = 0.0
     for y in range(HORIZON_YEARS):
-        surplus = ppg * age_multiplier(group, age, y, archetype) * (later if y else 1.0) - repl
+        surplus = ppg * age_multiplier(group, age, y, archetype) - repl
         if surplus > 0:
-            total += ((DISCOUNT * STABILITY.get(group, 0.85)) ** y) * surplus * GAMES
+            total += ((DISCOUNT * STABILITY.get(group, 0.85)) ** y) * surplus * (later if y else 1.0) * GAMES
     return total

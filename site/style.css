@@ -160,13 +160,17 @@ thead th[aria-sort="ascending"]::after { content: " ▲"; }
 .lineup { width: 100%; font-size: 13px; }
 .lineup tr.done td { opacity: 0.75; }
 .cols.two { grid-template-columns: 1fr 1fr; }
+.cols.three { grid-template-columns: 1fr 1fr 1fr; }
+.sdt .grade { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 5px; background: var(--accent); color: #fff; font-weight: 700; }
+.sdt ul { margin: 4px 0 0; padding-left: 18px; } .sdt li { display: list-item; border: none; padding: 1px 0; }
+.sdt li .num { float: right; }
 .mine { color: #eab308; }
 .news { list-style: none; padding: 0; }
 .news li { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .news li.mine-row { border-left: 3px solid #eab308; padding-left: 8px; }
 @media (max-width: 760px) {
   .matchup .head { grid-template-columns: 1fr 60px 1fr; }
-  .matchup .lineups, .cols.two { grid-template-columns: 1fr; }
+  .matchup .lineups, .cols.two, .cols.three { grid-template-columns: 1fr; }
 }
 
 /* rookie mock */
@@ -443,3 +447,18 @@ details.muted { margin: 0 0 12px; } details.muted summary { cursor: pointer; col
 .sdb-cell.mine.proj { opacity: .55; }
 .sdb-cell.clock { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
 .sdb-clock { color: var(--accent); font-weight: 700; }
+/* deep manager profiles */
+.mgr-row .deep { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 6px; }
+.mgr-row .deep details { margin: 4px 0; }
+.mgr-row .deep summary { cursor: pointer; }
+dl.traits { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; margin: 6px 0; font-size: 0.9em; }
+dl.traits dt { font-weight: 600; }
+dl.traits dd { margin: 0; }
+ul.deep-trades { padding-left: 16px; font-size: 0.9em; }
+ul.deep-trades li { margin-bottom: 4px; }
+.deep-chat { width: 100%; box-sizing: border-box; }
+.deep-top { margin: 8px 0 12px; }
+.deep-alerts ul { padding-left: 18px; }
+table.league-map { font-size: 0.85em; }
+table.league-map th, table.league-map td { padding: 3px 6px; text-align: center; }
+.offer-log { margin-top: 6px; align-items: center; }

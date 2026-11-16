@@ -813,3 +813,12 @@ def test_kicker_picks_become_next_years_rookie_picks(monkeypatch):
     assert [(p["round"], p["original_roster_id"], p["drafter"], p["owner_roster_id"]) for p in k27] == \
         [(1, 1, 4, 4), (1, 2, 5, 5), (2, 1, 4, 4), (2, 2, 2, 1)]
     assert [p for p in out if p["year"] == 2028] == default[-1:]
+
+
+def test_later_scales_edge_not_ppg():
+    # A starter just above replacement who missed time keeps most of his future edge:
+    # the games he misses go to a replacement player, they don't lower his level.
+    from engine import model
+    full = model.dynasty_score(19.65, "QB", 23, 15.5, "QB_rush", 1.0)
+    hurt = model.dynasty_score(19.65, "QB", 23, 15.5, "QB_rush", 0.85)
+    assert 0.85 * full < hurt < full
