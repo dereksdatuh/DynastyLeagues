@@ -25,6 +25,15 @@ jobs:
           curl -sS $B/league/1420817565600509952/users -o scratch/users.json
           curl -sS $B/league/1420817565600509952/rosters -o scratch/rosters.json
           for w in 9 10 11; do curl -sS $B/league/1420817565600509952/transactions/$w -o scratch/tx$w.json; done
+          curl -sS $B/state/nfl -o scratch/nflstate.json
+          for w in 10 11 12; do
+            curl -sS $B/stats/nfl/regular/2026/$w -o scratch/stats$w.json
+            curl -sS $B/projections/nfl/regular/2026/$w -o scratch/proj$w.json
+            curl -sS "https://api.sleeper.app/projections/nfl/2026/$w?season_type=regular&position%5B%5D=QB&position%5B%5D=RB&position%5B%5D=WR&position%5B%5D=TE" -o scratch/projx$w.json
+            curl -sS "https://api.sleeper.app/stats/nfl/2026/$w?season_type=regular&position%5B%5D=QB&position%5B%5D=RB&position%5B%5D=WR&position%5B%5D=TE" -o scratch/statsx$w.json
+          done
+          curl -sS "https://api.sleeper.app/schedule/nfl/regular/2026" -o scratch/schedule.json
+          curl -sS $B/league/1420817565600509952/matchups/11 -o scratch/matchups11.json
           curl -sS $B/players/nfl -o /tmp/players.json
           python - <<'PY'
           import json
