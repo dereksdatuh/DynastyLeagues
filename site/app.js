@@ -1127,7 +1127,7 @@ function renderTrade() {
   const ctx = { s, rows, gets, before: base, after, recBefore, recAfter };
   out.innerHTML = `<div class="verdict ${fair ? "fair" : "uneven"}">${verdict}</div>${adjustmentHtml(s, adj, gets, gives, loser.i)}${detail}${suggest}`
     + `<p><button id="to-lab" class="chip active">See the lineups after this trade</button></p>`
-    + tradeImpact(s, overrides, ctx.before, after, recBefore, recAfter) + renderPitches(ctx);
+    + tradeImpact(s, overrides, ctx.before, after, recBefore, recAfter) + safeHtml(() => futureTradeHtml(s, overrides)) + renderPitches(ctx);
   $("#to-lab").onclick = () => {
     const mine = myTeam(), inDeal = s.map((_, i) => teamOfSide(i)).filter((x) => x != null);
     lab.team = mine && inDeal.includes(mine.roster_id) ? mine.roster_id : inDeal[0] ?? lab.team;
@@ -4717,23 +4717,43 @@ function renderTrades() {
 const NEED_BONUS = 0.12;
 const MOCK_LOOKAHEAD = 12;
 
-function runMock(rd) {
+// A superflex team short of two startable QBs leans further toward a QB.
+const QB_SHORT_BONUS = 0.08;
+
+// `chosen` (overall -> prospect name) holds picks the user made himself; with
+// `stopAt` set, the mock stops at the first of those picks he hasn't made yet.
+function runMock(rd, chosen = null, stopAt = null) {
   const { ranks } = leagueStrength();
-  const needs = {};
-  state.data.teams.forEach((t) => (needs[t.roster_id] = new Set(needsOf(t.roster_id, ranks).needs)));
+  const needs = {}, qbShort = {};
+  state.data.teams.forEach((t) => {
+    needs[t.roster_id] = new Set(needsOf(t.roster_id, ranks).needs);
+    const c = teamCtx(t.roster_id);
+    qbShort[t.roster_id] = !!(c && c.qb && c.qb.superflex && c.qb.startable < c.qb.slots);
+  });
   const avail = [...rd.class];
-  return rd.board.map((b) => {
-    if (!avail.length) return { ...b, pick: null };
+  const out = [];
+  for (const b of rd.board) {
+    if (!avail.length) { out.push({ ...b, pick: null }); continue; }
+    if (stopAt != null && b.roster_id === stopAt) {
+      const name = chosen && chosen[b.overall];
+      const own = name && avail.find((p) => p.name === name);
+      if (!own) { out.push({ ...b, pick: null, onClock: true }); break; }
+      avail.splice(avail.indexOf(own), 1);
+      out.push({ ...b, pick: own, mine: true, bpa: null, forNeed: false });
+      continue;
+    }
     const need = needs[b.roster_id] || new Set();
-    const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1);
+    const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1) * (p.pos === "QB" && qbShort[b.roster_id] ? 1 + QB_SHORT_BONUS : 1);
     const window = avail.slice(0, MOCK_LOOKAHEAD);
     const pick = window.reduce((best, p) => (score(p) > score(best) ? p : best), window[0]);
     const bpa = avail[0];
     avail.splice(avail.indexOf(pick), 1);
     const forNeed = need.has(pick.pos);
     need.delete(pick.pos);
-    return { ...b, pick, bpa, forNeed, roomRank: ranks[pick.pos] ? ranks[pick.pos][b.roster_id] : null };
-  });
+    if (pick.pos === "QB") qbShort[b.roster_id] = false;
+    out.push({ ...b, pick, bpa, forNeed, roomRank: ranks[pick.pos] ? ranks[pick.pos][b.roster_id] : null });
+  }
+  return out;
 }
 
 function mockAnalysis(m, rd) {
@@ -4783,8 +4803,14 @@ function renderRookieMock() {
   const srcText = src.ok
     ? `Prospects from KeepTradeCut's devy rankings (${state.data.league.format.superflex ? "superflex" : "1QB"} values), refreshed every build, valued at what the market pays for the pick where each one ranks and adjusted for how this league scores his position.`
     : `The prospect rankings couldn't be loaded this build (${esc(src.error || "unavailable")}); the order and pick holders are still current.`;
-  const mock = rd.class.length ? runMock(rd) : rd.board.map((b) => ({ ...b, pick: null }));
   const mine = myTeam();
+  const modeBar = mine && rd.class.length ? `<div class="chips" id="mock-mode">${[["auto", "Projected mock"], ["mine", "Draft it yourself"]].map(([k, t]) => `<button class="chip ${mockMode() === k ? "active" : ""}" data-mode="${k}">${t}</button>`).join("")}</div>` : "";
+  if (mine && rd.class.length && mockMode() === "mine") {
+    el.innerHTML = `${modeBar}${myMockHtml(rd, mine)}`;
+    bindMockMode(el);
+    return;
+  }
+  const mock = rd.class.length ? runMock(rd) : rd.board.map((b) => ({ ...b, pick: null }));
   const myPicks = mine ? mock.filter((m) => m.roster_id === mine.roster_id) : [];
   const fromCell = (m) => m.original_roster_id !== m.roster_id ? `<div class="muted">via ${teamHtml(m.original_roster_id)}</div>` : "";
   const row = (m) => `<tr class="${mine && m.roster_id === mine.roster_id ? "mine-row" : ""}">
@@ -4797,7 +4823,7 @@ function renderRookieMock() {
       : `<td colspan="5" class="muted">Past the end of the ranked class.</td>`}</tr>`;
   const rounds = [...new Set(mock.map((m) => m.round))];
   const takenAt = new Map(mock.filter((m) => m.pick).map((m) => [m.pick.name, m.label]));
-  el.innerHTML = `
+  el.innerHTML = `${modeBar}
     <p class="muted">${orderText} ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds. Each ${rd.year} pick is valued at its own projected slot, half from what the market pays for that slot and half from the prospect projected to go there, so a loaded class lifts its picks.${rd.class_weight && rd.class_weight.ktc_devy ? " Prospects are priced half from their slot and half from their own KTC devy value on this league's scale" : ""}${rd.class.some((p) => p.pinned) ? `; pinned: ${rd.class.filter((p) => p.pinned).map((p) => `${esc(p.name)} as ${p.pinned}`).join(", ")}` : ""}. ${evidence} ${srcText}</p>
     ${standingsTodayHtml(rd)}
     ${myPicks.length ? `<div class="card mine-card"><h4>Your ${rd.year} picks</h4><ul>${myPicks.map((m) => `<li><span><strong>${m.label}</strong>${m.original_roster_id !== m.roster_id ? ` <span class="muted">via ${teamHtml(m.original_roster_id)}</span>` : ""}</span><span>${m.pick ? `${esc(m.pick.name)} <span class="pos pos-${m.pick.pos}">${m.pick.pos}</span>` : ""}</span></li>`).join("")}</ul></div>` : ""}
@@ -4807,6 +4833,122 @@ function renderRookieMock() {
       .map((p, i) => `<tr><td>${i + 1}</td><td class="name">${esc(p.name)}</td><td><span class="pos pos-${p.pos}">${p.pos}${p.ktc_pos_rank || ""}</span></td><td class="muted">${esc(p.school || "")}</td><td>${p.age ? Number(p.age).toFixed(1) : ""}</td><td class="num">${p.class_rank}</td><td class="num strong">${fmt(p.value)}</td><td>${takenAt.get(p.name) || '<span class="muted">undrafted</span>'}</td></tr>`)
       .join("")}</tbody></table></div>` : ""}
     ${nextDraftHtml()}`;
+  bindMockMode(el);
+}
+
+// ---------- draft it yourself: your picks, everyone else by need, then your lineups ----------
+const mockKey = () => `mock.mine.${state.data.league.id}`;
+const mockMode = () => localStorageGet(`mock.mode`) || "auto";
+function myMockPicks() { try { return JSON.parse(localStorageGet(mockKey()) || "{}") || {}; } catch { return {}; } }
+function saveMyMockPicks(x) { localStorageSet(mockKey(), JSON.stringify(x)); }
+
+// Age curves (engine/model.py AGE_CURVES, plus the build's fitted archetype curves):
+// (peak start, peak end, yearly growth before, yearly decline after).
+const AGE_CURVES_JS = { QB: [25, 33, 0.06, 0.08], RB: [22, 26, 0.08, 0.16], WR: [23, 29, 0.08, 0.1], TE: [25, 30, 0.1, 0.1] };
+function curveAt(pos, age, arch) {
+  const [a, b, g, d] = ((state.data.model || {}).archetype_curves || {})[arch] || AGE_CURVES_JS[pos] || [24, 28, 0.05, 0.1];
+  return age < a ? (1 - g) ** (a - age) : age > b ? Math.max(0, 1 - d) ** (age - b) : 1;
+}
+const ageAhead = (p, yrs) => (p.age ? curveAt(p.pos, p.age + yrs, p.situation && p.situation.archetype) / curveAt(p.pos, p.age, p.situation && p.situation.archetype) : 0.9 ** yrs);
+
+// A rookie's points once he's settled in: what veterans at his position with about
+// the same value in this league score a game. Then a ramp for his first seasons.
+const ROOKIE_RAMP = { QB: [0.6, 0.85, 1], RB: [0.85, 1, 1], WR: [0.7, 0.9, 1], TE: [0.5, 0.8, 1] };
+function rookiePPG(pr) {
+  const peers = state.data.players.filter((p) => p.pos === pr.pos && p.ppg > 0 && p.age && p.age <= 27 && (p.games || {}).games !== 0)
+    .sort((a, b) => Math.abs(a.value - pr.value) - Math.abs(b.value - pr.value)).slice(0, 7).map((p) => p.ppg).sort((a, b) => a - b);
+  return peers.length ? peers[peers.length >> 1] : 0;
+}
+
+function futureLineups(rid, rookies, rdYear, roster = null) {
+  const season = Number(state.data.league.season) || rdYear - 1;
+  const years = [rdYear, rdYear + 1, rdYear + 2];
+  const vets = (roster || rosterOf(rid)).filter((p) => ["QB", "RB", "WR", "TE"].includes(p.pos));
+  return years.map((y) => {
+    const ahead = y - season;
+    const pool = vets.map((p) => ({ ...p, fppg: (p.ppg || 0) * ageAhead(p, ahead), fage: p.age ? p.age + ahead : null }))
+      .concat(rookies.map((r) => {
+        const k = Math.min(y - rdYear, 2);
+        return { id: `rk:${r.name}`, name: r.name, pos: r.pos, rookie: true, label: r.label, fage: r.age ? Math.round(r.age + (y - rdYear)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
+      }));
+    const lineup = bestLineup(pool, "fppg");
+    const used = new Set(lineup.map((x) => x.p.id));
+    const bench = pool.filter((p) => !used.has(p.id) && p.fppg > 0).sort((a, b) => b.fppg - a.fppg).slice(0, 6);
+    return { year: y, lineup, bench, total: lineup.reduce((t, x) => t + x.p.fppg, 0) };
+  });
+}
+
+function myMockHtml(rd, mine) {
+  const chosen = myMockPicks();
+  const mock = runMock(rd, chosen, mine.roster_id);
+  const clock = mock.find((m) => m.onClock);
+  const taken = new Set(mock.filter((m) => m.pick).map((m) => m.pick.name));
+  const avail = rd.class.filter((p) => !taken.has(p.name));
+  const { ranks } = leagueStrength();
+  const myNeeds = new Set(needsOf(mine.roster_id, ranks).needs);
+  const myRookies = mock.filter((m) => m.mine && m.pick).map((m) => ({ ...m.pick, label: m.label }));
+  const done = !clock;
+  const pickRow = (m) => `<tr class="${m.roster_id === mine.roster_id ? "mine-row" : ""}"><td class="strong">${m.label}</td><td>${teamHtml(m.roster_id)}</td>
+    ${m.pick ? `<td class="name">${esc(m.pick.name)}</td><td><span class="pos pos-${m.pick.pos}">${m.pick.pos}</span></td><td class="num">${fmt(m.pick.value)}</td><td class="muted">${m.mine ? "your pick" : m.forNeed ? `need at ${m.pick.pos}` : "best available"}</td>` : `<td colspan="4" class="muted">${m.onClock ? "<b>You're on the clock</b>" : ""}</td>`}</tr>`;
+  const board = clock ? `<div class="card mine-card"><h4>You're on the clock at ${clock.label}</h4>
+      <p class="muted">Your weak rooms: ${myNeeds.size ? [...myNeeds].join(", ") : "none"}. Best available first; a need is tagged.</p>
+      <div class="table-wrap"><table id="mock-avail"><thead><tr><th></th><th>Player</th><th>Pos</th><th>School</th><th class="num">Value</th><th class="num">vs pick</th></tr></thead><tbody>
+      ${avail.slice(0, 24).map((p) => `<tr><td><button class="chip mock-take" data-name="${esc(p.name)}" data-overall="${clock.overall}">Draft</button></td><td class="name">${esc(p.name)}${myNeeds.has(p.pos) ? ' <span class="badge">need</span>' : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${esc(p.school || "")}</td><td class="num strong">${fmt(p.value)}</td><td class="num ${p.value >= clock.slot_value ? "up" : "down"}">${clock.slot_value ? `${p.value >= clock.slot_value ? "+" : ""}${Math.round((p.value / clock.slot_value - 1) * 100)}%` : ""}</td></tr>`).join("")}
+      </tbody></table></div></div>` : `<p class="up">Draft done. Your class: ${myRookies.map((r) => `${r.label} ${esc(r.name)} (${r.pos})`).join(", ") || "no picks"}.</p>`;
+  const lu = futureLineups(mine.roster_id, myRookies, rd.year);
+  const luHtml = lu.map((y) => `<div class="card"><h4>${y.year} lineup <span class="muted">· about ${y.total.toFixed(1)} pts/wk</span></h4><div class="table-wrap"><table class="lineup"><tbody>
+      ${y.lineup.map(({ slot, p }) => `<tr class="${p.rookie ? "mine-row" : ""}"><td class="muted">${SLOT_SHORT[slot] || slot}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">rookie ${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
+      </tbody></table></div><div class="muted">Bench: ${y.bench.map((p) => `${esc(p.name)} ${p.fppg.toFixed(1)}`).join(", ") || "none"}</div></div>`).join("");
+  return `<p class="muted">You make your own ${rd.year} picks; every other team takes the best prospect on this league's values, nudged toward a room that ranks in the bottom third${state.data.league.format.superflex ? " and toward a QB when it's short of two starters" : ""}, and stops chasing a need once it fills it. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds, in this league's ${rd.rule && rd.rule.fixed ? "set" : "projected"} order. Your picks are saved in this browser.</p>
+    <div class="chips"><button class="chip" id="mock-bpa"${done ? " disabled" : ""}>Take best available for me</button><button class="chip" id="mock-undo"${myRookies.length ? "" : " disabled"}>Undo my last pick</button><button class="chip" id="mock-reset">Start over</button></div>
+    ${board}
+    <h3>Your lineups ${rd.year}-${rd.year + 2}</h3>
+    <p class="muted">Best lineup each season from your roster today plus the rookies you've drafted so far. Veterans' points per game move with their age curve; a rookie's settle at what veterans of his position and value score here, after a ramp (WR 70%, then 90%; TE 50%, then 80%; QB 60%, then 85%; RB 85%). Estimates only: no trades, cuts or later drafts.</p>
+    <div class="cols">${luHtml}</div>
+    <h3>Draft so far</h3><div class="table-wrap"><table id="mock-mine"><thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>Pos</th><th class="num">Value</th><th>Why</th></tr></thead><tbody>${mock.map(pickRow).join("")}</tbody></table></div>`;
+}
+
+const safeHtml = (f) => { try { return f() || ""; } catch (e) { console.warn("future lineups", e); return ""; } };
+
+// Each team's lineups for the coming seasons before and after the trade in the
+// calculator. Picks in the coming draft turn into the projected mock's player at that
+// slot, so a pick trade shows up as the rookie it would likely become.
+function futureTradeHtml(s, overrides) {
+  const rd = state.data.rookie_draft;
+  if (!rd || !rd.class || !rd.class.length || state.data.lite || sdOpen()) return "";
+  const teams = s.map((x) => x.team).filter((t) => t != null);
+  if (teams.length < 2) return "";
+  const mock = runMock(rd);
+  const holderBefore = new Map(rd.board.map((b) => [b.pick_id, b.roster_id]));
+  const holderAfter = new Map(holderBefore);
+  s.forEach((side) => side.assets.map(assetById).filter((a) => a && a.kind === "pick" && holderAfter.has(a.id)).forEach((a) => { if (side.team != null) holderAfter.set(a.id, side.team); }));
+  const rookiesOf = (rid, holder) => mock.filter((m) => m.pick && holder.get(m.pick_id) === rid).map((m) => ({ ...m.pick, label: m.label }));
+  const slotName = (x) => SLOT_SHORT[x] || x;
+  const cards = teams.map((rid) => {
+    const b = futureLineups(rid, rookiesOf(rid, holderBefore), rd.year);
+    const a = futureLineups(rid, rookiesOf(rid, holderAfter), rd.year, overrides[rid] || rosterOf(rid));
+    const had = new Set(b[0].lineup.map((x) => x.p.id));
+    const delta = (i) => { const d = a[i].total - b[i].total; return `<span class="${d > 0.05 ? "up" : d < -0.05 ? "down" : "muted"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`; };
+    return `<div class="card"><h4>${teamHtml(rid)}</h4>
+      <div>${a.map((y, i) => `${y.year}: ${b[i].total.toFixed(1)} → ${y.total.toFixed(1)} pts/wk ${delta(i)}`).join("<br>")}</div>
+      <div class="table-wrap"><table class="lineup"><thead><tr><th colspan="4">${rd.year} lineup after</th></tr></thead><tbody>
+      ${a[0].lineup.map(({ slot, p }) => `<tr class="${had.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
+      </tbody></table></div></div>`;
+  });
+  return `<h3>Future lineups</h3><p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the projected Rookie Mock has going at that slot (tagged with the pick); highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
+    <div class="cols">${cards.join("")}</div>`;
+}
+
+function bindMockMode(el) {
+  el.querySelectorAll("#mock-mode .chip").forEach((b) => (b.onclick = () => { localStorageSet("mock.mode", b.dataset.mode); renderRookieMock(); }));
+  const rerender = () => renderRookieMock();
+  el.querySelectorAll(".mock-take").forEach((b) => (b.onclick = () => { const x = myMockPicks(); x[b.dataset.overall] = b.dataset.name; saveMyMockPicks(x); rerender(); }));
+  const bpa = el.querySelector("#mock-bpa");
+  if (bpa) bpa.onclick = () => { const first = el.querySelector(".mock-take"); if (first) first.click(); };
+  const undo = el.querySelector("#mock-undo");
+  if (undo) undo.onclick = () => { const x = myMockPicks(); const last = Object.keys(x).map(Number).sort((a, b) => b - a)[0]; if (last != null) { delete x[last]; saveMyMockPicks(x); } rerender(); };
+  const reset = el.querySelector("#mock-reset");
+  if (reset) reset.onclick = () => { saveMyMockPicks({}); rerender(); };
 }
 
 // Slot this round's pick would take if the season ended today.
