@@ -561,7 +561,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             if any(p["class"] == yr for p in devy["players"]):
                 rows = draft.rookie_class(devy["players"], yr, players, pick_values, n, rounds, scale, prospect_overrides())
                 future_classes[str(yr)] = [{k: p.get(k) for k in ("name", "pos", "school", "age", "value", "ktc", "ktc_rank",
-                                                                 "ktc_pos_rank", "trend", "class_rank", "pinned")} for p in rows[:60]]
+                                                                 "ktc_pos_rank", "trend", "class_rank", "pinned", "lock_overall")} for p in rows[:60]]
 
     rookie = None
     if first_year:

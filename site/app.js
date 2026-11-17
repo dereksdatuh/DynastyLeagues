@@ -4750,7 +4750,13 @@ function runMock(rd, chosen = null, stopAt = null, overrides = {}, holder = null
     let pick, mine = false;
     const { needs, strengths } = needsOf(rid, ranks);
     const need = new Set(needs), strong = new Set(strengths), short = qbShort(rid), qbCovered = qbCount(rid) >= qbSlots;
-    if (stopAt != null && rid === stopAt) {
+    // A prospect locked to this overall pick (Jeremiah Smith at 1.01) goes there in every
+    // mode, whoever holds the pick and whatever they need, trades included.
+    const locked = avail.find((p) => p.lock_overall === b.overall);
+    if (locked) {
+      pick = locked;
+      mine = stopAt != null && rid === stopAt;
+    } else if (stopAt != null && rid === stopAt) {
       const name = chosen && chosen[b.overall];
       pick = name && avail.find((p) => p.name === name);
       if (!pick) { out.push({ ...b, pick: null, onClock: true }); break; }
