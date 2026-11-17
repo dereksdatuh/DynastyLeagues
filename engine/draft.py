@@ -369,7 +369,8 @@ def rookie_class(devy: list, year: int, players: list, pick_values, n: int, roun
     Each prospect blends what the market pays for the pick where he ranks with what
     his own KTC devy value is worth here (`scale`), so a strong class is worth more
     than its pick slots and a weak one less. `overrides` pins named prospects to a
-    current player rank at their position ("WR4" is today's fourth-best WR here).
+    current player rank at their position ("WR4" is today's fourth-best WR here);
+    an `overall` override locks that prospect to that overall pick in every mock.
     """
     factors = position_factors(players)
     pool = [p for p in devy if p["class"] == year] or [p for p in devy if p["class"] is None]
@@ -393,9 +394,15 @@ def rookie_class(devy: list, year: int, players: list, pick_values, n: int, roun
             value = by_pos[p["pos"]][rank - 1]["value"]
             row["pinned"] = f"{p['pos']}{rank}"
             row["pinned_note"] = o.get("note")
+        if o and o.get("overall"):
+            row["lock_overall"] = int(o["overall"])
         row["value"] = round(value)
         out.append(row)
     out.sort(key=lambda p: -p["value"])
+    # A prospect locked to an overall pick sits at that spot on the board.
+    for row in sorted((r for r in out if r.get("lock_overall")), key=lambda r: r["lock_overall"]):
+        out.remove(row)
+        out.insert(min(row["lock_overall"], len(out) + 1) - 1, row)
     return out
 
 
