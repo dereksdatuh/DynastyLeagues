@@ -4729,12 +4729,17 @@ const QB_SHORT_BONUS = 0.08;
 // moves with it.
 const STRENGTH_PENALTY = 0.06; // a room already in the league's top third
 const QB_STARTER_VALUE = 1500; // a QB worth this much is a starter in a superflex room
+// A team that already has its starting QBs (both of them, in superflex) doesn't spend
+// an early pick on another one: a rookie QB would sit. Other positions have flex spots
+// to play in, so only the smaller top-third penalty applies to them.
+const QB_COVERED_PENALTY = 0.35;
 function runMock(rd, chosen = null, stopAt = null, overrides = {}, holder = null) {
   const superflex = !!state.data.league.format.superflex;
   const rosters = {};
   state.data.teams.forEach((t) => (rosters[t.roster_id] = (overrides[t.roster_id] || rosterOf(t.roster_id)).slice()));
   const qbSlots = superflex ? 2 : 1;
-  const qbShort = (rid) => superflex && rosters[rid].filter((p) => p.pos === "QB" && p.value >= QB_STARTER_VALUE).length < qbSlots;
+  const qbCount = (rid) => rosters[rid].filter((p) => p.pos === "QB" && p.value >= QB_STARTER_VALUE).length;
+  const qbShort = (rid) => superflex && qbCount(rid) < qbSlots;
   let ranks = leagueStrength(rosters).ranks;
   const avail = [...rd.class];
   const out = [];
@@ -4744,7 +4749,7 @@ function runMock(rd, chosen = null, stopAt = null, overrides = {}, holder = null
     if (!avail.length) { out.push({ ...b, pick: null }); continue; }
     let pick, mine = false;
     const { needs, strengths } = needsOf(rid, ranks);
-    const need = new Set(needs), strong = new Set(strengths), short = qbShort(rid);
+    const need = new Set(needs), strong = new Set(strengths), short = qbShort(rid), qbCovered = qbCount(rid) >= qbSlots;
     if (stopAt != null && rid === stopAt) {
       const name = chosen && chosen[b.overall];
       pick = name && avail.find((p) => p.name === name);
@@ -4752,7 +4757,7 @@ function runMock(rd, chosen = null, stopAt = null, overrides = {}, holder = null
       mine = true;
     } else {
       const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1) * (strong.has(p.pos) ? 1 - STRENGTH_PENALTY : 1)
-        * (p.pos === "QB" && short ? 1 + QB_SHORT_BONUS : 1);
+        * (p.pos === "QB" && short ? 1 + QB_SHORT_BONUS : 1) * (p.pos === "QB" && qbCovered ? 1 - QB_COVERED_PENALTY : 1);
       const window = avail.slice(0, MOCK_LOOKAHEAD);
       pick = window.reduce((best, p) => (score(p) > score(best) ? p : best), window[0]);
     }
