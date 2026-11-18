@@ -664,6 +664,7 @@ let redditCache;
 async function loadReddit() {
   if (redditCache !== undefined) return redditCache;
   try { redditCache = await getJSON("data/reddit.json"); } catch { redditCache = null; }
+  if (redditCache && !redditCache.enabled) redditCache = null;
   return redditCache;
 }
 function redditHtml(rb, p) {

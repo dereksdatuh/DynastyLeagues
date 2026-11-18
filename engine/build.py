@@ -741,10 +741,12 @@ def main(argv=None):
         if rb is None:
             print("reddit: no REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET, skipping buzz")
         else:
-            (out / "reddit.json").write_text(json.dumps(rb, separators=(",", ":")))
             print(f"reddit: read {rb['posts_read']} posts, buzz for {len(rb['players'])} players")
     except Exception as e:  # Reddit down or the key revoked: the rest of the build still ships
+        rb = None
         print(f"reddit: failed ({type(e).__name__}: {e})", file=sys.stderr)
+    # Always written, so the page never asks for a missing file; enabled false hides the card.
+    (out / "reddit.json").write_text(json.dumps({**rb, "enabled": True} if rb else {"enabled": False}, separators=(",", ":")))
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))
