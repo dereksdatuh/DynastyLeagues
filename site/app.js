@@ -658,6 +658,24 @@ async function loadHistory(id) {
   return historyCache[id];
 }
 
+// Reddit buzz (engine/reddit.py): one shared file for every league, absent until the
+// repo has Reddit API keys, in which case the card stays hidden.
+let redditCache;
+async function loadReddit() {
+  if (redditCache !== undefined) return redditCache;
+  try { redditCache = await getJSON("data/reddit.json"); } catch { redditCache = null; }
+  return redditCache;
+}
+function redditHtml(rb, p) {
+  const b = rb && rb.players && rb.players[p.id];
+  if (!rb) return "";
+  if (!b) return `<p class="muted">No r/DynastyFF or r/fantasyfootball posts about him in the last ${rb.window_days} days.</p>`;
+  const cls = b.label === "positive" ? "up" : b.label === "negative" ? "down" : "";
+  return `<p><span class="${cls}"><b>${b.label === "positive" ? "Positive" : b.label === "negative" ? "Negative" : "Mixed"}</b></span> · ${b.posts} post${b.posts === 1 ? "" : "s"}, ${fmt(b.score)} upvotes, ${fmt(b.comments)} comments in the last ${rb.window_days} days</p>
+    <ul class="reddit-top">${b.top.map((t) => `<li><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.title)}</a> <span class="muted">r/${esc(t.sub)} · ${fmt(t.score)} up · ${fmt(t.comments)} comments</span></li>`).join("")}</ul>
+    <p class="muted">Tone is a word count of buy and sell language (breakout, league winner, bust, injury and so on), weighted by upvotes. It is a signal, not part of his value.</p>`;
+}
+
 function sparkline(points) {
   if (points.length < 2) return "";
   const w = 320, h = 70, pad = 4;
@@ -723,6 +741,7 @@ async function openPlayer(id) {
     ${situationHtml(p)}
     ${srcRows ? `<table class="net"><thead><tr><th>Site</th><th class="num">Site's own number</th><th class="num">On our scale</th></tr></thead><tbody>${srcRows}</tbody></table>` : ""}
     <h3>Value trend</h3><div id="player-history"><p class="muted">Loading…</p></div>
+    <div id="player-reddit"></div>
     ${p.trend ? `<p class="muted">FantasyCalc 30-day move: <span class="${p.trend > 0 ? "up" : "down"}">${p.trend > 0 ? "+" : ""}${fmt(p.trend)}</span></p>` : ""}
     ${formulaHtml}
     <h3>What each team would pay <span class="muted">(his value through each team's own situation; best buyers first)</span></h3>
@@ -743,6 +762,10 @@ async function openPlayer(id) {
     document.querySelector('.tabs button[data-tab="finder"]').click();
     renderFinder();
   };
+  loadReddit().then((rb) => {
+    const r = $("#player-reddit");
+    if (r && rb) r.innerHTML = `<h3>Reddit says</h3>${redditHtml(rb, p)}`;
+  });
   const hist = await loadHistory(state.data.history_id || state.data.league.id);
   const pts = Object.entries((hist && hist.days) || {}).sort(([a], [b]) => a.localeCompare(b)).filter(([, d]) => d[p.id] != null).map(([day, d]) => [day.slice(5), d[p.id]]);
   const el = $("#player-history");
