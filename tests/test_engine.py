@@ -838,3 +838,23 @@ def test_prospect_locked_to_overall_pick_sits_first():
                               [{"name": "Jeremiah Smith", "overall": 1}])
     assert rows[0]["name"] == "Jeremiah Smith" and rows[0]["lock_overall"] == 1
     assert not any(r.get("lock_overall") for r in rows[1:])
+def test_reddit_summarize_matches_names_and_tone():
+    from engine import reddit
+    players = {"1": "Trey McBride", "2": "Bijan Robinson", "3": "Jeremiah Smith", "4": "Rashee Rice", "5": "Tyler Smith"}
+    posts = [
+        {"sub": "DynastyFF", "title": "McBride is a league winner, buy now", "text": "", "score": 100, "comments": 40, "url": "u1", "created": 1},
+        {"sub": "DynastyFF", "title": "Sell Bijan Robinson before the injury cliff?", "text": "torn worries", "score": 10, "comments": 5, "url": "u2", "created": 1},
+        {"sub": "fantasyfootball", "title": "Smith had a big game", "text": "", "score": 5, "comments": 1, "url": "u3", "created": 1},
+    ]
+    out = reddit.summarize(posts, players)
+    assert out["1"]["label"] == "positive" and out["1"]["posts"] == 1
+    assert out["2"]["label"] == "negative"
+    assert "3" not in out and "5" not in out  # a shared last name matches nobody
+    assert "4" not in out
+
+
+def test_reddit_buzz_skips_without_keys(monkeypatch):
+    from engine import reddit
+    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
+    monkeypatch.delenv("REDDIT_CLIENT_SECRET", raising=False)
+    assert reddit.buzz({"1": "Trey McBride"}) is None

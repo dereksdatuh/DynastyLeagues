@@ -15,7 +15,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import builds, draft, fetch, formula, future, gamelog, ids, landing, market_learn, model, nflverse, outlook, record, role, sleeper, team_value, valuation, weekly
+from . import builds, draft, fetch, formula, future, gamelog, ids, landing, market_learn, model, nflverse, outlook, record, reddit, role, sleeper, team_value, valuation, weekly
 from . import weeks as week_sim
 from . import trades as trade_log
 from .league import SLOT_ELIGIBILITY, format_from_sleeper
@@ -674,6 +674,7 @@ def main(argv=None):
         configs = [c for c in configs if c["id"] == args.league]
     shared = Shared()
     index, failures = [], 0
+    named = {}  # player id -> name, every valued player in any league, for Reddit buzz
     for config in configs:
         try:
             data = build_league(config, shared, settings.get("sleeper_username"))
@@ -685,6 +686,7 @@ def main(argv=None):
         (out / "history").mkdir(exist_ok=True)
         (out / "history" / f"{config['id']}.json").write_text(json.dumps(data.pop("history"), separators=(",", ":")))
         (out / f"{config['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
+        named.update({p["id"]: p["name"] for p in data["players"] if p.get("name") and p.get("pos") in ("QB", "RB", "WR", "TE") and (p.get("value") or 0) >= 500})
         lg = data["league"]
         index.append({"id": lg["id"], "name": lg["name"], "season": lg["season"], "format": lg["format"],
                       "sleeper_league_id": lg["sleeper_league_id"],
@@ -734,6 +736,17 @@ def main(argv=None):
                 print(f"  to each team: {first['label']} {first['value']} / {qb['name']} {qb['value']}: " + ", ".join(
                     f"{names.get(rid)} {round(first['value'] * fac[rid].get(first['id'], 1))}/{round(qb['value'] * fac[rid].get(qb['id'], 1))}"
                     for rid in sorted(fac, key=lambda r: ctx["teams"][r]["mode"])))
+    try:
+        rb = reddit.buzz(named)
+        if rb is None:
+            print("reddit: no REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET, skipping buzz")
+        else:
+            print(f"reddit: read {rb['posts_read']} posts, buzz for {len(rb['players'])} players")
+    except Exception as e:  # Reddit down or the key revoked: the rest of the build still ships
+        rb = None
+        print(f"reddit: failed ({type(e).__name__}: {e})", file=sys.stderr)
+    # Always written, so the page never asks for a missing file; enabled false hides the card.
+    (out / "reddit.json").write_text(json.dumps({**rb, "enabled": True} if rb else {"enabled": False}, separators=(",", ":")))
     (out / "index.json").write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "build": (os.environ.get("GITHUB_SHA") or "")[:7] or None, "leagues": index}, indent=1))
