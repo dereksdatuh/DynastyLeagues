@@ -1,0 +1,6 @@
+www search.json: ERR 403 HTTPError
+www new.json: ERR 403 HTTPError
+old new.json: ERR 403 HTTPError
+api.reddit.com: ERR 403 HTTPError
+rss search: ERR 404 HTTPError
+pullpush: ERR 429 HTTPError
