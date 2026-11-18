@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-11-17T17:58:10+00:00",
- "build": "e0fb26b",
+ "generated_at": "2026-11-18T03:28:56+00:00",
+ "build": "2a58dcd",
  "leagues": [
   {
    "id": "league-1",
@@ -74,11 +74,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:57:38+00:00"
+   "generated_at": "2026-11-18T03:28:24+00:00"
   },
   {
    "id": "league-2",
@@ -140,11 +140,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:57:47+00:00"
+   "generated_at": "2026-11-18T03:28:32+00:00"
   },
   {
    "id": "league-3",
@@ -206,11 +206,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:57:51+00:00"
+   "generated_at": "2026-11-18T03:28:36+00:00"
   },
   {
    "id": "league-4",
@@ -272,11 +272,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:57:57+00:00"
+   "generated_at": "2026-11-18T03:28:44+00:00"
   },
   {
    "id": "league-5",
@@ -337,11 +337,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:58:02+00:00"
+   "generated_at": "2026-11-18T03:28:48+00:00"
   },
   {
    "id": "league-6",
@@ -403,11 +403,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:58:06+00:00"
+   "generated_at": "2026-11-18T03:28:52+00:00"
   },
   {
    "id": "league-7",
@@ -469,11 +469,11 @@
      "players": 625,
      "matched": 625,
      "picks": 85,
-     "shared_with_reference": 392,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-17T17:58:10+00:00"
+   "generated_at": "2026-11-18T03:28:56+00:00"
   }
  ]
 }
