@@ -838,3 +838,18 @@ def test_prospect_locked_to_overall_pick_sits_first():
                               [{"name": "Jeremiah Smith", "overall": 1}])
     assert rows[0]["name"] == "Jeremiah Smith" and rows[0]["lock_overall"] == 1
     assert not any(r.get("lock_overall") for r in rows[1:])
+
+
+def test_in_season_games_outweigh_preseason_projection_and_rookie_year():
+    from engine import model
+    from engine.league import LeagueFormat
+    fmt = LeagueFormat(num_teams=12, slots=["QB", "RB", "WR", "TE"], scoring={"rec": 1.0, "rec_yd": 0.1}, roster_size=25)
+    line = lambda rec, yd, gp: {"x": {"stats": {"rec": rec * gp, "rec_yd": yd * gp, "gp": gp}}}
+    proj = line(4, 50, 17)    # 9 a game before the season
+    cur = line(7, 106, 10)    # 17.6 a game over 10 games
+    last = line(2, 31, 14)    # 5.1 a game as a rookie
+    vet = model.estimate_ppg("x", "WR", fmt, proj, cur, last)["ppg"]
+    soph = model.estimate_ppg("x", "WR", fmt, proj, cur, last, years_exp=1)["ppg"]
+    assert 12 < vet < soph < 15
+    # Before any games the projection still carries full weight.
+    assert model.estimate_ppg("x", "WR", fmt, proj, {}, {})["ppg"] == 9.0
