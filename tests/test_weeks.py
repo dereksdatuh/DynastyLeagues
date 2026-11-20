@@ -98,3 +98,16 @@ def test_injury_overrides_apply_until_the_return_week(tmp_path):
     build.apply_injury_overrides(db3, 10, f)
     assert db3["9493"]["injury_notes"] == "Sleeper" and db3["9493"]["out_until"] == 15
     assert build.apply_injury_overrides({}, 10, tmp_path / "missing.json") == []
+
+
+def test_season_ending_override_zeroes_ros_and_expires_with_the_season(tmp_path):
+    from engine import build, record
+    f = tmp_path / "inj.json"
+    f.write_text('{"players": {"9493": {"status": "IR", "out_from": 10, "back_week": 19, "season": "2026"}}}')
+    db = {"9493": {"injury_status": "IR"}}
+    assert build.apply_injury_overrides(db, 12, f, season="2026") == ["9493"]
+    assert record.ros_ppg(20, "IR", week=12, out_until=19, out_from=10) == 0
+    # Back in week 16 of 18 weeks left from 12: plays 16, 17, 18 of 7 weeks.
+    assert record.ros_ppg(21, "IR", week=12, out_until=16) == 9
+    # Next season the entry no longer applies.
+    assert build.apply_injury_overrides({"9493": {"injury_status": None}}, 1, f, season="2027") == []

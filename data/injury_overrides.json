@@ -1,15 +1,16 @@
 {
-  "_about": "Team-reported injuries Sleeper hasn't caught up to yet. The build marks each player out until back_week (the first week he can play) and treats out_from (optional) as the first week he misses, and drops the entry by itself once that week arrives or Sleeper lists him on IR. Remove an entry if the news changes.",
+  "_about": "Team-reported injuries Sleeper hasn't caught up to yet. The build marks each player out until back_week (the first week he can play) and treats out_from (optional) as the first week he misses, and drops the entry by itself once that week arrives or Sleeper lists him on IR. back_week 19 means out for the rest of the season; season (optional) limits an entry to that NFL season so it can't carry into the next one. Remove an entry if the news changes.",
   "players": {
     "9493": {
       "name": "Puka Nacua",
       "status": "IR",
       "body_part": "Knee",
-      "note": "MCL and PCL sprains plus turf toe; Rams placing him on IR. Earliest return Week 15 (Dec. 20 vs. Dallas).",
+      "note": "Having MCL surgery; likely out for the rest of the 2026 season. Expected back for 2027.",
       "out_from": 10,
-      "back_week": 15,
-      "reported": "2026-11-09",
-      "source": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/puka-nacua-headed-to-ir-with-mcl-pcl-knee-sprains-turf-toe"
+      "back_week": 19,
+      "season": "2026",
+      "reported": "2026-11-20",
+      "source": "https://www.nbcsports.com/fantasy/football/player-news/2026-11-20/nacua-to-have-mcl-surgery-likely-out-rest-of-year"
     }
   }
 }
