@@ -99,7 +99,7 @@ def value_players(
         sit = situations.of(pid, group, info, cur, last, team_games) if situations else None
         rows[pid] = {"info": info, "group": group, "sit": sit, "active": pid in proj or pid in cur,
                      "est": model.estimate_ppg(pid, group, fmt, proj, cur, last, two_ago,
-                                               (sit or {}).get("role", 1.0))}
+                                               (sit or {}).get("role", 1.0), info.get("years_exp"))}
 
     # Replacement levels from players with a meaningful sample or a projection.
     ppg_by_group: dict[str, list[float]] = {g: [] for g in fmt.positions}

@@ -112,21 +112,35 @@ def _per_game(entry: dict | None, scoring: dict, group: str):
     return fantasy_points(stats, scoring, group) / gp, gp
 
 
+# Sleeper's season projection is set before the season; once this season's games pile
+# up they say more about the player than it does, so it fades to this floor by the
+# last game.
+PROJ_FLOOR = 0.25
+# A rookie season says less about a player's next years than a veteran season does,
+# so for a second-year player last season counts at this share.
+ROOKIE_SEASON_WEIGHT = 0.5
+
+
 def estimate_ppg(pid: str, group: str, fmt: LeagueFormat, proj: dict, cur: dict, last: dict,
-                 two_ago: dict | None = None, role: float = 1.0):
+                 two_ago: dict | None = None, role: float = 1.0, years_exp: int | None = None):
     """Blend season projection, this season's results, and the last two seasons' results.
 
     Two seasons ago counts `two_ago` as much as last season (backtested), and
     `role` scales this season's line when the player's share of his team's targets
-    and carries has moved lately (also backtested, and it mostly fades).
+    and carries has moved lately (also backtested, and it mostly fades). The season
+    projection fades as this season's games come in (PROJ_FLOOR), and a rookie
+    season counts less for a second-year player (ROOKIE_SEASON_WEIGHT).
     """
     base_scoring = baseline_scoring(fmt.ppr)
     league_num = base_num = weight = 0.0
     w2 = 0.5 * float(SEASON_WEIGHTS.get("two_ago") or 0)
+    _, cur_gp = _per_game(cur.get(pid), fmt.scoring, group)
+    proj_w = max(PROJ_FLOOR, 1.0 - cur_gp / GAMES)
+    last_w = 0.5 * (ROOKIE_SEASON_WEIGHT if years_exp == 1 else 1.0)
     for src, w_fn, scale in (
-        (proj, lambda gp: 1.0, 1.0),
+        (proj, lambda gp: proj_w, 1.0),
         (cur, lambda gp: min(gp / 8, 1.0), role),
-        (last, lambda gp: 0.5 * min(gp, GAMES) / GAMES, 1.0),
+        (last, lambda gp: last_w * min(gp, GAMES) / GAMES, 1.0),
         (two_ago or {}, lambda gp: w2 * min(gp, GAMES) / GAMES, 1.0),
     ):
         ppg, gp = _per_game(src.get(pid), fmt.scoring, group)
