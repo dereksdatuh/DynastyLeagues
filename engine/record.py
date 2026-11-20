@@ -44,7 +44,15 @@ def blend_ppg(ppg, upcoming):
     return UPCOMING_WEIGHT * upcoming + (1 - UPCOMING_WEIGHT) * (ppg or 0)
 
 
-def ros_ppg(ppg, injury) -> float:
+def ros_ppg(ppg, injury, week=0, out_until=None, out_from=None, last_week=LAST_REGULAR_WEEK) -> float:
+    """Points a game the rest of the way. A reported return week beats the generic
+    injury discount: he counts only for the weeks left that he plays (none if he's
+    out for the season)."""
+    if out_until and week:
+        left = list(range(week, last_week + 1))
+        if left:
+            playing = [w for w in left if not ((out_from or 0) <= w < out_until)]
+            return round((ppg or 0) * len(playing) / len(left), 2)
     return round((ppg or 0) * AVAILABILITY.get(injury or "", 1.0), 2)
 
 

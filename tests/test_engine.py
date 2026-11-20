@@ -822,3 +822,34 @@ def test_later_scales_edge_not_ppg():
     full = model.dynasty_score(19.65, "QB", 23, 15.5, "QB_rush", 1.0)
     hurt = model.dynasty_score(19.65, "QB", 23, 15.5, "QB_rush", 0.85)
     assert 0.85 * full < hurt < full
+
+
+def test_prospect_locked_to_overall_pick_sits_first():
+    from engine import draft
+
+    class PV:
+        def value(self, year, rnd, tier):
+            return {"early": 3000, "mid": 2500, "late": 2000}[tier] / rnd
+
+    devy = [{"name": "Big Back", "pos": "RB", "class": 2027, "ktc": None},
+            {"name": "Jeremiah Smith", "pos": "WR", "class": 2027, "ktc": None},
+            {"name": "QB Guy", "pos": "QB", "class": 2027, "ktc": None}]
+    rows = draft.rookie_class(devy, 2027, [], PV(), 12, 4, None,
+                              [{"name": "Jeremiah Smith", "overall": 1}])
+    assert rows[0]["name"] == "Jeremiah Smith" and rows[0]["lock_overall"] == 1
+    assert not any(r.get("lock_overall") for r in rows[1:])
+
+
+def test_in_season_games_outweigh_preseason_projection_and_rookie_year():
+    from engine import model
+    from engine.league import LeagueFormat
+    fmt = LeagueFormat(num_teams=12, slots=["QB", "RB", "WR", "TE"], scoring={"rec": 1.0, "rec_yd": 0.1}, roster_size=25)
+    line = lambda rec, yd, gp: {"x": {"stats": {"rec": rec * gp, "rec_yd": yd * gp, "gp": gp}}}
+    proj = line(4, 50, 17)    # 9 a game before the season
+    cur = line(7, 106, 10)    # 17.6 a game over 10 games
+    last = line(2, 31, 14)    # 5.1 a game as a rookie
+    vet = model.estimate_ppg("x", "WR", fmt, proj, cur, last)["ppg"]
+    soph = model.estimate_ppg("x", "WR", fmt, proj, cur, last, years_exp=1)["ppg"]
+    assert 12 < vet < soph < 15
+    # Before any games the projection still carries full weight.
+    assert model.estimate_ppg("x", "WR", fmt, proj, {}, {})["ppg"] == 9.0

@@ -4722,36 +4722,58 @@ const QB_SHORT_BONUS = 0.08;
 
 // `chosen` (overall -> prospect name) holds picks the user made himself; with
 // `stopAt` set, the mock stops at the first of those picks he hasn't made yet.
-function runMock(rd, chosen = null, stopAt = null) {
-  const { ranks } = leagueStrength();
-  const needs = {}, qbShort = {};
-  state.data.teams.forEach((t) => {
-    needs[t.roster_id] = new Set(needsOf(t.roster_id, ranks).needs);
-    const c = teamCtx(t.roster_id);
-    qbShort[t.roster_id] = !!(c && c.qb && c.qb.superflex && c.qb.startable < c.qb.slots);
-  });
+// The mock is played out on live rosters: every pick joins its team, and that team's
+// needs (and everyone's room ranks) are worked out again before the next pick. So a
+// trade in the calculator (`overrides`: post-trade rosters, `holder`: pick id -> new
+// holder) changes who needs what and who's on the clock, and every pick after it
+// moves with it.
+const STRENGTH_PENALTY = 0.06; // a room already in the league's top third
+const QB_STARTER_VALUE = 1500; // a QB worth this much is a starter in a superflex room
+// A team that already has its starting QBs (both of them, in superflex) doesn't spend
+// an early pick on another one: a rookie QB would sit. Other positions have flex spots
+// to play in, so only the smaller top-third penalty applies to them.
+const QB_COVERED_PENALTY = 0.35;
+function runMock(rd, chosen = null, stopAt = null, overrides = {}, holder = null) {
+  const superflex = !!state.data.league.format.superflex;
+  const rosters = {};
+  state.data.teams.forEach((t) => (rosters[t.roster_id] = (overrides[t.roster_id] || rosterOf(t.roster_id)).slice()));
+  const qbSlots = superflex ? 2 : 1;
+  const qbCount = (rid) => rosters[rid].filter((p) => p.pos === "QB" && p.value >= QB_STARTER_VALUE).length;
+  const qbShort = (rid) => superflex && qbCount(rid) < qbSlots;
+  let ranks = leagueStrength(rosters).ranks;
   const avail = [...rd.class];
   const out = [];
-  for (const b of rd.board) {
+  for (const b0 of rd.board) {
+    const rid = holder && holder.has(b0.pick_id) ? holder.get(b0.pick_id) : b0.roster_id;
+    const b = { ...b0, roster_id: rid };
     if (!avail.length) { out.push({ ...b, pick: null }); continue; }
-    if (stopAt != null && b.roster_id === stopAt) {
+    let pick, mine = false;
+    const { needs, strengths } = needsOf(rid, ranks);
+    const need = new Set(needs), strong = new Set(strengths), short = qbShort(rid), qbCovered = qbCount(rid) >= qbSlots;
+    // A prospect locked to this overall pick (Jeremiah Smith at 1.01) goes there in every
+    // mode, whoever holds the pick and whatever they need, trades included.
+    const locked = avail.find((p) => p.lock_overall === b.overall);
+    if (locked) {
+      pick = locked;
+      mine = stopAt != null && rid === stopAt;
+    } else if (stopAt != null && rid === stopAt) {
       const name = chosen && chosen[b.overall];
-      const own = name && avail.find((p) => p.name === name);
-      if (!own) { out.push({ ...b, pick: null, onClock: true }); break; }
-      avail.splice(avail.indexOf(own), 1);
-      out.push({ ...b, pick: own, mine: true, bpa: null, forNeed: false });
-      continue;
+      pick = name && avail.find((p) => p.name === name);
+      if (!pick) { out.push({ ...b, pick: null, onClock: true }); break; }
+      mine = true;
+    } else {
+      const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1) * (strong.has(p.pos) ? 1 - STRENGTH_PENALTY : 1)
+        * (p.pos === "QB" && short ? 1 + QB_SHORT_BONUS : 1) * (p.pos === "QB" && qbCovered ? 1 - QB_COVERED_PENALTY : 1);
+      const window = avail.slice(0, MOCK_LOOKAHEAD);
+      pick = window.reduce((best, p) => (score(p) > score(best) ? p : best), window[0]);
     }
-    const need = needs[b.roster_id] || new Set();
-    const score = (p) => p.value * (need.has(p.pos) ? 1 + NEED_BONUS : 1) * (p.pos === "QB" && qbShort[b.roster_id] ? 1 + QB_SHORT_BONUS : 1);
-    const window = avail.slice(0, MOCK_LOOKAHEAD);
-    const pick = window.reduce((best, p) => (score(p) > score(best) ? p : best), window[0]);
     const bpa = avail[0];
     avail.splice(avail.indexOf(pick), 1);
-    const forNeed = need.has(pick.pos);
-    need.delete(pick.pos);
-    if (pick.pos === "QB") qbShort[b.roster_id] = false;
-    out.push({ ...b, pick, bpa, forNeed, roomRank: ranks[pick.pos] ? ranks[pick.pos][b.roster_id] : null });
+    const roomRank = ranks[pick.pos] ? ranks[pick.pos][rid] : null;
+    out.push({ ...b, pick, mine, bpa: mine ? null : bpa, forNeed: !mine && (need.has(pick.pos) || (pick.pos === "QB" && short)), roomRank });
+    // He joins the roster; rooms and needs are re-ranked for the next pick.
+    rosters[rid].push({ id: `rk:${pick.name}`, name: pick.name, pos: pick.pos, value: pick.value, rookie: true });
+    ranks = leagueStrength(rosters).ranks;
   }
   return out;
 }
@@ -4899,7 +4921,7 @@ function myMockHtml(rd, mine) {
   const luHtml = lu.map((y) => `<div class="card"><h4>${y.year} lineup <span class="muted">· about ${y.total.toFixed(1)} pts/wk</span></h4><div class="table-wrap"><table class="lineup"><tbody>
       ${y.lineup.map(({ slot, p }) => `<tr class="${p.rookie ? "mine-row" : ""}"><td class="muted">${SLOT_SHORT[slot] || slot}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">rookie ${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
       </tbody></table></div><div class="muted">Bench: ${y.bench.map((p) => `${esc(p.name)} ${p.fppg.toFixed(1)}`).join(", ") || "none"}</div></div>`).join("");
-  return `<p class="muted">You make your own ${rd.year} picks; every other team takes the best prospect on this league's values, nudged toward a room that ranks in the bottom third${state.data.league.format.superflex ? " and toward a QB when it's short of two starters" : ""}, and stops chasing a need once it fills it. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds, in this league's ${rd.rule && rd.rule.fixed ? "set" : "projected"} order. Your picks are saved in this browser.</p>
+  return `<p class="muted">You make your own ${rd.year} picks; every other team takes the best prospect on this league's values, nudged toward a room that ranks in the bottom third${state.data.league.format.superflex ? " and toward a QB when it's short of two starters" : ""}. Each pick joins its team and every room is ranked again before the next pick, so a team that just filled a need moves on. ${rd.type === "snake" ? "Snake" : "Linear"}, ${rd.rounds} rounds, in this league's ${rd.rule && rd.rule.fixed ? "set" : "projected"} order. Your picks are saved in this browser.</p>
     <div class="chips"><button class="chip" id="mock-bpa"${done ? " disabled" : ""}>Take best available for me</button><button class="chip" id="mock-undo"${myRookies.length ? "" : " disabled"}>Undo my last pick</button><button class="chip" id="mock-reset">Start over</button></div>
     ${board}
     <h3>Your lineups ${rd.year}-${rd.year + 2}</h3>
@@ -4918,24 +4940,30 @@ function futureTradeHtml(s, overrides) {
   if (!rd || !rd.class || !rd.class.length || state.data.lite || sdOpen()) return "";
   const teams = s.map((x) => x.team).filter((t) => t != null);
   if (teams.length < 2) return "";
-  const mock = runMock(rd);
   const holderBefore = new Map(rd.board.map((b) => [b.pick_id, b.roster_id]));
   const holderAfter = new Map(holderBefore);
   s.forEach((side) => side.assets.map(assetById).filter((a) => a && a.kind === "pick" && holderAfter.has(a.id)).forEach((a) => { if (side.team != null) holderAfter.set(a.id, side.team); }));
-  const rookiesOf = (rid, holder) => mock.filter((m) => m.pick && holder.get(m.pick_id) === rid).map((m) => ({ ...m.pick, label: m.label }));
+  // Two full mocks: today's rosters, and the post-trade rosters with the picks in
+  // their new hands, so every team's needs (and every later pick) follow the trade.
+  const mocks = { before: runMock(rd), after: runMock(rd, null, null, overrides, holderAfter) };
+  const rookiesOf = (rid, when) => mocks[when].filter((m) => m.pick && m.roster_id === rid).map((m) => ({ ...m.pick, label: m.label }));
   const slotName = (x) => SLOT_SHORT[x] || x;
   const cards = teams.map((rid) => {
-    const b = futureLineups(rid, rookiesOf(rid, holderBefore), rd.year);
-    const a = futureLineups(rid, rookiesOf(rid, holderAfter), rd.year, overrides[rid] || rosterOf(rid));
+    const b = futureLineups(rid, rookiesOf(rid, "before"), rd.year);
+    const a = futureLineups(rid, rookiesOf(rid, "after"), rd.year, overrides[rid] || rosterOf(rid));
+    // Picks whose player changes because of the trade (this team's needs moved).
+    const was = new Map(mocks.before.filter((m) => m.pick).map((m) => [m.pick_id, m.pick.name]));
+    const moved = mocks.after.filter((m) => m.pick && m.roster_id === rid && was.get(m.pick_id) !== m.pick.name);
     const had = new Set(b[0].lineup.map((x) => x.p.id));
     const delta = (i) => { const d = a[i].total - b[i].total; return `<span class="${d > 0.05 ? "up" : d < -0.05 ? "down" : "muted"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`; };
     return `<div class="card"><h4>${teamHtml(rid)}</h4>
       <div>${a.map((y, i) => `${y.year}: ${b[i].total.toFixed(1)} → ${y.total.toFixed(1)} pts/wk ${delta(i)}`).join("<br>")}</div>
+      ${rookiesOf(rid, "after").length ? `<div class="muted">${rd.year} picks after: ${rookiesOf(rid, "after").map((r) => `${r.label} ${esc(r.name)} (${r.pos})`).join(", ")}${moved.length ? `. Changed by the trade: ${moved.map((m) => `${m.label} ${esc(was.get(m.pick_id))} → ${esc(m.pick.name)}`).join(", ")}` : ""}</div>` : ""}
       <div class="table-wrap"><table class="lineup"><thead><tr><th colspan="4">${rd.year} lineup after</th></tr></thead><tbody>
       ${a[0].lineup.map(({ slot, p }) => `<tr class="${had.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
       </tbody></table></div></div>`;
   });
-  return `<h3>Future lineups</h3><p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the projected Rookie Mock has going at that slot (tagged with the pick); highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
+  return `<h3>Future lineups</h3><p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
     <div class="cols">${cards.join("")}</div>`;
 }
 

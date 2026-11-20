@@ -50,7 +50,8 @@ class Shared:
     def __init__(self):
         self.state = sleeper.nfl_state()
         self.players = sleeper.players()
-        apply_injury_overrides(self.players, int(self.state.get("week") or 0))
+        apply_injury_overrides(self.players, int(self.state.get("week") or 0),
+                               season=self.state.get("season"))
         try:
             crosswalk = ids.load_crosswalk()
         except Exception as exc:  # name matching still works without it
@@ -184,12 +185,13 @@ def week_data(tables, current_rows, fmt, shared, players, owner_of, history) -> 
     }
 
 
-def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE) -> list:
+def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE, season=None) -> list:
     """Team news Sleeper hasn't caught up to yet (data/injury_overrides.json): a player
     reported out until week N (from week out_from, if he got hurt after this week's
     game) is marked out until then, everywhere the build reads his
-    status. An override stops applying once its return week arrives or Sleeper already
-    has him on IR/PUP/NFI/Sus, so a stale entry can't keep a healthy player out."""
+    status. An override stops applying once its return week arrives, or once a new
+    season starts when the entry names its season, so a stale entry can't keep a
+    healthy player out. back_week past the last week (19) means out for the season."""
     try:
         rows = json.loads(path.read_text()).get("players") or {}
     except FileNotFoundError:
@@ -202,6 +204,8 @@ def apply_injury_overrides(players_db: dict, week: int, path: Path = INJURY_FILE
         info = players_db.get(pid)
         back = int(o.get("back_week") or 0)
         if not info or (week and back and week >= back):
+            continue
+        if season and o.get("season") and str(o["season"]) != str(season):
             continue
         sleeper_status = info.get("injury_status")
         info["injury_override"] = {"sleeper_status": sleeper_status, "source": o.get("source"),
@@ -319,7 +323,8 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             if info.get("out_from"):
                 p["out_from"] = info["out_from"]
         p["proj_next"] = record.upcoming_ppg(p["id"], p["pos"], tables["upcoming"], fmt.scoring)
-        p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"))
+        p["ros_ppg"] = record.ros_ppg(record.blend_ppg(p.get("ppg"), p["proj_next"]), p.get("injury"),
+                                      week=int(shared.state.get("week") or 0), out_until=p.get("out_until"), out_from=p.get("out_from"))
     by_id = {p["id"]: p for p in players}
     history = weekly.update_history(load_history(config["id"]), players)
 
@@ -561,7 +566,7 @@ def build_league(config: dict, shared: Shared, me: str | None = None) -> dict:
             if any(p["class"] == yr for p in devy["players"]):
                 rows = draft.rookie_class(devy["players"], yr, players, pick_values, n, rounds, scale, prospect_overrides())
                 future_classes[str(yr)] = [{k: p.get(k) for k in ("name", "pos", "school", "age", "value", "ktc", "ktc_rank",
-                                                                 "ktc_pos_rank", "trend", "class_rank", "pinned")} for p in rows[:60]]
+                                                                 "ktc_pos_rank", "trend", "class_rank", "pinned", "lock_overall")} for p in rows[:60]]
 
     rookie = None
     if first_year:
