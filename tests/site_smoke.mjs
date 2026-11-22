@@ -16,8 +16,10 @@ const page = await browser.newPage();
 const errors = [];
 const live = {}; // the browser's own calls to Sleeper and ESPN: host -> [ok, failed]
 // Those calls can fail (CORS, rate limits, no network) and the page falls back to
-// the build's snapshot, so they are reported rather than failing the check.
-const external = (u) => /api\.sleeper\.app|espn\.com/.test(u);
+// the build's snapshot, so they are reported rather than failing the check. Player
+// photos come from Sleeper's CDN too, and a player Sleeper has no photo for (a new
+// signing) just shows the blank badge, so a missing photo is reported, not an error.
+const external = (u) => /api\.sleeper\.app|sleepercdn\.com|espn\.com/.test(u);
 const tally = (u, ok) => { const h = new URL(u).host; (live[h] = live[h] || [0, 0])[ok ? 0 : 1]++; };
 page.on("pageerror", (e) => errors.push(e.stack || e.message));
 page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Failed to load resource") && !/CORS|sleeper|espn/i.test(m.text()) && errors.push(m.text()));
