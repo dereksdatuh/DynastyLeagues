@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-11-24T00:51:36+00:00",
- "build": "c80d84c",
+ "generated_at": "2026-11-24T01:03:42+00:00",
+ "build": "d5d74cf",
  "leagues": [
   {
    "id": "league-1",
@@ -53,19 +53,19 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 397,
-     "matched": 397,
+     "players": 396,
+     "matched": 396,
      "picks": 24,
-     "shared_with_reference": 397,
+     "shared_with_reference": 396,
      "reference": "fantasycalc"
     },
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -74,11 +74,11 @@
      "players": 655,
      "matched": 656,
      "picks": 85,
-     "shared_with_reference": 394,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:14+00:00"
+   "generated_at": "2026-11-24T01:03:17+00:00"
   },
   {
    "id": "league-2",
@@ -128,10 +128,10 @@
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -144,7 +144,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:21+00:00"
+   "generated_at": "2026-11-24T01:03:24+00:00"
   },
   {
    "id": "league-3",
@@ -194,10 +194,10 @@
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -210,7 +210,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:24+00:00"
+   "generated_at": "2026-11-24T01:03:28+00:00"
   },
   {
    "id": "league-4",
@@ -260,10 +260,10 @@
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -276,7 +276,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:29+00:00"
+   "generated_at": "2026-11-24T01:03:33+00:00"
   },
   {
    "id": "league-5",
@@ -325,10 +325,10 @@
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -341,7 +341,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:31+00:00"
+   "generated_at": "2026-11-24T01:03:36+00:00"
   },
   {
    "id": "league-6",
@@ -382,19 +382,19 @@
     {
      "source": "fantasycalc",
      "ok": true,
-     "players": 397,
-     "matched": 397,
+     "players": 396,
+     "matched": 396,
      "picks": 24,
-     "shared_with_reference": 397,
+     "shared_with_reference": 396,
      "reference": "fantasycalc"
     },
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -403,11 +403,11 @@
      "players": 655,
      "matched": 656,
      "picks": 85,
-     "shared_with_reference": 394,
+     "shared_with_reference": 393,
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:34+00:00"
+   "generated_at": "2026-11-24T01:03:40+00:00"
   },
   {
    "id": "league-7",
@@ -457,10 +457,10 @@
     {
      "source": "ktc",
      "ok": true,
-     "players": 3,
-     "matched": 3,
-     "picks": 0,
-     "shared_with_reference": 3,
+     "players": 2,
+     "matched": 2,
+     "picks": 1,
+     "shared_with_reference": 2,
      "reference": "fantasycalc"
     },
     {
@@ -473,7 +473,7 @@
      "reference": "fantasycalc"
     }
    ],
-   "generated_at": "2026-11-24T00:51:36+00:00"
+   "generated_at": "2026-11-24T01:03:42+00:00"
   }
  ]
 }
