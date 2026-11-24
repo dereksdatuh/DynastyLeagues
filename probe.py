@@ -1,24 +1,22 @@
-import json, re, urllib.request
+import re, urllib.request, urllib.parse
+UA = {"User-Agent": "Mozilla/5.0"}
+get = lambda u: urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=30).read().decode("utf-8", "replace")
 out = []
-for fmt in (2, 1):
-    url = f"https://keeptradecut.com/devy-rankings?page=0&filters=QB|WR|RB|TE&format={fmt}"
-    try:
-        html = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read().decode("utf-8", "replace")
-    except Exception as e:
-        out.append(f"{fmt} ERR {e}"); continue
-    out.append(f"format {fmt}: {len(html)} bytes, playerName count {html.count(chr(34)+'playerName'+chr(34))}")
-    for m in re.finditer(r"(\w+)\s*=\s*\[", html):
-        i = m.end() - 1
-        try:
-            rows, _ = json.JSONDecoder().raw_decode(html, i)
-        except ValueError:
-            continue
-        if isinstance(rows, list) and rows and isinstance(rows[0], dict) and "playerName" in rows[0]:
-            yrs = {}
-            for r in rows: yrs[str(r.get("draftYear"))] = yrs.get(str(r.get("draftYear")), 0) + 1
-            out.append(f"  var {m.group(1)} at {i}: {len(rows)} rows, draftYear {yrs}, first {[r.get('playerName') for r in rows[:5]]}")
-    for m in re.finditer(r"playersArray", html):
-        out.append("  ctx: " + html[max(m.start()-80,0):m.start()+160].replace("\n"," "))
-    for k in ("devy-rankings?page=1", "page=1", "Load More", "pagination"):
-        out.append(f"  has {k!r}: {k in html}")
+html = get("https://keeptradecut.com/devy-rankings?page=0&filters=QB|WR|RB|TE&format=2")
+i = html.find("function ktcFetchPlayerPool")
+out.append(f"inline def at {i}")
+if i != -1: out.append(html[i:i+2500])
+srcs = re.findall(r'<script[^>]+src="([^"]+)"', html)
+out.append("srcs: " + " | ".join(srcs))
+for s in srcs:
+    u = urllib.parse.urljoin("https://keeptradecut.com/", s)
+    if "keeptradecut" not in u: continue
+    try: js = get(u)
+    except Exception as e: out.append(f"{u} ERR {e}"); continue
+    j = js.find("ktcFetchPlayerPool")
+    if j != -1:
+        out.append(f"== {u} ({len(js)} bytes)"); out.append(js[max(j-200,0):j+3000])
+d = get("https://keeptradecut.com/dynasty-rankings?page=0&filters=QB|WR|RB|TE|RDP&format=2")
+k = d.find("playersArray")
+out.append("dynasty page: " + d[max(k-100,0):k+300].replace("\n", " "))
 open("scratch/devy_probe.txt", "w").write("\n".join(out))
