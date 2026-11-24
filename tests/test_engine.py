@@ -1,4 +1,5 @@
 import copy
+import json
 
 import pytest
 
@@ -135,6 +136,16 @@ def test_ktc_parser_reads_embedded_array():
     assert parse_players_array(html)[0]["playerName"] == "A;]"
     with pytest.raises(ValueError):
         parse_players_array("<html>blocked</html>")
+
+
+def test_ktc_parser_refuses_a_side_array_when_the_list_loads_in_the_browser():
+    # KTC's page since 2026-11-24: an empty playersArray filled by a later request, and a
+    # few short "featured" arrays that must not pass for the whole list.
+    html = ("<script>var oneQBPlayers = [{\"playerName\": \"CJ Baxter\"}];</script>"
+            "<script>var playersVersion = 'v1'; var playersArray = [];"
+            " var ktcPoolReady = ktcFetchPlayerPool('devy', playersVersion, null);</script>")
+    with pytest.raises(ValueError, match="in the browser"):
+        parse_players_array(html)
 
 
 def _build(league, offline, config_extra=None, **kw):
@@ -386,6 +397,21 @@ def test_stated_playoff_slots_are_ignored_when_unusable(offline):
                   config_extra={"draft_order": {"playoff_slots": [12, 12, 99]}})
     rd = data["rookie_draft"]
     assert rd["rule"]["playoff_slots"] is None and len(set(rd["order"])) == len(data["teams"])
+
+
+def test_devy_class_falls_back_to_the_saved_board_when_ktc_changes(offline, monkeypatch, tmp_path):
+    page = ("<script>var oneQBPlayers = [{\"playerName\": \"CJ Baxter\", \"draftYear\": 2027,"
+            " \"superflexValues\": {\"value\": 4000}}];</script>"
+            "<script>var playersArray = []; var p = ktcFetchPlayerPool('devy', 'v1', null);</script>")
+    monkeypatch.setattr(draft, "get_text", lambda *a, **k: page)
+    saved = [{"name": f"Saved {i}", "pos": ["QB", "RB", "WR", "TE"][i % 4], "school": "Texas", "age": 20,
+              "class": 2027 if i % 3 else 2028, "ktc": 9000 - i * 100, "ktc_rank": i + 1} for i in range(40)]
+    snap = tmp_path / "snap.json"
+    snap.write_text(json.dumps({"as_of": "2026-11-23", "superflex": saved}))
+    monkeypatch.setattr(draft, "DEVY_SNAPSHOT", snap)
+    rd = _build(STANDARD_LEAGUE, offline)["rookie_draft"]
+    assert rd["source"]["snapshot"] == "2026-11-23" and "in the browser" in rd["source"]["error"]
+    assert len(rd["class"]) >= 20 and all(p["name"].startswith("Saved ") for p in rd["class"])
 
 
 def test_class_blends_slot_and_ktc_devy_and_lifts_picks(offline, monkeypatch):
