@@ -6,7 +6,7 @@ for fmt in (2, 1):
         html = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read().decode("utf-8", "replace")
     except Exception as e:
         out.append(f"{fmt} ERR {e}"); continue
-    out.append(f"format {fmt}: {len(html)} bytes, playerName count {html.count('\"playerName\"')}")
+    out.append(f"format {fmt}: {len(html)} bytes, playerName count {html.count(chr(34)+'playerName'+chr(34))}")
     for m in re.finditer(r"(\w+)\s*=\s*\[", html):
         i = m.end() - 1
         try:
