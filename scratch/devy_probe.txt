@@ -1,7 +1,259 @@
-inline def at -1
-srcs: https://www.googletagmanager.com/gtag/js?id=UA-134209803-1 | https://cdn.usefathom.com/script.js | /early/dataCache.js?v=xTrmfr1em9NDKk0drgXv63QjiKMwgp1E2fpoG4zoSQY | https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js | /vendor/js/vendor.min.js?v=ezLPo6_6yQwCYRg6WAajE94LWiymwGS--P37-4wIuQo | /js/site.min.js?v=DkgCIlIjvHdsmttA-N8fUtbe-MpgY4iRJMMpqPSf-JI
-== https://keeptradecut.com/early/dataCache.js?v=xTrmfr1em9NDKk0drgXv63QjiKMwgp1E2fpoG4zoSQY (11882 bytes)
-dynasty", "fantasy" or "devy".
+// Client-side cache for the big, slow-changing datasets: the bulk player histories and the
+// league player pool.
+//
+// The server names the current dataset in a page global and serves it from a versioned,
+// immutable URL, so "is my copy current?" is a string compare instead of a guess about
+// the clock — the old sessionStorage cache keyed on the UTC date, which rolls hours before
+// the nightly publish, and the payload has since outgrown Web Storage's ~5MB anyway.
+//
+// Everything here degrades to a plain fetch. A browser without the Cache API, a storage
+// error, or a hung open leaves the page working exactly as it did before this file existed.
+//
+// Loaded from <head> ahead of the bundle so a page can start its pool fetch at parse time.
+// No jQuery here.
+
+var KTC_DATA_CACHE_NAME = 'ktc-data';
+
+// Bump when what a payload CONTAINS changes at a deploy, so a stored response built by the
+// old server can never be handed to new code. Ordinary data changes are handled by the server's
+// version; this covers the case where the bytes change but that version legitimately does not.
+// rev 2: the crowd series stopped carrying a server-stamped live point.
+var KTC_DATA_CACHE_SCHEMA_REV = '2';
+
+var KTC_HISTORIES_VERSION_HEADER = 'X-KTC-Histories-Version';
+var KTC_PLAYERS_VERSION_HEADER = 'X-KTC-Players-Version';
+
+// The Cache API has no upgrade/blocking semantics to deadlock on, but a wedged storage
+// layer must not take the page down with it.
+var KTC_DATA_CACHE_TIMEOUT_MS = 1500;
+
+// The pool gates every ready handler on the page. A connection that has produced no response
+// headers in 10 s is given up on; a body already streaming is never cut off, and the gate
+// releases regardless at 45 s.
+var KTC_PLAYER_POOL_FIRST_BYTE_TIMEOUT_MS = 10000;
+var KTC_PLAYER_POOL_HARD_TIMEOUT_MS = 45000;
+
+function ktcDataCacheAvailable() {
+	try {
+		return typeof caches !== 'undefined' && !!caches && typeof caches.open === 'function';
+	} catch (err) {
+		// Accessing caches throws outright in some privacy modes.
+		return false;
+	}
+}
+
+function ktcDataCacheWithTimeout(promise) {
+	return Promise.race([
+		promise,
+		new Promise(function (resolve) {
+			setTimeout(function () { resolve(null); }, KTC_DATA_CACHE_TIMEOUT_MS);
+		})
+	]).catch(function () { return null; });
+}
+
+function ktcDataCacheOpen() {
+	if (!ktcDataCacheAvailable()) {
+		return Promise.resolve(null);
+	}
+
+	try {
+		return ktcDataCacheWithTimeout(caches.open(KTC_DATA_CACHE_NAME));
+	} catch (err) {
+		return Promise.resolve(null);
+	}
+}
+
+// The schema revision rides in its own parameter rather than inside v: it has to change the URL
+// (so an entry stored by older code is never reused) but it must not change the version string the
+// server compares against, or no request would ever qualify as current.
+function ktcDataCacheUrl(baseUrl, version) {
+	return baseUrl + '?v=' + encodeURIComponent(version) + '&sr=' + encodeURIComponent(KTC_DATA_CACHE_SCHEMA_REV);
+}
+
+// Drops every entry for this dataset except the one just stored, so a user holds at most the
+// current copy per dataset rather than accumulating one per version.
+function ktcDataCacheEvictOtherVersions(cache, baseUrl, keepUrl) {
+	return cache.keys().then(function (requests) {
+		var stale = requests.filter(function (request) {
+			return request.url.indexOf(baseUrl) !== -1 && request.url.indexOf(keepUrl) === -1;
+		});
+		return Promise.all(stale.map(function (request) { return cache.delete(request); }));
+	}).catch(function () { });
+}
+
+// Newest stored copy of this dataset regardless of version — the fallback when the network
+// fails, since a stale graph beats no graph. Eviction normally leaves a single entry, so this
+// only has a choice to make when a previous eviction failed; versions sort correctly as strings
+// because they are time-first and fixed width.
+function ktcDataCacheAnyStored(cache, baseUrl) {
+	return cache.keys().then(function (requests) {
+		var match = requests.filter(function (request) {
+			return request.url.indexOf(baseUrl) !== -1;
+		}).sort(function (a, b) {
+			return ktcDataCacheVersionOf(b).localeCompare(ktcDataCacheVersionOf(a));
+		})[0];
+		return match ? cache.match(match) : null;
+	}).catch(function () { return null; });
+}
+
+function ktcDataCacheVersionOf(request) {
+	var match = /[?&]v=([^&]*)/.exec(request.url);
+	return match ? decodeURIComponent(match[1]) : '';
+}
+
+/**
+ * Fetches a versioned dataset, serving it from the browser cache when the stored copy matches
+ * the version the page was rendered with.
+ *
+ * @param {string} baseUrl      Path without query, e.g. "/dynasty-rankings/histories".
+ * @param {string} version      Server-published dataset version (the page global).
+ * @param {function} onData     Called with the parsed payload. Called once, cached or not.
+ * @param {object} [options]    versionHeader (default histories), credentials (default 'omit'),
+ *                              signal (AbortSignal), onResponse (called once headers arrive),
+ *                              onError (called when nothing could be delivered).
+ */
+function ktcFetchVersionedData(baseUrl, version, onData, options) {
+	var ctx = {
+		baseUrl: baseUrl,
+		version: version,
+		onData: onData,
+		versionHeader: (options && options.versionHeader) || KTC_HISTORIES_VERSION_HEADER,
+		credentials: (options && options.credentials) || 'omit',
+		signal: (options && options.signal) || null,
+		onResponse: (options && options.onResponse) || function () { },
+		onError: (options && options.onError) || function () { }
+	};
+
+	// No version means the server could not name its data (cold start): fetch uncached rather
+	// than storing something we cannot invalidate.
+	if (!version) {
+		ktcDataCacheNetworkFetch(baseUrl, null, ctx);
+		return;
+	}
+
+	var url = ktcDataCacheUrl(baseUrl, version);
+	ktcDataCacheOpen().then(function (cache) {
+		if (!cache) {
+			ktcDataCacheNetworkFetch(url, null, ctx);
+			return;
+		}
+
+		ktcDataCacheWithTimeout(cache.match(url)).then(function (cached) {
+			if (!cached) {
+				ktcDataCacheNetworkFetch(url, cache, ctx);
+				return;
+			}
+
+			cached.json().then(function (data) {
+				// Parsed, so the entry is sound. Delivery happens through the isolating
+				// wrapper: a throw from here on is the page's, not the cache's.
+				ktcDataCacheDeliver(ctx.onData, data);
+			}, function () {
+				// Only a genuinely unreadable entry gets here. Drop it and go to the network.
+				try { cache.delete(url); } catch (err) { }
+				ktcDataCacheNetworkFetch(url, cache, ctx);
+			});
+		});
+	});
+}
+
+/**
+ * Hands the payload to the caller without letting its failure reach the cache logic. A page
+ * whose renderer throws would otherwise look like a bad cache entry — which cost the entry AND
+ * a refetch on every load, exactly inverting what this cache is for.
+ */
+function ktcDataCacheDeliver(onData, data) {
+	try {
+		onData(data);
+	} catch (err) {
+		console.log('ERROR', err);
+	}
+}
+
+// Histories go without credentials: the response is declared public and immutable, so it must
+// not be able to vary by whoever is asking. An environment gate in front of the app is the one
+// thing that argues back — QA sits behind Easy Auth, which redirects a cookie-less request to
+// an identity provider. Following that redirect logs a CORS error, so the first attempt stops at
+// it instead, and a retry with cookies clears the gate; production has no gate, so it never
+// reaches the retry. The pool asks for same-origin credentials up front: its version is
+// per instance, and the affinity cookie is what routes the fetch to the instance that
+// rendered the page.
+function ktcDataCacheRequest(url, credentials, signal) {
+	if (credentials !== 'omit') {
+		return fetch(url, { credentials: credentials, signal: signal });
+	}
+
+	var retry = function () { return fetch(url, { credentials: 'same-origin', signal: signal }); };
+	return fetch(url, { credentials: 'omit', redirect: 'manual', signal: signal }).then(function (response) {
+		if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+			return retry();
+		}
+		return response;
+	}, retry);
+}
+
+function ktcDataCacheNetworkFetch(url, cache, ctx) {
+	ktcDataCacheRequest(url, ctx.credentials, ctx.signal).then(function (response) {
+		ctx.onResponse(response);
+		if (!response.ok) {
+			throw new Error('HTTP ' + response.status);
+		}
+
+		// Store only when the responding instance actually served the version we asked for.
+		// During a rolling cache refresh an instance can answer with older data than the page
+		// was rendered from; caching that under the new version would pin it until tomorrow.
+		var servedVersion = response.headers.get(ctx.versionHeader);
+		var storable = cache && ctx.version && servedVersion === ctx.version;
+
+		// Clone BEFORE reading: the parsed object gets mutated in place by the callers
+		// (decode, then today's live point appended), so storing after that would persist
+		// data the next page load cannot decode again.
+		var toStore = storable ? response.clone() : null;
+
+		return response.json().then(function (data) {
+			return { data: data, toStore: toStore };
+		});
+	}).then(function (result) {
+		// Render first, then persist — but persistence is not conditional on the render, so a
+		// page-specific rendering bug cannot also cost every future page load its cache hit.
+		ktcDataCacheDeliver(ctx.onData, result.data);
+
+		if (result.toStore) {
+			try {
+				cache.put(url, result.toStore).then(function () {
+					ktcDataCacheEvictOtherVersions(cache, ctx.baseUrl, url);
+				}).catch(function () { });
+			} catch (err) { }
+		}
+	}, function (error) {
+		// Reached only for network/HTTP failures: the delivery stage above has its own handling.
+		console.log('ERROR', error);
+
+		if (!cache || !ctx.baseUrl) {
+			ctx.onError(error);
+			return;
+		}
+
+		// Offline or server down: render whatever copy we still have.
+		ktcDataCacheAnyStored(cache, ctx.baseUrl).then(function (stored) {
+			if (!stored) {
+				ctx.onError(error);
+				return;
+			}
+
+			stored.json().then(function (data) {
+				ktcDataCacheDeliver(ctx.onData, data);
+			}, function () { ctx.onError(error); });
+		});
+	});
+}
+
+/**
+ * Resolves with the league player pool, from the browser cache when it holds the page's version.
+ * Always resolves: a failed or stalled fetch yields a stored copy if one exists, else an empty
+ * array, so the page's ready handlers are never held hostage.
+ *
+ * @param {string} leagueRoute  "dynasty", "fantasy" or "devy".
  * @param {string} version      The playersVersion page global.
  * @param {Array}  [playerIds]  When given, only these players are returned, in pool order.
  */
@@ -52,4 +304,9 @@ function ktcFilterPlayerPool(pool, playerIds) {
 	});
 }
 
-dynasty page: Enabled = true;  </script> <script>     var playersVersion = '2611240030-d9a87497d3ea8f51';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('dynasty', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-c30592ef3a96cb4e'; </
+/devy-rankings/player-pool?v=2611240030-cb5f797e67be1201 {}: ERR HTTP Error 403: Forbidden
+/devy-rankings/player-pool {'X-Players-Version': '2611240030-cb5f797e67be1201'}: ERR HTTP Error 403: Forbidden
+/devy-rankings/player-pool {}: ERR HTTP Error 403: Forbidden
+/dynasty-rankings/player-pool?v=2611240030-cb5f797e67be1201 {}: ERR HTTP Error 403: Forbidden
+/dynasty-rankings/player-pool {'X-Players-Version': '2611240030-cb5f797e67be1201'}: ERR HTTP Error 403: Forbidden
+/dynasty-rankings/player-pool {}: ERR HTTP Error 403: Forbidden
