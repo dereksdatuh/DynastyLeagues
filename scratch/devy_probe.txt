@@ -1,0 +1,26 @@
+format 2: 288117 bytes, playerName count 26
+  var oneQBPlayers at 5941: 3 rows, draftYear {'2027': 2, '2029': 1}, first ['Anthony Evans III', 'Aiden Flora', 'Kayden Dixon-Wyatt']
+  var superflexPlayers at 15668: 3 rows, draftYear {'2027': 3}, first ['Justice Haynes', 'LJ Martin', 'Mario Craver']
+  var top5RisersOneQB at 25435: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Charlie Becker', 'Turbo Richard', 'Malachi Toney', 'Jadan Baugh']
+  var top5FallersOneQB at 41463: 5 rows, draftYear {'2027': 2, '2028': 2, '2029': 1}, first ['Cam Coleman', 'Dakorien Moore', 'Lotzeir Brooks', 'Arch Manning', 'EJ Crowell']
+  var top5RisersSuperflex at 57582: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Drew Mestemaker', 'CJ Carr', 'Austin Simmons', 'Kamario Taylor']
+  var top5FallersSuperflex at 73664: 5 rows, draftYear {'2027': 4, '2029': 1}, first ['Cam Coleman', 'KJ Duff', 'Kewan Lacy', 'EJ Crowell', 'Julian Sayin']
+  ctx: cript> <script>     var playersVersion = '2611240021-197819b3242aaa40';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('devy', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : nu
+  ctx: ds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-ec93e6dbe88acded'; </script>  <main     class="rankings-page  dashboard-page ale
+  has 'devy-rankings?page=1': False
+  has 'page=1': False
+  has 'Load More': False
+  has 'pagination': True
+format 1: 288037 bytes, playerName count 26
+  var oneQBPlayers at 5941: 3 rows, draftYear {'2027': 2, '2028': 1}, first ['CJ Baxter', 'Malcolm Simmons', 'Kamario Taylor']
+  var superflexPlayers at 15644: 3 rows, draftYear {'2027': 3}, first ['Jackson Harris', 'Dante Moore', 'Arch Manning']
+  var top5RisersOneQB at 25362: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Charlie Becker', 'Turbo Richard', 'Malachi Toney', 'Jadan Baugh']
+  var top5FallersOneQB at 41390: 5 rows, draftYear {'2027': 2, '2028': 2, '2029': 1}, first ['Cam Coleman', 'Dakorien Moore', 'Lotzeir Brooks', 'Arch Manning', 'EJ Crowell']
+  var top5RisersSuperflex at 57509: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Drew Mestemaker', 'CJ Carr', 'Austin Simmons', 'Kamario Taylor']
+  var top5FallersSuperflex at 73591: 5 rows, draftYear {'2027': 4, '2029': 1}, first ['Cam Coleman', 'KJ Duff', 'Kewan Lacy', 'EJ Crowell', 'Julian Sayin']
+  ctx: cript> <script>     var playersVersion = '2611240021-197819b3242aaa40';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('devy', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : nu
+  ctx: ds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-ec93e6dbe88acded'; </script>  <main     class="rankings-page  dashboard-page ale
+  has 'devy-rankings?page=1': False
+  has 'page=1': False
+  has 'Load More': False
+  has 'pagination': True
