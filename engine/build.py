@@ -90,16 +90,24 @@ class Shared:
         """KeepTradeCut devy rankings for one QB format, fetched once per run."""
         key = ("devy", superflex)
         if key not in self._espn:
+            info = {}
             try:
                 rows, fields = draft.fetch_devy(superflex)
-                classes = {}
-                for r in rows:
-                    classes[r["class"]] = classes.get(r["class"], 0) + 1
-                self._espn[key] = {"ok": True, "players": rows, "fields": fields,
-                                   "classes": {str(k): v for k, v in sorted(classes.items(), key=lambda kv: str(kv[0]))}}
+                if len(rows) < draft.DEVY_MIN_ROWS:
+                    raise ValueError(f"only {len(rows)} prospects on the KTC devy page")
+                info = {"ok": True, "fields": fields}
             except Exception as exc:
                 print(f"warning: KTC devy rankings failed: {exc}"[:300], file=sys.stderr)
-                self._espn[key] = {"ok": False, "players": [], "error": f"{type(exc).__name__}: {exc}"[:300]}
+                rows, as_of = draft.devy_snapshot(superflex)
+                info = {"ok": bool(rows), "error": f"{type(exc).__name__}: {exc}"[:300]}
+                if rows:
+                    info["snapshot"] = as_of
+                    print(f"warning: using the saved KTC devy board from {as_of} ({len(rows)} prospects)", file=sys.stderr)
+            classes = {}
+            for r in rows:
+                classes[r["class"]] = classes.get(r["class"], 0) + 1
+            self._espn[key] = {**info, "players": rows,
+                               "classes": {str(k): v for k, v in sorted(classes.items(), key=lambda kv: str(kv[0]))}}
         return self._espn[key]
 
     def espn(self, name: str, *args):

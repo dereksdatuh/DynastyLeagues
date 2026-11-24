@@ -29,6 +29,11 @@ def parse_players_array(html: str) -> list[dict]:
         rows = _decode_list_at(html, m.end() - 1)
         if rows:
             return rows
+        if "ktcFetchPlayerPool" in html:
+            # Since 2026-11-24 the page ships an empty array and loads the players in the
+            # browser. The other arrays on the page (featured, risers, fallers) hold a
+            # handful of players, so reading one of them would pass for a full list.
+            raise ValueError("KTC now loads its player list in the browser (playersArray is empty)")
     # Variable renamed: find the first player object and back up to its array.
     key = html.find('"playerName"')
     if key != -1:

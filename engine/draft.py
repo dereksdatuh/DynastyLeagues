@@ -13,7 +13,9 @@ for the pick where he ranks (from this league's pick values), adjusted for how
 this league's scoring and lineup treat his position.
 """
 
+import json
 import re
+from pathlib import Path
 from statistics import median
 
 from . import record
@@ -298,6 +300,20 @@ def _class_year(row: dict):
         if isinstance(v, (int, str)) and re.fullmatch(r"20(2[6-9]|3\d)", str(v)) and "age" not in k.lower():
             return int(v)
     return None
+
+
+DEVY_SNAPSHOT = Path(__file__).resolve().parent.parent / "data" / "ktc_devy_snapshot.json"
+DEVY_MIN_ROWS = 20  # fewer than this is a page that changed shape, not a real board
+
+
+def devy_snapshot(superflex: bool) -> tuple[list[dict], str | None]:
+    """The last KTC devy board the build could read, kept in the repo as a fallback."""
+    try:
+        snap = json.loads(DEVY_SNAPSHOT.read_text())
+    except (OSError, ValueError):
+        return [], None
+    rows = snap.get("superflex" if superflex else "one_qb") or snap.get("superflex") or []
+    return sorted(rows, key=lambda p: -(p.get("ktc") or 0)), snap.get("as_of")
 
 
 def fetch_devy(superflex: bool) -> tuple[list[dict], list[str]]:
