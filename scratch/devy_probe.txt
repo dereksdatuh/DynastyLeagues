@@ -1,26 +1,55 @@
-format 2: 288117 bytes, playerName count 26
-  var oneQBPlayers at 5941: 3 rows, draftYear {'2027': 2, '2029': 1}, first ['Anthony Evans III', 'Aiden Flora', 'Kayden Dixon-Wyatt']
-  var superflexPlayers at 15668: 3 rows, draftYear {'2027': 3}, first ['Justice Haynes', 'LJ Martin', 'Mario Craver']
-  var top5RisersOneQB at 25435: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Charlie Becker', 'Turbo Richard', 'Malachi Toney', 'Jadan Baugh']
-  var top5FallersOneQB at 41463: 5 rows, draftYear {'2027': 2, '2028': 2, '2029': 1}, first ['Cam Coleman', 'Dakorien Moore', 'Lotzeir Brooks', 'Arch Manning', 'EJ Crowell']
-  var top5RisersSuperflex at 57582: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Drew Mestemaker', 'CJ Carr', 'Austin Simmons', 'Kamario Taylor']
-  var top5FallersSuperflex at 73664: 5 rows, draftYear {'2027': 4, '2029': 1}, first ['Cam Coleman', 'KJ Duff', 'Kewan Lacy', 'EJ Crowell', 'Julian Sayin']
-  ctx: cript> <script>     var playersVersion = '2611240021-197819b3242aaa40';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('devy', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : nu
-  ctx: ds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-ec93e6dbe88acded'; </script>  <main     class="rankings-page  dashboard-page ale
-  has 'devy-rankings?page=1': False
-  has 'page=1': False
-  has 'Load More': False
-  has 'pagination': True
-format 1: 288037 bytes, playerName count 26
-  var oneQBPlayers at 5941: 3 rows, draftYear {'2027': 2, '2028': 1}, first ['CJ Baxter', 'Malcolm Simmons', 'Kamario Taylor']
-  var superflexPlayers at 15644: 3 rows, draftYear {'2027': 3}, first ['Jackson Harris', 'Dante Moore', 'Arch Manning']
-  var top5RisersOneQB at 25362: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Charlie Becker', 'Turbo Richard', 'Malachi Toney', 'Jadan Baugh']
-  var top5FallersOneQB at 41390: 5 rows, draftYear {'2027': 2, '2028': 2, '2029': 1}, first ['Cam Coleman', 'Dakorien Moore', 'Lotzeir Brooks', 'Arch Manning', 'EJ Crowell']
-  var top5RisersSuperflex at 57509: 5 rows, draftYear {'2027': 4, '2028': 1}, first ['Jackson Harris', 'Drew Mestemaker', 'CJ Carr', 'Austin Simmons', 'Kamario Taylor']
-  var top5FallersSuperflex at 73591: 5 rows, draftYear {'2027': 4, '2029': 1}, first ['Cam Coleman', 'KJ Duff', 'Kewan Lacy', 'EJ Crowell', 'Julian Sayin']
-  ctx: cript> <script>     var playersVersion = '2611240021-197819b3242aaa40';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('devy', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : nu
-  ctx: ds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-ec93e6dbe88acded'; </script>  <main     class="rankings-page  dashboard-page ale
-  has 'devy-rankings?page=1': False
-  has 'page=1': False
-  has 'Load More': False
-  has 'pagination': True
+inline def at -1
+srcs: https://www.googletagmanager.com/gtag/js?id=UA-134209803-1 | https://cdn.usefathom.com/script.js | /early/dataCache.js?v=xTrmfr1em9NDKk0drgXv63QjiKMwgp1E2fpoG4zoSQY | https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js | /vendor/js/vendor.min.js?v=ezLPo6_6yQwCYRg6WAajE94LWiymwGS--P37-4wIuQo | /js/site.min.js?v=DkgCIlIjvHdsmttA-N8fUtbe-MpgY4iRJMMpqPSf-JI
+== https://keeptradecut.com/early/dataCache.js?v=xTrmfr1em9NDKk0drgXv63QjiKMwgp1E2fpoG4zoSQY (11882 bytes)
+dynasty", "fantasy" or "devy".
+ * @param {string} version      The playersVersion page global.
+ * @param {Array}  [playerIds]  When given, only these players are returned, in pool order.
+ */
+function ktcFetchPlayerPool(leagueRoute, version, playerIds) {
+	return new Promise(function (resolve) {
+		var settled = false;
+		var timers = [];
+		var finish = function (pool) {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			timers.forEach(clearTimeout);
+			resolve(ktcFilterPlayerPool(pool || [], playerIds));
+		};
+
+		var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+		var firstByteTimer = setTimeout(function () {
+			if (controller) {
+				controller.abort();
+			}
+		}, KTC_PLAYER_POOL_FIRST_BYTE_TIMEOUT_MS);
+		timers.push(firstByteTimer);
+		timers.push(setTimeout(function () { finish([]); }, KTC_PLAYER_POOL_HARD_TIMEOUT_MS));
+
+		ktcFetchVersionedData('/' + leagueRoute + '-rankings/player-pool', version, finish, {
+			versionHeader: KTC_PLAYERS_VERSION_HEADER,
+			credentials: 'same-origin',
+			signal: controller ? controller.signal : null,
+			onResponse: function () { clearTimeout(firstByteTimer); },
+			onError: function () { finish([]); }
+		});
+	});
+}
+
+function ktcFilterPlayerPool(pool, playerIds) {
+	if (!playerIds || !playerIds.length) {
+		return pool;
+	}
+
+	var wanted = {};
+	for (var i = 0; i < playerIds.length; i++) {
+		wanted[playerIds[i]] = true;
+	}
+
+	return pool.filter(function (player) {
+		return wanted[player.playerID] === true;
+	});
+}
+
+dynasty page: Enabled = true;  </script> <script>     var playersVersion = '2611240030-d9a87497d3ea8f51';     var playersArray = [];     var ktcPoolReady = ktcFetchPlayerPool('dynasty', playersVersion,         typeof filteredPlayersIds !== 'undefined' ? filteredPlayersIds : null)         .then(function (pool) { playersArray = pool; }); </script>  <script>     var historiesVersion = '261123-c30592ef3a96cb4e'; </
