@@ -1,22 +1,22 @@
-import re, urllib.request, urllib.parse
+import re, json, urllib.request, urllib.parse
 UA = {"User-Agent": "Mozilla/5.0"}
-get = lambda u: urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=30).read().decode("utf-8", "replace")
+def get(u, h=None):
+    r = urllib.request.urlopen(urllib.request.Request(u, headers={**UA, **(h or {})}), timeout=30)
+    return r.read().decode("utf-8", "replace"), dict(r.headers)
 out = []
-html = get("https://keeptradecut.com/devy-rankings?page=0&filters=QB|WR|RB|TE&format=2")
-i = html.find("function ktcFetchPlayerPool")
-out.append(f"inline def at {i}")
-if i != -1: out.append(html[i:i+2500])
-srcs = re.findall(r'<script[^>]+src="([^"]+)"', html)
-out.append("srcs: " + " | ".join(srcs))
-for s in srcs:
-    u = urllib.parse.urljoin("https://keeptradecut.com/", s)
-    if "keeptradecut" not in u: continue
-    try: js = get(u)
-    except Exception as e: out.append(f"{u} ERR {e}"); continue
-    j = js.find("ktcFetchPlayerPool")
-    if j != -1:
-        out.append(f"== {u} ({len(js)} bytes)"); out.append(js[max(j-200,0):j+3000])
-d = get("https://keeptradecut.com/dynasty-rankings?page=0&filters=QB|WR|RB|TE|RDP&format=2")
-k = d.find("playersArray")
-out.append("dynasty page: " + d[max(k-100,0):k+300].replace("\n", " "))
+html, _ = get("https://keeptradecut.com/devy-rankings?page=0&filters=QB|WR|RB|TE&format=2")
+ver = re.search(r"playersVersion\s*=\s*'([^']+)'", html).group(1)
+src = re.search(r'src="(/early/dataCache\.js[^"]*)"', html).group(1)
+js, _ = get("https://keeptradecut.com" + src)
+out.append(js[:12000])
+for path in ("/devy-rankings/player-pool", "/dynasty-rankings/player-pool"):
+    for q, h in ((f"?v={ver}", {}), ("", {"X-Players-Version": ver}), ("", {})):
+        try:
+            body, hd = get("https://keeptradecut.com" + path + q, h)
+            try:
+                j = json.loads(body); n = len(j) if isinstance(j, list) else list(j)[:8]
+            except Exception: n = "notjson"
+            out.append(f"{path}{q} {h}: {len(body)} bytes, {n}, ctype {hd.get('Content-Type')} first {body[:300]!r}")
+        except Exception as e:
+            out.append(f"{path}{q} {h}: ERR {e}")
 open("scratch/devy_probe.txt", "w").write("\n".join(out))
