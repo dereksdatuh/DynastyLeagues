@@ -4882,21 +4882,47 @@ function rookiePPG(pr) {
   return peers.length ? peers[peers.length >> 1] : 0;
 }
 
+// A starting-calibre player's points per game at each position: the median of the
+// top (starting slots × teams) scorers, as engine/outlook.py starter_levels.
+let starterLevelCache = null;
+function starterLevels() {
+  if (starterLevelCache && starterLevelCache.data === state.data) return starterLevelCache.levels;
+  const slots = state.data.league.format.starting_slots, n = state.data.teams.length, levels = {};
+  ["QB", "RB", "WR", "TE"].forEach((pos) => {
+    const need = Math.max(1, slots.filter((x) => x === pos).length) * n;
+    const top = state.data.players.filter((p) => p.pos === pos && p.ppg > 0).map((p) => p.ppg).sort((a, b) => b - a).slice(0, need);
+    if (top.length) levels[pos] = top[top.length >> 1];
+  });
+  starterLevelCache = { data: state.data, levels };
+  return levels;
+}
+// Next season's true level: a player above an ordinary starter keeps only the share
+// of his edge his position holds year to year (the backtested stability), as
+// engine/outlook.py does. Then the age curve moves him from there.
+function settledPPG(p) {
+  const ppg = p.ppg || 0, mean = starterLevels()[p.pos];
+  if (!mean || ppg <= mean) return ppg;
+  const stab = ((state.data.model || {}).stability || {})[p.pos] ?? 0.85;
+  return mean + stab * (ppg - mean);
+}
+
 function futureLineups(rid, rookies, rdYear, roster = null) {
   const season = Number(state.data.league.season) || rdYear - 1;
   const years = [rdYear, rdYear + 1, rdYear + 2];
   const vets = (roster || rosterOf(rid)).filter((p) => ["QB", "RB", "WR", "TE"].includes(p.pos));
   return years.map((y) => {
     const ahead = y - season;
-    const pool = vets.map((p) => ({ ...p, fppg: (p.ppg || 0) * ageAhead(p, ahead), fage: p.age ? p.age + ahead : null }))
+    const pool = vets.map((p) => ({ ...p, fppg: settledPPG(p) * ageAhead(p, ahead), fage: p.age ? p.age + ahead : null }))
       // A rookie joins in his own draft year (later drafts' picks from the trade calculator).
       .concat(rookies.filter((r) => (r.year || rdYear) <= y).map((r) => {
         const from = r.year || rdYear, k = Math.min(y - from, 2);
-        return { id: `rk:${r.label}:${r.name}`, name: r.name, pos: r.pos, rookie: true, label: r.label, fage: r.age ? Math.round(r.age + (y - from)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
+        return { id: `rk:${r.label}:${r.name}`, name: r.name, pos: r.pos, rookie: true, year: r.year || null, label: r.label, fage: r.age ? Math.round(r.age + (y - from)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
       }));
     const lineup = bestLineup(pool, "fppg");
     const used = new Set(lineup.map((x) => x.p.id));
-    const bench = pool.filter((p) => !used.has(p.id) && p.fppg > 0).sort((a, b) => b.fppg - a.fppg).slice(0, 6);
+    const rest = pool.filter((p) => !used.has(p.id) && p.fppg > 0).sort((a, b) => b.fppg - a.fppg);
+    // Keep later-draft rookies on the bench list even when deeper than six, so the calculator can show them.
+    const bench = rest.slice(0, 6).concat(rest.slice(6).filter((p) => p.rookie && p.year));
     return { year: y, lineup, bench, total: lineup.reduce((t, x) => t + x.p.fppg, 0) };
   });
 }
@@ -4939,13 +4965,16 @@ function myMockHtml(rd, mine) {
 // for that year (KTC's devy board on this league's scale) says who goes around there.
 const FUTURE_DRAWS = 2000;
 const FUTURE_SPREAD = 0.15;   // engine/outlook.py SPREAD, per season ahead
-function futurePickOutlook(pickIds, rosterFor, rookiesFor, rd) {
+const FUTURE_NEED_BONUS = 0.25;   // a prospect who'd start for the drafting team, at full share
+const FUTURE_REDUNDANT = 0.1;     // one who wouldn't crack its lineup at all
+function futurePickOutlook(pickIds, rosterFor, rookiesFor, rd, drafterOf) {
   const n = state.data.teams.length, snake = rd.type === "snake";
-  let strength = null;
-  const strengthAt = (i) => {
-    if (!strength) strength = new Map(state.data.teams.map((t) => [t.roster_id, futureLineups(t.roster_id, rookiesFor(t.roster_id), rd.year, rosterFor(t.roster_id)).map((y) => y.total)]));
-    return [...strength].map(([rid, tot]) => [rid, tot[i]]);
+  let lineups = null;
+  const lineupsOf = (rid) => {
+    if (!lineups) lineups = new Map(state.data.teams.map((t) => [t.roster_id, futureLineups(t.roster_id, rookiesFor(t.roster_id), rd.year, rosterFor(t.roster_id))]));
+    return lineups.get(rid);
   };
+  const strengthAt = (i) => state.data.teams.map((t) => [t.roster_id, lineupsOf(t.roster_id)[i].total]);
   const out = new Map();
   pickIds.forEach((id) => {
     const pk = assetById(id);
@@ -4970,8 +4999,32 @@ function futurePickOutlook(pickIds, rosterFor, rookiesFor, rd) {
     const cls = ((state.data.future_classes || {})[pk.year] || []).slice().sort((a, b) => b.value - a.value);
     const at = (slot) => cls[(pk.round - 1) * n + slot - 1] || null;
     const lo = q(0.1), mid = q(0.5), hi = q(0.9);
-    out.set(id, { pk, lo, mid, hi, avg: slots.reduce((t, x) => t + x, 0) / slots.length, likely: at(mid), best: at(lo), worst: at(hi),
-      topThird: slots.filter((x) => x <= n / 3).length / slots.length });
+    // Who the drafting team takes: the prospects still on the board around its slot
+    // (one projected just ahead of it may slide, the next few are there), each scored
+    // by value and by how much of his settled points would start for that team in
+    // his draft year, against its roster as the trade leaves it.
+    const drafter = drafterOf(id);
+    const overall = (pk.round - 1) * n + mid;
+    const window = cls.slice(Math.max(0, overall - 2), overall + 4);
+    let pick = null;
+    if (drafter != null && window.length) {
+      const yr = lineupsOf(drafter)[Math.min(2, ahead)];
+      const base = yr.lineup.map((x) => x.p).concat(yr.bench);
+      const scored = window.map((pr) => {
+        const full = rookiePPG(pr);
+        const rk = { id: "rk:probe", name: pr.name, pos: pr.pos, fppg: full };
+        const withHim = bestLineup(base.concat([rk]), "fppg");
+        const gain = withHim.reduce((t, x) => t + x.p.fppg, 0) - yr.total;
+        const share = full > 0 ? Math.max(0, Math.min(1, gain / full)) : 0;
+        const slotIn = withHim.find((x) => x.p.id === "rk:probe");
+        const over = slotIn ? yr.lineup.find((x) => !withHim.some((w) => w.p.id === x.p.id)) : null;
+        return { pr, share, score: pr.value * (1 + FUTURE_NEED_BONUS * share) * (share === 0 ? 1 - FUTURE_REDUNDANT : 1),
+          why: slotIn ? `would start at ${SLOT_SHORT[slotIn.slot] || slotIn.slot}${over ? ` over ${over.p.name}` : ""} once settled` : "best available; he'd sit behind the starters" };
+      });
+      pick = scored.reduce((b, x) => (x.score > b.score ? x : b), scored[0]);
+    }
+    out.set(id, { pk, lo, mid, hi, avg: slots.reduce((t, x) => t + x, 0) / slots.length, likely: pick ? pick.pr : at(mid), why: pick ? pick.why : "",
+      byValue: at(mid), best: at(lo), worst: at(hi), drafter, topThird: slots.filter((x) => x <= n / 3).length / slots.length });
   });
   return out;
 }
@@ -5002,8 +5055,9 @@ function futureTradeHtml(s, overrides) {
   const outlook = { before: new Map(), after: new Map() };
   if (later.length) {
     const ids = later.map((x) => x.id);
-    outlook.before = futurePickOutlook(ids, (rid) => rosterOf(rid), (rid) => comingOf(rid, "before"), rd);
-    outlook.after = futurePickOutlook(ids, (rid) => overrides[rid] || rosterOf(rid), (rid) => comingOf(rid, "after"), rd);
+    const holder = (when) => (pid) => { const x = later.find((l) => l.id === pid); return x ? (when === "before" ? x.from : x.to) : null; };
+    outlook.before = futurePickOutlook(ids, (rid) => rosterOf(rid), (rid) => comingOf(rid, "before"), rd, holder("before"));
+    outlook.after = futurePickOutlook(ids, (rid) => overrides[rid] || rosterOf(rid), (rid) => comingOf(rid, "after"), rd, holder("after"));
   }
   const laterRookies = (rid, when) => later.filter((x) => (when === "before" ? x.from : x.to) === rid).map((x) => {
     const o = outlook[when].get(x.id);
@@ -5029,7 +5083,9 @@ function futureTradeHtml(s, overrides) {
           </tbody></table></div>`;
         // The coming season is always open; later seasons open when a pick for that draft moved.
         const open = i === 0 || later.some((x) => assetById(x.id).year <= y.year);
-        return `<details class="future-year"${open ? " open" : ""}><summary>${y.year} lineup after · ${y.total.toFixed(1)} pts/wk ${delta(i)}</summary>${table}</details>`;
+        const benched = y.bench.filter((p) => p.rookie && p.year);
+        const benchNote = benched.length ? `<div class="muted">On the bench: ${benched.map((p) => `${esc(p.name)} ${p.pos} (${p.label}) ${p.fppg.toFixed(1)}`).join(", ")}</div>` : "";
+        return `<details class="future-year"${open ? " open" : ""}><summary>${y.year} lineup after · ${y.total.toFixed(1)} pts/wk ${delta(i)}</summary>${table}${benchNote}</details>`;
       }).join("")}</div>`;
   });
   const n = state.data.teams.length;
@@ -5041,11 +5097,12 @@ function futureTradeHtml(s, overrides) {
     const moved = ob && Math.abs(ob.avg - o.avg) >= 0.3 ? ` <span class="muted">(was about ${pickSlotLabel(o.pk.round, ob.mid)} before the trade)</span>` : "";
     return `<li><div><strong>${esc(o.pk.name.split(" (via")[0])}</strong> <span class="muted">${teamHtml(o.pk.original_roster_id)}'s pick, ${teamHtml(x.from)} → ${teamHtml(x.to)}</span></div>
       <div>Projected ${pickSlotLabel(o.pk.round, o.mid)}${moved}. Likely range ${range}; top-third pick ${Math.round(o.topThird * 100)}% of the time.</div>
-      <div class="muted">Around there in the ${o.pk.year} class: ${who(o.likely)}${o.lo !== o.hi ? `. Good case ${who(o.best)}, bad case ${who(o.worst)}` : ""}. Value ${fmt(o.pk.value)}.</div></li>`;
+      <div>Likely pick for ${teamHtml(x.to)}: ${who(o.likely)}${o.why ? ` <span class="muted">(${esc(o.why)})</span>` : ""}${o.byValue && o.likely && o.byValue.name !== o.likely.name ? `. <span class="muted">Best on value there would be ${who(o.byValue)}.</span>` : ""}</div>
+      <div class="muted">Range of the board: ${who(o.best)} if it lands early, ${who(o.worst)} if late. Value ${fmt(o.pk.value)}.</div></li>`;
   }).join("");
   const pickHtml = pickRows ? `<div class="card"><h4>Future picks in this trade</h4><ul class="future-picks">${pickRows}</ul>
-    <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. In the lineups below, each of these picks counts as the prospect projected at its middle slot, joining in his draft year and ramping up.</p></div>` : "";
-  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
+    <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. The pick itself goes to the team's need: of the prospects on the board around that slot (KTC's devy board for that class, on this league's scale), it takes the one whose value and starting role for that roster score best, so a team that just traded its QB2 leans QB. He joins its lineups in his draft year and ramps up (QB 60% then 85%, WR 70% then 90%, TE 50% then 80%, RB 85%).</p></div>` : "";
+  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans start from next season's true level (a player above an ordinary starter keeps the share of his edge his position holds year to year), then age along their curve: growth before the peak, flat through it, a decline after it that's steepest for RBs. Rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
     <div class="cols">${cards.join("")}</div>`;
 }
 
