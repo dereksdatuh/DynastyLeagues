@@ -469,3 +469,5 @@ table.league-map th, table.league-map td { padding: 3px 6px; text-align: center;
 .future-picks { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
 .future-picks li { display: grid; gap: 0.15rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
 .future-picks li:last-child { border-bottom: 0; padding-bottom: 0; }
+.pick-player { font-size: 0.85rem; margin: 2px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lineup tr.bench-row td { opacity: 0.75; border-top: 1px dashed var(--border); }
