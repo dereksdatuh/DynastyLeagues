@@ -4889,9 +4889,10 @@ function futureLineups(rid, rookies, rdYear, roster = null) {
   return years.map((y) => {
     const ahead = y - season;
     const pool = vets.map((p) => ({ ...p, fppg: (p.ppg || 0) * ageAhead(p, ahead), fage: p.age ? p.age + ahead : null }))
-      .concat(rookies.map((r) => {
-        const k = Math.min(y - rdYear, 2);
-        return { id: `rk:${r.name}`, name: r.name, pos: r.pos, rookie: true, label: r.label, fage: r.age ? Math.round(r.age + (y - rdYear)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
+      // A rookie joins in his own draft year (later drafts' picks from the trade calculator).
+      .concat(rookies.filter((r) => (r.year || rdYear) <= y).map((r) => {
+        const from = r.year || rdYear, k = Math.min(y - from, 2);
+        return { id: `rk:${r.label}:${r.name}`, name: r.name, pos: r.pos, rookie: true, label: r.label, fage: r.age ? Math.round(r.age + (y - from)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
       }));
     const lineup = bestLineup(pool, "fppg");
     const used = new Set(lineup.map((x) => x.p.id));
@@ -4930,6 +4931,52 @@ function myMockHtml(rd, mine) {
     <h3>Draft so far</h3><div class="table-wrap"><table id="mock-mine"><thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>Pos</th><th class="num">Value</th><th>Why</th></tr></thead><tbody>${mock.map(pickRow).join("")}</tbody></table></div>`;
 }
 
+// Picks two and three drafts out, as the trade leaves the league. The draft follows
+// the season before it, so each team's strength is its projected best lineup that
+// season (players on their age curves, the coming rookies ramping up). That strength
+// is drawn many times with a spread that widens the further out the draft is, the
+// weakest team picks first, and the slots a pick lands in give its range. The class
+// for that year (KTC's devy board on this league's scale) says who goes around there.
+const FUTURE_DRAWS = 2000;
+const FUTURE_SPREAD = 0.15;   // engine/outlook.py SPREAD, per season ahead
+function futurePickOutlook(pickIds, rosterFor, rookiesFor, rd) {
+  const n = state.data.teams.length, snake = rd.type === "snake";
+  let strength = null;
+  const strengthAt = (i) => {
+    if (!strength) strength = new Map(state.data.teams.map((t) => [t.roster_id, futureLineups(t.roster_id, rookiesFor(t.roster_id), rd.year, rosterFor(t.roster_id)).map((y) => y.total)]));
+    return [...strength].map(([rid, tot]) => [rid, tot[i]]);
+  };
+  const out = new Map();
+  pickIds.forEach((id) => {
+    const pk = assetById(id);
+    const ahead = pk ? pk.year - rd.year : 0;
+    if (ahead < 1 || ahead > 2) return;
+    let slots;
+    if (pk.slot) slots = [pk.slot];
+    else {
+      const st = strengthAt(ahead - 1);
+      const rand = seededRandom(pk.year * 1000 + pk.round * 37 + pk.original_roster_id);
+      const gauss = () => { let u = 0; while (u === 0) u = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand()); };
+      slots = [];
+      for (let i = 0; i < FUTURE_DRAWS; i++) {
+        const drawn = st.map(([rid, x]) => [rid, x * (1 + FUTURE_SPREAD * ahead * gauss())]).sort((a, b) => a[1] - b[1]);
+        let slot = drawn.findIndex((x) => x[0] === pk.original_roster_id) + 1;
+        if (snake && pk.round % 2 === 0) slot = n + 1 - slot;
+        slots.push(slot);
+      }
+      slots.sort((a, b) => a - b);
+    }
+    const q = (f) => slots[Math.min(slots.length - 1, Math.floor(f * slots.length))];
+    const cls = ((state.data.future_classes || {})[pk.year] || []).slice().sort((a, b) => b.value - a.value);
+    const at = (slot) => cls[(pk.round - 1) * n + slot - 1] || null;
+    const lo = q(0.1), mid = q(0.5), hi = q(0.9);
+    out.set(id, { pk, lo, mid, hi, avg: slots.reduce((t, x) => t + x, 0) / slots.length, likely: at(mid), best: at(lo), worst: at(hi),
+      topThird: slots.filter((x) => x <= n / 3).length / slots.length });
+  });
+  return out;
+}
+const pickSlotLabel = (round, slot) => `${round}.${String(slot).padStart(2, "0")}`;
+
 const safeHtml = (f) => { try { return f() || ""; } catch (e) { console.warn("future lineups", e); return ""; } };
 
 // Each team's lineups for the coming seasons before and after the trade in the
@@ -4946,7 +4993,23 @@ function futureTradeHtml(s, overrides) {
   // Two full mocks: today's rosters, and the post-trade rosters with the picks in
   // their new hands, so every team's needs (and every later pick) follow the trade.
   const mocks = { before: runMock(rd), after: runMock(rd, null, null, overrides, holderAfter) };
-  const rookiesOf = (rid, when) => mocks[when].filter((m) => m.pick && m.roster_id === rid).map((m) => ({ ...m.pick, label: m.label }));
+  const comingOf = (rid, when) => mocks[when].filter((m) => m.pick && m.roster_id === rid).map((m) => ({ ...m.pick, label: m.label }));
+  // Picks from the next two drafts that change hands: who held them, who gets them,
+  // and where each lands (projected before and after, since the trade moves its team).
+  const later = [];
+  s.forEach((side) => side.assets.map(assetById).filter((a) => a && a.kind === "pick" && a.year > rd.year && a.year <= rd.year + 2)
+    .forEach((a) => { if (side.team != null && side.team !== a.roster_id) later.push({ id: a.id, from: a.roster_id, to: side.team }); }));
+  const outlook = { before: new Map(), after: new Map() };
+  if (later.length) {
+    const ids = later.map((x) => x.id);
+    outlook.before = futurePickOutlook(ids, (rid) => rosterOf(rid), (rid) => comingOf(rid, "before"), rd);
+    outlook.after = futurePickOutlook(ids, (rid) => overrides[rid] || rosterOf(rid), (rid) => comingOf(rid, "after"), rd);
+  }
+  const laterRookies = (rid, when) => later.filter((x) => (when === "before" ? x.from : x.to) === rid).map((x) => {
+    const o = outlook[when].get(x.id);
+    return o && o.likely ? { ...o.likely, year: o.pk.year, label: `${o.pk.year} ${pickSlotLabel(o.pk.round, o.mid)}` } : null;
+  }).filter(Boolean);
+  const rookiesOf = (rid, when) => comingOf(rid, when).concat(laterRookies(rid, when));
   const slotName = (x) => SLOT_SHORT[x] || x;
   const cards = teams.map((rid) => {
     const b = futureLineups(rid, rookiesOf(rid, "before"), rd.year);
@@ -4954,16 +5017,35 @@ function futureTradeHtml(s, overrides) {
     // Picks whose player changes because of the trade (this team's needs moved).
     const was = new Map(mocks.before.filter((m) => m.pick).map((m) => [m.pick_id, m.pick.name]));
     const moved = mocks.after.filter((m) => m.pick && m.roster_id === rid && was.get(m.pick_id) !== m.pick.name);
-    const had = new Set(b[0].lineup.map((x) => x.p.id));
     const delta = (i) => { const d = a[i].total - b[i].total; return `<span class="${d > 0.05 ? "up" : d < -0.05 ? "down" : "muted"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`; };
     return `<div class="card"><h4>${teamHtml(rid)}</h4>
       <div>${a.map((y, i) => `${y.year}: ${b[i].total.toFixed(1)} → ${y.total.toFixed(1)} pts/wk ${delta(i)}`).join("<br>")}</div>
-      ${rookiesOf(rid, "after").length ? `<div class="muted">${rd.year} picks after: ${rookiesOf(rid, "after").map((r) => `${r.label} ${esc(r.name)} (${r.pos})`).join(", ")}${moved.length ? `. Changed by the trade: ${moved.map((m) => `${m.label} ${esc(was.get(m.pick_id))} → ${esc(m.pick.name)}`).join(", ")}` : ""}</div>` : ""}
-      <div class="table-wrap"><table class="lineup"><thead><tr><th colspan="4">${rd.year} lineup after</th></tr></thead><tbody>
-      ${a[0].lineup.map(({ slot, p }) => `<tr class="${had.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
-      </tbody></table></div></div>`;
+      ${comingOf(rid, "after").length ? `<div class="muted">${rd.year} picks after: ${comingOf(rid, "after").map((r) => `${r.label} ${esc(r.name)} (${r.pos})`).join(", ")}${moved.length ? `. Changed by the trade: ${moved.map((m) => `${m.label} ${esc(was.get(m.pick_id))} → ${esc(m.pick.name)}`).join(", ")}` : ""}</div>` : ""}
+      ${a.map((y, i) => {
+        // Rows new to that season's lineup (against the same season before the trade) are highlighted.
+        const was = new Set(b[i].lineup.map((x) => x.p.id));
+        const table = `<div class="table-wrap"><table class="lineup"><tbody>
+          ${y.lineup.map(({ slot, p }) => `<tr class="${was.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
+          </tbody></table></div>`;
+        // The coming season is always open; later seasons open when a pick for that draft moved.
+        const open = i === 0 || later.some((x) => assetById(x.id).year <= y.year);
+        return `<details class="future-year"${open ? " open" : ""}><summary>${y.year} lineup after · ${y.total.toFixed(1)} pts/wk ${delta(i)}</summary>${table}</details>`;
+      }).join("")}</div>`;
   });
-  return `<h3>Future lineups</h3><p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
+  const n = state.data.teams.length;
+  const pickRows = later.map((x) => {
+    const o = outlook.after.get(x.id), ob = outlook.before.get(x.id);
+    if (!o) return "";
+    const who = (pl) => pl ? `${esc(pl.name)} <span class="pos pos-${pl.pos}">${pl.pos}</span>` : "past the ranked class";
+    const range = o.lo === o.hi ? pickSlotLabel(o.pk.round, o.mid) : `${pickSlotLabel(o.pk.round, o.lo)} to ${pickSlotLabel(o.pk.round, o.hi)}`;
+    const moved = ob && Math.abs(ob.avg - o.avg) >= 0.3 ? ` <span class="muted">(was about ${pickSlotLabel(o.pk.round, ob.mid)} before the trade)</span>` : "";
+    return `<li><div><strong>${esc(o.pk.name.split(" (via")[0])}</strong> <span class="muted">${teamHtml(o.pk.original_roster_id)}'s pick, ${teamHtml(x.from)} → ${teamHtml(x.to)}</span></div>
+      <div>Projected ${pickSlotLabel(o.pk.round, o.mid)}${moved}. Likely range ${range}; top-third pick ${Math.round(o.topThird * 100)}% of the time.</div>
+      <div class="muted">Around there in the ${o.pk.year} class: ${who(o.likely)}${o.lo !== o.hi ? `. Good case ${who(o.best)}, bad case ${who(o.worst)}` : ""}. Value ${fmt(o.pk.value)}.</div></li>`;
+  }).join("");
+  const pickHtml = pickRows ? `<div class="card"><h4>Future picks in this trade</h4><ul class="future-picks">${pickRows}</ul>
+    <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. In the lineups below, each of these picks counts as the prospect projected at its middle slot, joining in his draft year and ramping up.</p></div>` : "";
+  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans age along their curve and rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
     <div class="cols">${cards.join("")}</div>`;
 }
 

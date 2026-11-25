@@ -462,3 +462,10 @@ ul.deep-trades li { margin-bottom: 4px; }
 table.league-map { font-size: 0.85em; }
 table.league-map th, table.league-map td { padding: 3px 6px; text-align: center; }
 .offer-log { margin-top: 6px; align-items: center; }
+
+/* Trade calculator: later seasons' lineups and future picks */
+.future-year { margin-top: 0.4rem; }
+.future-year > summary { cursor: pointer; font-weight: 600; padding: 0.25rem 0; }
+.future-picks { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
+.future-picks li { display: grid; gap: 0.15rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.future-picks li:last-child { border-bottom: 0; padding-bottom: 0; }
