@@ -199,6 +199,10 @@ async function loadLeague(key) {
     note.classList.remove("hidden");
     return;
   }
+  if (devyNotes === undefined) { // our prospect research drives rookie boards and points
+    devyNotes = null;
+    try { devyNotes = await getJSON("devy.json"); } catch (e) { console.error(`devy notes: ${e.message || e}`); }
+  }
   if ($("#league-select").value !== entry.key) return; // switched while loading
   markMe(data);
   state.data = data;
@@ -3003,6 +3007,29 @@ function renderWhatIf() {
   };
 }
 
+// Who each pick likely becomes: the Rookie Mock for the coming draft, the future mock
+// (need-based, our research's board) for the two after it. Cached per league load.
+let pickPlayersCache = null;
+function projectedPickPlayers() {
+  if (pickPlayersCache && pickPlayersCache.data === state.data) return pickPlayersCache;
+  const out = { data: state.data, byPick: new Map(), byTeam: new Map() };
+  pickPlayersCache = out;
+  const rd = state.data.rookie_draft;
+  if (!rd || !rd.class || !rd.class.length || state.data.lite) return out;
+  try {
+    const mock = runMock(rd).filter((m) => m.pick);
+    const add = (rid, year, label, pl) => {
+      if (!out.byTeam.has(rid)) out.byTeam.set(rid, []);
+      out.byTeam.get(rid).push({ year, label, name: pl.name, pos: pl.pos });
+    };
+    mock.forEach((m) => { if (m.pick_id) out.byPick.set(m.pick_id, m.pick); add(m.roster_id, rd.year, m.label, m.pick); });
+    const coming = (rid) => mock.filter((m) => m.roster_id === rid).map((m) => ({ ...m.pick, label: m.label }));
+    const fm = futureMock(rd, (rid) => rosterOf(rid), coming, () => null);
+    fm.picks.forEach((o, id) => { if (o.likely) { out.byPick.set(id, o.likely); add(o.drafter, o.pk.year, pickSlotLabel(o.pk.round, o.slot), o.likely); } });
+  } catch (e) { console.warn("pick players", e); }
+  return out;
+}
+
 function renderPickProj() {
   const el = $("#pickproj");
   if (!el || !state.data) return;
@@ -3016,6 +3043,7 @@ function renderPickProj() {
   const snake = rd.type === "snake";
   const { how, order } = pickYearOrder(year);
   const mine = myTeam();
+  const projected = projectedPickPlayers();
   const pickOf = (r, rid) => picks.find((p) => p.year === year && p.round === r && p.original_roster_id === rid);
   const card = (r, i) => {
     const k = snake && r % 2 === 0 ? n - 1 - i : i;
@@ -3029,6 +3057,7 @@ function renderPickProj() {
     return `<div class="pick-card ${isMine ? "yours" : ""}" style="animation-delay:${(i * 0.025).toFixed(3)}s">
       <div class="pick-slot">${r}.${String(slot).padStart(2, "0")}</div>
       <div class="pick-team">${teamAvatar(orig)}<span><b>${esc(orig ? orig.name : "")}</b>${moved ? `<span class="muted">owned by ${esc(holder.name)}</span>` : managerOf(orig) ? `<span class="muted">${esc(managerOf(orig))}</span>` : ""}</span></div>
+      ${pk && projected.byPick.get(pk.id) ? `<div class="pick-player"><span class="pos pos-${projected.byPick.get(pk.id).pos}">${projected.byPick.get(pk.id).pos}</span> ${esc(projected.byPick.get(pk.id).name)}</div>` : ""}
       <div class="pick-foot"><span class="num strong">${pk ? fmt(pk.value) : ""}</span>${range}${isMine ? '<span class="tag new">YOURS</span>' : ""}</div>
     </div>`;
   };
@@ -3052,7 +3081,15 @@ function renderPickProj() {
       ${face(p.id)}<div><b>${p.year} ${w ? w.label : roundWord(p.round)}</b><span class="muted">${w ? `${w.third} ${roundWord(p.round)}` : ""}${p.original_roster_id !== p.roster_id ? ` · via ${esc(teamOf(p.original_roster_id)?.name || "")}` : " · your own"}</span></div><span class="num strong">${fmt(p.value)}</span></div>`; }).join("")}</div>` : ""}
     <p class="muted">${howText} ${picks.some((p) => p.year === year && p.tier) ? "Values are this league's pick values, which already price in the projected slot." : `${year} picks are still valued as a plain round, the same for every team.`}</p>
     ${Array.from({ length: rounds }, (_, r) => `<h3>${year} round ${r + 1}${snake ? (r % 2 ? " · snake, order reverses" : "") : ""}</h3>
-      <div class="pick-board">${Array.from({ length: n }, (_, i) => card(r + 1, i)).join("")}</div>`).join("")}`;
+      <div class="pick-board">${Array.from({ length: n }, (_, i) => card(r + 1, i)).join("")}</div>`).join("")}
+    ${projected.byTeam.size ? `<h3>Projected rookies by team</h3>
+      <p class="muted">The player each pick most likely becomes. ${rd.year} follows the Rookie Mock; ${rd.year + 1} and ${rd.year + 2} run a full draft on each team's projected lineups: the weakest projected team picks first, and each pick takes the prospect from our researched class whose value and starting role fit that roster best. Player names on the cards above come from the same runs, so a later draft's card can sit a slot off from the order shown here.</p>
+      <div class="cols">${state.data.teams.map((t) => {
+        const rows = (projected.byTeam.get(t.roster_id) || []).sort((a, b) => a.year - b.year || a.label.localeCompare(b.label));
+        if (!rows.length) return "";
+        const yrs = [...new Set(rows.map((x) => x.year))];
+        return `<div class="card"><h4>${teamHtml(t.roster_id)}</h4>${yrs.map((y) => `<div><b>${y}</b> ${rows.filter((x) => x.year === y).map((x) => `<span class="muted">${esc(String(x.label).replace(/^\d{4} /, ""))}</span> ${esc(x.name)} <span class="pos pos-${x.pos}">${x.pos}</span>`).join(", ")}</div>`).join("")}</div>`;
+      }).join("")}</div>` : ""}`;
   el.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => { pickProj.year = Number(b.dataset.year); renderPickProj(); }));
 }
 
@@ -4876,7 +4913,42 @@ const ageAhead = (p, yrs) => (p.age ? curveAt(p.pos, p.age + yrs, p.situation &&
 // A rookie's points once he's settled in: what veterans at his position with about
 // the same value in this league score a game. Then a ramp for his first seasons.
 const ROOKIE_RAMP = { QB: [0.6, 0.85, 1], RB: [0.85, 1, 1], WR: [0.7, 0.9, 1], TE: [0.5, 0.8, 1] };
+// Cornerstone prospects (tier 1 in our research) play like it from day one, as recent
+// top rookies have (Nabers, Puka, Bijan, Bowers, Daniels).
+const ROOKIE_RAMP_ELITE = { QB: [0.8, 0.95, 1], RB: [0.95, 1, 1], WR: [0.9, 1, 1], TE: [0.7, 0.9, 1] };
+// Where a prospect of each research tier settles, as a rank at his position in units of
+// league size (12 teams: tier 1 = about the 6th best at the position, tier 2 = 12th...).
+// The top two of a class who are tier 1 (skill players) project as a top-3 player at the position.
+const TIER_POS_RANK = [null, 0.5, 1, 1.75, 2.5, 3.5];
+let researchIdx = null;
+function researchOf(name) {
+  if (!devyNotes || !devyNotes.classes) return null;
+  if (!researchIdx || researchIdx.src !== devyNotes) {
+    const m = new Map();
+    Object.entries(devyNotes.classes).forEach(([y, list]) => list.forEach((r) => m.set(devyKey(r.name), { ...r, year: Number(y) })));
+    researchIdx = { src: devyNotes, m };
+  }
+  return researchIdx.m.get(devyKey(name)) || null;
+}
+let posPPGCache = null;
+function posPPGs(pos) {
+  if (!posPPGCache || posPPGCache.data !== state.data) posPPGCache = { data: state.data, m: {} };
+  if (!posPPGCache.m[pos]) posPPGCache.m[pos] = state.data.players.filter((p) => p.pos === pos && p.ppg > 0).map((p) => p.ppg).sort((a, b) => b - a);
+  return posPPGCache.m[pos];
+}
+function tierPPG(pos, tier, rank) {
+  const list = posPPGs(pos), n = state.data.teams.length;
+  const k = tier === 1 && rank <= 2 && pos !== "QB" ? 0.25 : TIER_POS_RANK[tier] || TIER_POS_RANK[5];
+  return list.length ? list[Math.min(list.length - 1, Math.max(0, Math.round(k * n) - 1))] : 0;
+}
+const rookieRamp = (r, k) => {
+  const res = researchOf(r.name);
+  return ((res && res.tier === 1 ? ROOKIE_RAMP_ELITE : ROOKIE_RAMP)[r.pos] || [0.6, 0.85, 1])[k];
+};
 function rookiePPG(pr) {
+  // Our research first: its tier says what kind of pro he projects as, in this league's scoring.
+  const res = researchOf(pr.name);
+  if (res && res.tier && ["QB", "RB", "WR", "TE"].includes(pr.pos)) return tierPPG(pr.pos, res.tier, res.rank);
   const peers = state.data.players.filter((p) => p.pos === pr.pos && p.ppg > 0 && p.age && p.age <= 27 && (p.games || {}).games !== 0)
     .sort((a, b) => Math.abs(a.value - pr.value) - Math.abs(b.value - pr.value)).slice(0, 7).map((p) => p.ppg).sort((a, b) => a - b);
   return peers.length ? peers[peers.length >> 1] : 0;
@@ -4916,7 +4988,7 @@ function futureLineups(rid, rookies, rdYear, roster = null) {
       // A rookie joins in his own draft year (later drafts' picks from the trade calculator).
       .concat(rookies.filter((r) => (r.year || rdYear) <= y).map((r) => {
         const from = r.year || rdYear, k = Math.min(y - from, 2);
-        return { id: `rk:${r.label}:${r.name}`, name: r.name, pos: r.pos, rookie: true, year: r.year || null, label: r.label, fage: r.age ? Math.round(r.age + (y - from)) : null, fppg: rookiePPG(r) * ((ROOKIE_RAMP[r.pos] || [0.6, 0.85, 1])[k]) };
+        return { id: `rk:${r.label}:${r.name}`, name: r.name, pos: r.pos, rookie: true, year: r.year || null, label: r.label, fage: r.age ? Math.round(r.age + (y - from)) : null, fppg: rookiePPG(r) * rookieRamp(r, k) };
       }));
     const lineup = bestLineup(pool, "fppg");
     const used = new Set(lineup.map((x) => x.p.id));
@@ -4967,66 +5039,96 @@ const FUTURE_DRAWS = 2000;
 const FUTURE_SPREAD = 0.15;   // engine/outlook.py SPREAD, per season ahead
 const FUTURE_NEED_BONUS = 0.25;   // a prospect who'd start for the drafting team, at full share
 const FUTURE_REDUNDANT = 0.1;     // one who wouldn't crack its lineup at all
-function futurePickOutlook(pickIds, rosterFor, rookiesFor, rd, drafterOf) {
-  const n = state.data.teams.length, snake = rd.type === "snake";
-  let lineups = null;
-  const lineupsOf = (rid) => {
-    if (!lineups) lineups = new Map(state.data.teams.map((t) => [t.roster_id, futureLineups(t.roster_id, rookiesFor(t.roster_id), rd.year, rosterFor(t.roster_id))]));
-    return lineups.get(rid);
-  };
-  const strengthAt = (i) => state.data.teams.map((t) => [t.roster_id, lineupsOf(t.roster_id)[i].total]);
-  const out = new Map();
-  pickIds.forEach((id) => {
-    const pk = assetById(id);
-    const ahead = pk ? pk.year - rd.year : 0;
-    if (ahead < 1 || ahead > 2) return;
-    let slots;
-    if (pk.slot) slots = [pk.slot];
-    else {
-      const st = strengthAt(ahead - 1);
-      const rand = seededRandom(pk.year * 1000 + pk.round * 37 + pk.original_roster_id);
-      const gauss = () => { let u = 0; while (u === 0) u = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand()); };
-      slots = [];
-      for (let i = 0; i < FUTURE_DRAWS; i++) {
-        const drawn = st.map(([rid, x]) => [rid, x * (1 + FUTURE_SPREAD * ahead * gauss())]).sort((a, b) => a[1] - b[1]);
-        let slot = drawn.findIndex((x) => x[0] === pk.original_roster_id) + 1;
-        if (snake && pk.round % 2 === 0) slot = n + 1 - slot;
-        slots.push(slot);
-      }
-      slots.sort((a, b) => a - b);
-    }
-    const q = (f) => slots[Math.min(slots.length - 1, Math.floor(f * slots.length))];
-    const cls = ((state.data.future_classes || {})[pk.year] || []).slice().sort((a, b) => b.value - a.value);
-    const at = (slot) => cls[(pk.round - 1) * n + slot - 1] || null;
-    const lo = q(0.1), mid = q(0.5), hi = q(0.9);
-    // Who the drafting team takes: the prospects still on the board around its slot
-    // (one projected just ahead of it may slide, the next few are there), each scored
-    // by value and by how much of his settled points would start for that team in
-    // his draft year, against its roster as the trade leaves it.
-    const drafter = drafterOf(id);
-    const overall = (pk.round - 1) * n + mid;
-    const window = cls.slice(Math.max(0, overall - 2), overall + 4);
-    let pick = null;
-    if (drafter != null && window.length) {
-      const yr = lineupsOf(drafter)[Math.min(2, ahead)];
-      const base = yr.lineup.map((x) => x.p).concat(yr.bench);
-      const scored = window.map((pr) => {
-        const full = rookiePPG(pr);
-        const rk = { id: "rk:probe", name: pr.name, pos: pr.pos, fppg: full };
-        const withHim = bestLineup(base.concat([rk]), "fppg");
-        const gain = withHim.reduce((t, x) => t + x.p.fppg, 0) - yr.total;
-        const share = full > 0 ? Math.max(0, Math.min(1, gain / full)) : 0;
-        const slotIn = withHim.find((x) => x.p.id === "rk:probe");
-        const over = slotIn ? yr.lineup.find((x) => !withHim.some((w) => w.p.id === x.p.id)) : null;
-        return { pr, share, score: pr.value * (1 + FUTURE_NEED_BONUS * share) * (share === 0 ? 1 - FUTURE_REDUNDANT : 1),
-          why: slotIn ? `would start at ${SLOT_SHORT[slotIn.slot] || slotIn.slot}${over ? ` over ${over.p.name}` : ""} once settled` : "best available; he'd sit behind the starters" };
-      });
-      pick = scored.reduce((b, x) => (x.score > b.score ? x : b), scored[0]);
-    }
-    out.set(id, { pk, lo, mid, hi, avg: slots.reduce((t, x) => t + x, 0) / slots.length, likely: pick ? pick.pr : at(mid), why: pick ? pick.why : "",
-      byValue: at(mid), best: at(lo), worst: at(hi), drafter, topThird: slots.filter((x) => x <= n / 3).length / slots.length });
+// The board for a later draft: our researched class in our rank order, each priced at the
+// league value of that spot on KTC's devy board for the class, then any KTC prospects we
+// haven't researched at their own value.
+function futureBoard(year) {
+  const ktc = ((state.data.future_classes || {})[year] || []).slice().sort((a, b) => b.value - a.value);
+  const vals = ktc.map((x) => x.value);
+  const ours = ((devyNotes && devyNotes.classes) || {})[year] || [];
+  const seen = new Set();
+  const board = ours.slice().sort((a, b) => a.rank - b.rank).map((r, i) => {
+    const k = devyKey(r.name), m = ktc.find((x) => devyKey(x.name) === k);
+    seen.add(k);
+    const slotVal = vals[i] ?? (vals.length ? vals[vals.length - 1] * Math.pow(0.97, i - vals.length + 1) : 0);
+    return { name: r.name, pos: r.pos, school: r.school, age: m ? m.age : null, value: slotVal, year: Number(year), tier: r.tier, rank: r.rank, researched: true };
   });
-  return out;
+  ktc.filter((x) => !seen.has(devyKey(x.name))).forEach((x) => board.push({ ...x, year: Number(year) }));
+  return board.sort((a, b) => b.value - a.value);
+}
+
+// Every pick in the next two drafts, drafted. Each draft's order comes from every team's
+// projected lineup the season before (players on their age curves, the earlier drafts'
+// rookies ramping up), drawn FUTURE_DRAWS times with swings that widen per season ahead;
+// the weakest team picks first. Then the draft runs in that order: each pick takes, from
+// the best few prospects still on the board, the one whose value and starting role for
+// that roster score best, so a team that just traded its QB2 leans QB. Its players join
+// its later lineups and its needs for the next pick.
+function futureMock(rd, rosterFor, rookiesFor, holderOf) {
+  const n = state.data.teams.length, snake = rd.type === "snake";
+  const extra = new Map(state.data.teams.map((t) => [t.roster_id, []]));
+  const lineupsFor = () => new Map(state.data.teams.map((t) => [t.roster_id,
+    futureLineups(t.roster_id, rookiesFor(t.roster_id).concat(extra.get(t.roster_id)), rd.year, rosterFor(t.roster_id))]));
+  const picks = new Map();
+  for (let ahead = 1; ahead <= 2; ahead++) {
+    const year = rd.year + ahead;
+    const yearPicks = (state.data.picks || []).filter((p) => p.year === year);
+    if (!yearPicks.length) continue;
+    const lineups = lineupsFor();
+    const st = state.data.teams.map((t) => [t.roster_id, lineups.get(t.roster_id)[ahead - 1].total]);
+    const rand = seededRandom(year * 7919 + n);
+    const gauss = () => { let u = 0; while (u === 0) u = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand()); };
+    const dist = new Map(st.map(([rid]) => [rid, []]));
+    for (let i = 0; i < FUTURE_DRAWS; i++) {
+      st.map(([rid, x]) => [rid, x * (1 + FUTURE_SPREAD * ahead * gauss())]).sort((a, b) => a[1] - b[1])
+        .forEach(([rid], k) => dist.get(rid).push(k + 1));
+    }
+    dist.forEach((v) => v.sort((a, b) => a - b));
+    const meanOf = (rid) => { const v = dist.get(rid); return v.reduce((t, x) => t + x, 0) / v.length; };
+    const order = st.slice().sort((a, b) => meanOf(a[0]) - meanOf(b[0]) || a[1] - b[1]).map((x) => x[0]);
+    const slotOf = (pk) => {
+      if (pk.slot) return pk.slot;
+      const s1 = order.indexOf(pk.original_roster_id) + 1;
+      return snake && pk.round % 2 === 0 ? n + 1 - s1 : s1;
+    };
+    const board = futureBoard(year), taken = new Set();
+    const seq = yearPicks.map((pk) => ({ pk, slot: slotOf(pk) })).sort((a, b) => a.pk.round - b.pk.round || a.slot - b.slot);
+    const added = new Map();
+    seq.forEach(({ pk, slot }) => {
+      const v = pk.slot ? [pk.slot] : dist.get(pk.original_roster_id).map((x) => (snake && pk.round % 2 === 0 ? n + 1 - x : x)).sort((a, b) => a - b);
+      const q = (f) => v[Math.min(v.length - 1, Math.floor(f * v.length))];
+      const left = board.filter((x) => !taken.has(x.name));
+      const at = (s2) => board[(pk.round - 1) * n + s2 - 1] || null;
+      const drafter = holderOf(pk.id) ?? pk.roster_id;
+      const window = left.slice(0, 6);
+      let pick = null;
+      if (window.length) {
+        const yr = lineups.get(drafter)[Math.min(2, ahead)];
+        const base = yr.lineup.map((x) => x.p).concat(yr.bench, added.get(drafter) || []);
+        const cur = bestLineup(base, "fppg").reduce((t, x) => t + x.p.fppg, 0);
+        const scored = window.map((pr) => {
+          const full = rookiePPG(pr);
+          const rk = { id: "rk:probe", name: pr.name, pos: pr.pos, fppg: full };
+          const withHim = bestLineup(base.concat([rk]), "fppg");
+          const gain = withHim.reduce((t, x) => t + x.p.fppg, 0) - cur;
+          const share = full > 0 ? Math.max(0, Math.min(1, gain / full)) : 0;
+          const slotIn = withHim.find((x) => x.p.id === "rk:probe");
+          const before = bestLineup(base, "fppg");
+          const over = slotIn ? before.find((x) => !withHim.some((w) => w.p.id === x.p.id)) : null;
+          return { pr, full, score: pr.value * (1 + FUTURE_NEED_BONUS * share) * (share === 0 ? 1 - FUTURE_REDUNDANT : 1),
+            why: slotIn ? `would start at ${SLOT_SHORT[slotIn.slot] || slotIn.slot}${over ? ` over ${over.p.name}` : ""} once settled` : "best available; he'd sit behind the starters" };
+        });
+        pick = scored.reduce((b2, x) => (x.score > b2.score ? x : b2), scored[0]);
+        taken.add(pick.pr.name);
+        added.set(drafter, (added.get(drafter) || []).concat([{ id: `rk:${year}:${pick.pr.name}`, name: pick.pr.name, pos: pick.pr.pos, fppg: pick.full }]));
+        extra.get(drafter).push({ ...pick.pr, year, label: `${year} ${pickSlotLabel(pk.round, slot)}` });
+      }
+      picks.set(pk.id, { pk: assetById(pk.id) || { ...pk, name: pk.label || `${pk.year} round ${pk.round}` }, slot, lo: q(0.1), mid: slot, hi: q(0.9), avg: v.reduce((t, x) => t + x, 0) / v.length,
+        topThird: v.filter((x) => x <= n / 3).length / v.length, likely: pick ? pick.pr : null, why: pick ? pick.why : "",
+        byValue: window[0] || null, best: at(q(0.1)), worst: at(q(0.9)), drafter });
+    });
+  }
+  return { picks, rookies: (rid) => extra.get(rid) || [] };
 }
 const pickSlotLabel = (round, slot) => `${round}.${String(slot).padStart(2, "0")}`;
 
@@ -5052,17 +5154,14 @@ function futureTradeHtml(s, overrides) {
   const later = [];
   s.forEach((side) => side.assets.map(assetById).filter((a) => a && a.kind === "pick" && a.year > rd.year && a.year <= rd.year + 2)
     .forEach((a) => { if (side.team != null && side.team !== a.roster_id) later.push({ id: a.id, from: a.roster_id, to: side.team }); }));
-  const outlook = { before: new Map(), after: new Map() };
-  if (later.length) {
-    const ids = later.map((x) => x.id);
-    const holder = (when) => (pid) => { const x = later.find((l) => l.id === pid); return x ? (when === "before" ? x.from : x.to) : null; };
-    outlook.before = futurePickOutlook(ids, (rid) => rosterOf(rid), (rid) => comingOf(rid, "before"), rd, holder("before"));
-    outlook.after = futurePickOutlook(ids, (rid) => overrides[rid] || rosterOf(rid), (rid) => comingOf(rid, "after"), rd, holder("after"));
-  }
-  const laterRookies = (rid, when) => later.filter((x) => (when === "before" ? x.from : x.to) === rid).map((x) => {
-    const o = outlook[when].get(x.id);
-    return o && o.likely ? { ...o.likely, year: o.pk.year, label: `${o.pk.year} ${pickSlotLabel(o.pk.round, o.mid)}` } : null;
-  }).filter(Boolean);
+  // Every 2028-29 pick, drafted for every team, on today's rosters and after the trade.
+  const movedTo = new Map(later.map((x) => [x.id, x.to]));
+  const fm = {
+    before: futureMock(rd, (rid) => rosterOf(rid), (rid) => comingOf(rid, "before"), (pid) => null),
+    after: futureMock(rd, (rid) => overrides[rid] || rosterOf(rid), (rid) => comingOf(rid, "after"), (pid) => movedTo.get(pid) ?? null),
+  };
+  const outlook = { before: fm.before.picks, after: fm.after.picks };
+  const laterRookies = (rid, when) => fm[when].rookies(rid);
   const rookiesOf = (rid, when) => comingOf(rid, when).concat(laterRookies(rid, when));
   const slotName = (x) => SLOT_SHORT[x] || x;
   const cards = teams.map((rid) => {
@@ -5075,17 +5174,22 @@ function futureTradeHtml(s, overrides) {
     return `<div class="card"><h4>${teamHtml(rid)}</h4>
       <div>${a.map((y, i) => `${y.year}: ${b[i].total.toFixed(1)} → ${y.total.toFixed(1)} pts/wk ${delta(i)}`).join("<br>")}</div>
       ${comingOf(rid, "after").length ? `<div class="muted">${rd.year} picks after: ${comingOf(rid, "after").map((r) => `${r.label} ${esc(r.name)} (${r.pos})`).join(", ")}${moved.length ? `. Changed by the trade: ${moved.map((m) => `${m.label} ${esc(was.get(m.pick_id))} → ${esc(m.pick.name)}`).join(", ")}` : ""}</div>` : ""}
+      ${[1, 2].map((ahead) => {
+        const yr = rd.year + ahead, aft = laterRookies(rid, "after").filter((r) => r.year === yr);
+        if (!aft.length) return "";
+        const bef = new Set(laterRookies(rid, "before").filter((r) => r.year === yr).map((r) => r.label + r.name));
+        return `<div class="muted">${yr} picks after: ${aft.map((r) => `${r.label.split(" ")[1]} ${esc(r.name)} (${r.pos})${bef.has(r.label + r.name) ? "" : " <span class=\"badge new\">new</span>"}`).join(", ")}</div>`;
+      }).join("")}
       ${a.map((y, i) => {
         // Rows new to that season's lineup (against the same season before the trade) are highlighted.
         const was = new Set(b[i].lineup.map((x) => x.p.id));
         const table = `<div class="table-wrap"><table class="lineup"><tbody>
           ${y.lineup.map(({ slot, p }) => `<tr class="${was.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
+          ${y.bench.filter((p) => p.rookie).map((p) => `<tr class="bench-row"><td class="muted">BN</td><td class="name">${esc(p.name)} <span class="badge new">${p.label}</span></td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num muted">${p.fppg.toFixed(1)}</td></tr>`).join("")}
           </tbody></table></div>`;
         // The coming season is always open; later seasons open when a pick for that draft moved.
         const open = i === 0 || later.some((x) => assetById(x.id).year <= y.year);
-        const benched = y.bench.filter((p) => p.rookie && p.year);
-        const benchNote = benched.length ? `<div class="muted">On the bench: ${benched.map((p) => `${esc(p.name)} ${p.pos} (${p.label}) ${p.fppg.toFixed(1)}`).join(", ")}</div>` : "";
-        return `<details class="future-year"${open ? " open" : ""}><summary>${y.year} lineup after · ${y.total.toFixed(1)} pts/wk ${delta(i)}</summary>${table}${benchNote}</details>`;
+        return `<details class="future-year"${open ? " open" : ""}><summary>${y.year} lineup after · ${y.total.toFixed(1)} pts/wk ${delta(i)}</summary>${table}</details>`;
       }).join("")}</div>`;
   });
   const n = state.data.teams.length;
@@ -5101,8 +5205,8 @@ function futureTradeHtml(s, overrides) {
       <div class="muted">Range of the board: ${who(o.best)} if it lands early, ${who(o.worst)} if late. Value ${fmt(o.pk.value)}.</div></li>`;
   }).join("");
   const pickHtml = pickRows ? `<div class="card"><h4>Future picks in this trade</h4><ul class="future-picks">${pickRows}</ul>
-    <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. The pick itself goes to the team's need: of the prospects on the board around that slot (KTC's devy board for that class, on this league's scale), it takes the one whose value and starting role for that roster score best, so a team that just traded its QB2 leans QB. He joins its lineups in his draft year and ramps up (QB 60% then 85%, WR 70% then 90%, TE 50% then 80%, RB 85%).</p></div>` : "";
-  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans start from next season's true level (a player above an ordinary starter keeps the share of his edge his position holds year to year), then age along their curve: growth before the peak, flat through it, a decline after it that's steepest for RBs. Rookies ramp up, as on the Rookie Mock tab. Estimates: later drafts and moves aren't in it.</p>
+    <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. Every pick in that draft is then made in order, not just this one: the board is our researched class in our rank order (priced at KTC's devy values for each spot, on this league's scale), and each team takes, from the best six still there, the prospect whose value and starting role for its roster score best, so a team that just traded its QB2 leans QB. Each player joins his team's lineups in his draft year. His points come from his research tier, in this league's scoring: a cornerstone (tier 1) settles like the 6th-best player at his position (the class's top two like a top-3 one), tier 2 like the 12th, and so on. Cornerstones start at 90% as rookies (QB 80%, TE 70%); other rookies ramp in (QB 60% then 85%, WR 70% then 90%, TE 50% then 80%, RB 85%).</p></div>` : "";
+  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans start from next season's true level (a player above an ordinary starter keeps the share of his edge his position holds year to year), then age along their curve: growth before the peak, flat through it, a decline after it that's steepest for RBs. Every ${rd.year + 1} and ${rd.year + 2} pick each team owns is drafted too (see above) and shows with its pick, starting or on the bench (BN). Estimates: trades and waiver moves after today aren't in it.</p>
     <div class="cols">${cards.join("")}</div>`;
 }
 
