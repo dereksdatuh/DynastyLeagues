@@ -203,6 +203,10 @@ async function loadLeague(key) {
     devyNotes = null;
     try { devyNotes = await getJSON("devy.json"); } catch (e) { console.error(`devy notes: ${e.message || e}`); }
   }
+  if (outlookNotes === undefined) { // researched 2027-29 roles for players whose situation is set to change
+    outlookNotes = null;
+    try { outlookNotes = await getJSON("outlook.json"); } catch (e) { console.error(`outlook: ${e.message || e}`); }
+  }
   if ($("#league-select").value !== entry.key) return; // switched while loading
   markMe(data);
   state.data = data;
@@ -4978,13 +4982,72 @@ function settledPPG(p) {
   return mean + stab * (ppg - mean);
 }
 
+// ---------- player outlook ----------
+// Today's points say who plays now; they don't say who plays in 2028. site/outlook.json
+// holds our research on the players whose role is likely to change (contracts running
+// out, starters ahead of them aging or leaving, rookies growing into a role, stars
+// changing teams): a role per season, a boom and a bust case, and why. A role is turned
+// into points the same way a prospect tier is, as a rank at his position in this
+// league's scoring, and blended with what he's shown himself.
+let outlookNotes;
+let outlookIdx = null;
+function outlookOf(name) {
+  if (!outlookNotes || !outlookNotes.players) return null;
+  if (!outlookIdx || outlookIdx.src !== outlookNotes) outlookIdx = { src: outlookNotes, m: new Map(outlookNotes.players.map((o) => [devyKey(o.name), o])) };
+  return outlookIdx.m.get(devyKey(name)) || null;
+}
+// Rank at the position for each role, in units of league size (12 teams: a "lead" RB is
+// about the 7th best, a "starter" WR about the 19th).
+const ROLE_RANK = {
+  QB: { elite: 0.25, lead: 0.6, starter: 1.0, flex: 1.6, backup: 2.6 },
+  RB: { elite: 0.25, lead: 0.6, starter: 1.2, flex: 2.0, backup: 3.2 },
+  WR: { elite: 0.25, lead: 0.6, starter: 1.6, flex: 3.0, backup: 4.5 },
+  TE: { elite: 0.25, lead: 0.6, starter: 1.0, flex: 1.8, backup: 2.8 },
+};
+const ROLE_WEIGHT = 0.65;   // researched role vs his own settled production
+function rolePPG(pos, role) {
+  if (!role || role === "none") return 0;
+  const k = (ROLE_RANK[pos] || {})[role];
+  if (k == null) return null;
+  const list = posPPGs(pos), n = state.data.teams.length;
+  return list.length ? list[Math.min(list.length - 1, Math.max(0, Math.round(k * n) - 1))] : null;
+}
+// Points a player of this market value usually scores at his position (players 27 and
+// under who are playing). The market prices a young player's coming role; his own 2026
+// points don't when he's stuck behind someone.
+function impliedPPG(p) {
+  const peers = state.data.players.filter((x) => x.id !== p.id && x.pos === p.pos && x.ppg > 0 && x.age && x.age <= 27 && ((x.games || {}).games || 0) >= 4)
+    .sort((a, b) => Math.abs(a.value - p.value) - Math.abs(b.value - p.value)).slice(0, 7).map((x) => x.ppg).sort((a, b) => a - b);
+  return peers.length ? peers[peers.length >> 1] : 0;
+}
+const YOUNG_PULL = [0, 0.3, 0.5, 0.65];   // how far a young player moves toward his market level, per season ahead
+function futurePPG(p, ahead, year) {
+  const own = settledPPG(p) * ageAhead(p, ahead);
+  const o = outlookOf(p.name);
+  if (o && o.roles && o.roles[year] != null) {
+    const r = rolePPG(p.pos, o.roles[year]);
+    if (r === 0) return { fppg: 0, o };
+    if (r != null) return { fppg: ROLE_WEIGHT * r + (1 - ROLE_WEIGHT) * own, o };
+  }
+  if (p.age && p.age <= 25) {
+    const w = YOUNG_PULL[Math.min(3, ahead)] * (p.age <= 23 ? 1 : 0.6), imp = impliedPPG(p) * ageAhead(p, ahead);
+    if (imp > own) return { fppg: own + w * (imp - own), o };
+  }
+  return { fppg: own, o };
+}
+const outlookRange = (p, o) => {
+  if (!o || !o.boom_role || !o.bust_role) return null;
+  const lo = rolePPG(p.pos, o.bust_role), hi = rolePPG(p.pos, o.boom_role);
+  return lo == null || hi == null ? null : [lo, hi];
+};
+
 function futureLineups(rid, rookies, rdYear, roster = null) {
   const season = Number(state.data.league.season) || rdYear - 1;
   const years = [rdYear, rdYear + 1, rdYear + 2];
   const vets = (roster || rosterOf(rid)).filter((p) => ["QB", "RB", "WR", "TE"].includes(p.pos));
   return years.map((y) => {
     const ahead = y - season;
-    const pool = vets.map((p) => ({ ...p, fppg: settledPPG(p) * ageAhead(p, ahead), fage: p.age ? p.age + ahead : null }))
+    const pool = vets.map((p) => { const f = futurePPG(p, ahead, y); return { ...p, fppg: f.fppg, outlook: f.o, range: outlookRange(p, f.o), fage: p.age ? p.age + ahead : null }; })
       // A rookie joins in his own draft year (later drafts' picks from the trade calculator).
       .concat(rookies.filter((r) => (r.year || rdYear) <= y).map((r) => {
         const from = r.year || rdYear, k = Math.min(y - from, 2);
@@ -5184,7 +5247,7 @@ function futureTradeHtml(s, overrides) {
         // Rows new to that season's lineup (against the same season before the trade) are highlighted.
         const was = new Set(b[i].lineup.map((x) => x.p.id));
         const table = `<div class="table-wrap"><table class="lineup"><tbody>
-          ${y.lineup.map(({ slot, p }) => `<tr class="${was.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name">${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}</td></tr>`).join("")}
+          ${y.lineup.map(({ slot, p }) => `<tr class="${was.has(p.id) ? "" : "mine-row"}"><td class="muted">${slotName(slot)}</td><td class="name"${p.outlook ? ` title="${esc(p.outlook.notes || "")}"` : ""}>${esc(p.name)}${p.rookie ? ` <span class="badge new">${p.label}</span>` : ""}${p.outlook && p.outlook.roles && p.outlook.roles[y.year] ? ` <span class="muted small">${esc(p.outlook.roles[y.year])}</span>` : ""}</td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num">${p.fppg.toFixed(1)}${p.range ? `<div class="muted small">${p.range[0].toFixed(0)}-${p.range[1].toFixed(0)}</div>` : ""}</td></tr>`).join("")}
           ${y.bench.filter((p) => p.rookie).map((p) => `<tr class="bench-row"><td class="muted">BN</td><td class="name">${esc(p.name)} <span class="badge new">${p.label}</span></td><td><span class="pos pos-${p.pos}">${p.pos}</span></td><td class="muted">${p.fage ? `age ${p.fage}` : ""}</td><td class="num muted">${p.fppg.toFixed(1)}</td></tr>`).join("")}
           </tbody></table></div>`;
         // The coming season is always open; later seasons open when a pick for that draft moved.
@@ -5206,7 +5269,7 @@ function futureTradeHtml(s, overrides) {
   }).join("");
   const pickHtml = pickRows ? `<div class="card"><h4>Future picks in this trade</h4><ul class="future-picks">${pickRows}</ul>
     <p class="muted">Each pick's slot comes from its original team's projected lineup the season before that draft, after the trade, with players on their age curves and rookies ramping up. That strength is drawn ${FUTURE_DRAWS.toLocaleString()} times with ±${Math.round(FUTURE_SPREAD * 100)}% swings per season ahead, and the weakest team picks first. The range covers the middle 80% of landings. Every pick in that draft is then made in order, not just this one: the board is our researched class in our rank order (priced at KTC's devy values for each spot, on this league's scale), and each team takes, from the best six still there, the prospect whose value and starting role for its roster score best, so a team that just traded its QB2 leans QB. Each player joins his team's lineups in his draft year. His points come from his research tier, in this league's scoring: a cornerstone (tier 1) settles like the 6th-best player at his position (the class's top two like a top-3 one), tier 2 like the 12th, and so on. Cornerstones start at 90% as rookies (QB 80%, TE 70%); other rookies ramp in (QB 60% then 85%, WR 70% then 90%, TE 50% then 80%, RB 85%).</p></div>` : "";
-  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans start from next season's true level (a player above an ordinary starter keeps the share of his edge his position holds year to year), then age along their curve: growth before the peak, flat through it, a decline after it that's steepest for RBs. Every ${rd.year + 1} and ${rd.year + 2} pick each team owns is drafted too (see above) and shows with its pick, starting or on the bench (BN). Estimates: trades and waiver moves after today aren't in it.</p>
+  return `<h3>Future lineups</h3>${pickHtml}<p class="muted">Best lineup for ${rd.year}, ${rd.year + 1} and ${rd.year + 2}, before → after the trade. Each ${rd.year} pick counts as the player the Rookie Mock has going at that slot (tagged with the pick), and the mock is run again on the post-trade rosters with the picks in their new hands, so every team's needs, and every later pick, follow the trade. Highlighted rows are new to the lineup. Veterans start from next season's true level (a player above an ordinary starter keeps the share of his edge his position holds year to year), then age along their curve: growth before the peak, flat through it, a decline after it that's steepest for RBs. Players whose role is set to change follow our research on them (contracts, depth charts, likely landing spots): the role beside the name (elite, lead, starter, flex, backup) sets most of that season's points, with the boom-to-bust range under the points; hover a name for why. Other young players move part of the way toward what players of their market value score, since the market prices a coming role their 2026 points can't show. Every ${rd.year + 1} and ${rd.year + 2} pick each team owns is drafted too (see above) and shows with its pick, starting or on the bench (BN). Estimates: trades and waiver moves after today aren't in it.</p>
     <div class="cols">${cards.join("")}</div>`;
 }
 

@@ -1,0 +1,3068 @@
+{
+ "as_of": "2026-11-26",
+ "method": "Researched Nov. 26, 2026 from team and contract reporting (each player lists sources). Roles per season: elite = top-3 at the position, lead = top-8, starter = top-16 RB / top-12 QB and TE / top-24 WR, flex = committee back, bridge QB, WR3 or a lower-end TE, backup, none. Contract years for most rookie deals are the standard length for the draft round unless noted.",
+ "players": [
+  {
+   "name": "Brock Purdy",
+   "pos": "QB",
+   "team": "SF",
+   "age": 26,
+   "contract_through": 2030,
+   "status_2026": "Entrenched starter, 26.0 ppg.",
+   "roles": {
+    "2027": "elite",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "Five-year, $265M extension signed May 2025 runs through 2030. Locked in as the starter, so the only risk is performance or injury.",
+   "sources": [
+    {
+     "title": "Brock Purdy, 49ers agree to terms on five-year, $265 million extension",
+     "url": "https://www.nfl.com/news/brock-purdy-49ers-agree-to-terms-on-five-year-265-million-extension",
+     "date": "2025-05-16"
+    }
+   ]
+  },
+  {
+   "name": "Caleb Williams",
+   "pos": "QB",
+   "team": "CHI",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Bears starter, 21.9 ppg.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He's the 2024 No. 1 pick, so his rookie deal runs through 2027 with a fifth-year option for 2028; Chicago decides on the option in May 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the franchise QB and an extension is likely.",
+   "sources": []
+  },
+  {
+   "name": "Drake Maye",
+   "pos": "QB",
+   "team": "NE",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Patriots starter, 23.8 ppg.",
+   "roles": {
+    "2027": "elite",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was the 2024 No. 3 pick, so his rookie deal runs through 2027 plus a 2028 fifth-year option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the franchise QB with no role risk.",
+   "sources": []
+  },
+  {
+   "name": "Jayden Daniels",
+   "pos": "QB",
+   "team": "WAS",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Commanders starter, 22.9 ppg.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was the 2024 No. 2 pick, so his rookie deal runs through 2027 plus a 2028 fifth-year option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the franchise QB, and his rushing gives him a high floor.",
+   "sources": []
+  },
+  {
+   "name": "C.J. Stroud",
+   "pos": "QB",
+   "team": "HOU",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Texans starter, 21.8 ppg; extension talks tabled until after the season.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "Houston exercised his 2027 fifth-year option, and both sides agreed to hold extension talks until after the 2026 season. He's very likely Houston's starter through 2027, and a long-term deal or the franchise tag after that is the base case. If talks fail he could be traded, but he would still start somewhere.",
+   "sources": [
+    {
+     "title": "Texans pick up 2027 fifth-year options for C.J. Stroud, Will Anderson",
+     "url": "https://www.cbssports.com/nfl/news/texans-cj-stroud-will-anderson-contracts/",
+     "date": "2026-04"
+    },
+    {
+     "title": "Sources: C.J. Stroud, Texans to table extension talks",
+     "url": "https://www.espn.com/nfl/story/_/id/49917836",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Bo Nix",
+   "pos": "QB",
+   "team": "DEN",
+   "age": 26,
+   "contract_through": 2027,
+   "status_2026": "Broncos starter, 20.1 ppg.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was the 2024 No. 12 pick, so his rookie deal runs through 2027 plus a 2028 fifth-year option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's an entrenched starter with a stable role; I found no reported extension.",
+   "sources": []
+  },
+  {
+   "name": "Jaxson Dart",
+   "pos": "QB",
+   "team": "NYG",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Started Weeks 1-2 (19.9 ppg), then meniscus/MCL surgery that ends his regular season; Winston is starting and McCarthy was acquired.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2025 first-round pick, so his rookie deal runs through 2028 plus a 2029 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). The Giants traded a fifth-round pick for McCarthy only as injury cover, so Dart should return as the 2027 starter. The main risk is how the knee recovers.",
+   "sources": [
+    {
+     "title": "Giants trade for Vikings QB J.J. McCarthy following Jaxson Dart injury",
+     "url": "https://www.nfl.com/news/jj-mccarthy-giants-vikings-trade",
+     "date": "2026-09-28"
+    },
+    {
+     "title": "Jaxson Dart has surgery on meniscus, MCL",
+     "url": "https://www.thefantasyfootballers.com/news/640012/jaxson-dart-has-surgery-on-meniscus-mcl/",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "Bryce Young",
+   "pos": "QB",
+   "team": "CAR",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Panthers starter, 19.4 ppg.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "Carolina exercised his 2027 fifth-year option. I couldn't confirm a long-term extension, so 2027 is effectively a prove-it year. A mid-tier starter is the base case; if the Panthers move on after 2027, he likely becomes a bridge QB.",
+   "sources": [
+    {
+     "title": "Panthers sign fifth-year option on QB Bryce Young's contract, keeping him in Carolina through 2027",
+     "url": "https://www.foxsports.com/articles/nfl/panthers-sign-fifthyear-option-on-qb-bryce-youngs-contract-keeping-him-in-carolina-through-2027",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Fernando Mendoza",
+   "pos": "QB",
+   "team": "LV",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "2026 No. 1 overall pick; sat behind Cousins, then took over after Cousins was traded to MIN (first start mid-November).",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "As the No. 1 overall pick, his rookie deal runs through 2029 plus a 2030 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the Raiders' starter going forward, and his partial-season 15.1 ppg understates his outlook as a full-time starter.",
+   "sources": [
+    {
+     "title": "Raiders rookie Fernando Mendoza to make first start against Seahawks",
+     "url": "https://www.fox5vegas.com/2026/11/13/raiders-rookie-fernando-mendoza-make-first-start-against-seahawks/?outputType=amp",
+     "date": "2026-11-13"
+    },
+    {
+     "title": "2026 first round class signed and sealed",
+     "url": "https://www.nfl.com/news/2026-first-round-class-signed-and-sealed-rams-ty-simpson-inks-rookie-deal",
+     "date": "2026-07"
+    }
+   ]
+  },
+  {
+   "name": "Cam Ward",
+   "pos": "QB",
+   "team": "TEN",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Titans starter (16.4 ppg) through an 0-5 start; Saleh has kept him as QB1 despite benching talk.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was the 2025 No. 1 pick, so his rookie deal runs through 2028 plus a 2029 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). His draft capital buys him 2027, but a second weak year could lead Tennessee to draft a replacement by 2028.",
+   "sources": [
+    {
+     "title": "Saleh: Ward remains QB1 despite Titans' 0-5 start",
+     "url": "https://thescore.com/nfl/news/3621602",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "Michael Penix Jr.",
+   "pos": "QB",
+   "team": "ATL",
+   "age": 26,
+   "contract_through": 2027,
+   "status_2026": "Back from his 2025 ACL tear; starting since Week 3 (14.9 ppg) as Atlanta struggles.",
+   "roles": {
+    "2027": "starter",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was the 2024 No. 8 pick, so his rookie deal runs through 2027; the 2028 option is decided in May 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He has three serious knee injuries and middling production on a losing team, and a regime change in Atlanta is possible. He likely gets 2027, but a decline of his option is a real risk, which would leave him a bridge or backup in 2028 and beyond.",
+   "sources": [
+    {
+     "title": "Falcons name Michael Penix Jr. starter for Week 3 (ajc)",
+     "url": "https://www.ajc.com/sports/2026/09/atlanta-falcons-to-start-qb-michael-penix-jr-at-green-bay-packers/",
+     "date": "2026-09"
+    },
+    {
+     "title": "Reeling Falcons ... losing streak hits 5 games",
+     "url": "https://www.foxsports.com/articles/nfl/reeling-falcons-keep-coming-up-short-in-big-moments-as-losing-streak-hits-5-games",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "J.J. McCarthy",
+   "pos": "QB",
+   "team": "NYG",
+   "age": 23,
+   "contract_through": 2027,
+   "status_2026": "Traded from MIN to NYG on 9/28 for a 2027 fifth-round pick; backup to Jameis Winston.",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "flex",
+   "bust_role": "none",
+   "notes": "He was the 2024 No. 10 pick, so his rookie deal runs through 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Dart returns as the Giants' starter, so McCarthy is a backup in 2027, and the 2028 option is almost certain to be declined. After that he hits the market as a reclamation backup or bridge QB.",
+   "sources": [
+    {
+     "title": "Vikings trade QB J.J. McCarthy to Giants for 2027 fifth-round pick",
+     "url": "https://www.mprnews.org/story/2026/09/28/minnesota-vikings-trade-jj-mccarthy-to-new-york-giants-for-2027-fifthround-pick",
+     "date": "2026-09-28"
+    },
+    {
+     "title": "Giants trade for Vikings QB J.J. McCarthy following Jaxson Dart injury",
+     "url": "https://www.nfl.com/news/jj-mccarthy-giants-vikings-trade",
+     "date": "2026-09-28"
+    }
+   ]
+  },
+  {
+   "name": "Ty Simpson",
+   "pos": "QB",
+   "team": "LAR",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "2026 No. 13 pick; backup to Stafford, who is signed through 2027.",
+   "roles": {
+    "2027": "backup",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "His rookie deal runs through 2029 plus a 2030 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Stafford's one-year extension runs through 2027, so 2028 is the natural handoff to Simpson in a QB-friendly McVay offense. A starting role in 2027 would require a Stafford injury or retirement.",
+   "sources": [
+    {
+     "title": "Ty Simpson, Rams No. 13 overall pick 2026 NFL Draft",
+     "url": "https://www.nfl.com/news/ty-simpson-rams-no-13-overall-pick-2026-nfl-draft",
+     "date": "2026-04"
+    },
+    {
+     "title": "NFL MVP Matthew Stafford agrees to 1-year contract extension with Rams through 2027",
+     "url": "https://www.foxsports.com/articles/nfl/nfl-mvp-matthew-stafford-agrees-to-1year-contract-extension-with-rams-through-2027",
+     "date": "2026-05-22"
+    }
+   ]
+  },
+  {
+   "name": "Anthony Richardson Sr.",
+   "pos": "QB",
+   "team": "IND",
+   "age": 24,
+   "contract_through": 2026,
+   "status_2026": "Colts backup behind Daniel Jones; requested a trade that went nowhere.",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "flex",
+   "bust_role": "none",
+   "notes": "The Colts declined his 2027 fifth-year option, so he becomes a free agent in March 2027. The most likely outcome is a cheap prove-it deal as a backup or camp competitor; his rushing upside keeps a bridge-starter outcome possible.",
+   "sources": [
+    {
+     "title": "Source: Colts declining Richardson's fifth-year option for '27",
+     "url": "https://www.espn.in/nfl/story/_/id/48649873/colts-declining-richardson-fifth-year-option-27",
+     "date": "2026-04"
+    },
+    {
+     "title": "Anthony Richardson is the Colts' No. 2 quarterback",
+     "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/anthony-richardson-is-the-colts-no-2-quarterback",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Carson Beck",
+   "pos": "QB",
+   "team": "ARI",
+   "age": 24,
+   "contract_through": 2029,
+   "status_2026": "No. 65 pick (third round); became the starter mid-November after the Brissett trade and Minshew's season-ending elbow injury, then reportedly hurt his back.",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A third-round pick's four-year deal runs through 2029. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He has about eight games to audition, but Arizona will likely add a QB in 2027, which projects Beck as a bridge or backup.",
+   "sources": [
+    {
+     "title": "Carson Beck, Cardinals No. 65 overall pick",
+     "url": "https://www.nfl.com/news/carson-beck-cardinals-no-65-overall-pick-2026-nfl-draft",
+     "date": "2026-04"
+    },
+    {
+     "title": "A third-string QB just 11 days ago, Cardinals' Carson Beck prepares for his first NFL start",
+     "url": "https://www.azfamily.com/2026/11/12/third-string-qb-just-11-days-ago-cardinals-carson-beck-prepares-his-first-nfl-start/",
+     "date": "2026-11-12"
+    }
+   ]
+  },
+  {
+   "name": "Shedeur Sanders",
+   "pos": "QB",
+   "team": "CLE",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Backup; started Week 9 during Watson's concussion, then Watson reclaimed the job.",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "A 2025 fifth-round pick's deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Cleveland keeps choosing Watson over him, so expect a QB addition in 2027. He projects as a spot starter or backup; the boom case is winning an open 2027 competition.",
+   "sources": [
+    {
+     "title": "Deshaun Watson named Browns starting quarterback over Shedeur Sanders",
+     "url": "https://www.fox4news.com/sports/deshaun-watson-named-browns-starting-quarterback-over-shedeur-sanders",
+     "date": "2026-11"
+    },
+    {
+     "title": "Browns to start Shedeur Sanders vs Saints with Watson in concussion protocol",
+     "url": "https://www.ksat.com/sports/2026/11/06/browns-to-start-shedeur-sanders-vs-saints-with-deshaun-watson-in-concussion-protocol/",
+     "date": "2026-11-06"
+    }
+   ]
+  },
+  {
+   "name": "Jahmyr Gibbs",
+   "pos": "RB",
+   "team": "DET",
+   "age": 24,
+   "contract_through": 2030,
+   "status_2026": "RB1 overall pace, 29.3 ppg.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "elite"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "Signed a three-year extension in August 2026 that runs through 2030. Montgomery was traded to HOU, so Gibbs is now the clear workhorse.",
+   "sources": [
+    {
+     "title": "Lions sign RB Jahmyr Gibbs to contract extension through the 2030 season",
+     "url": "https://www.detroitlions.com/news/lions-sign-rb-jahmyr-gibbs-to-contract-extension-through-the-2030-season",
+     "date": "2026-08-06"
+    }
+   ]
+  },
+  {
+   "name": "Bijan Robinson",
+   "pos": "RB",
+   "team": "ATL",
+   "age": 24,
+   "contract_through": 2030,
+   "status_2026": "Workhorse, 24.2 ppg.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "elite"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "His three-year extension signed in August 2026 runs through 2030. The only risks are age-curve ones.",
+   "sources": [
+    {
+     "title": "Falcons running back Bijan Robinson is locked up through 2030",
+     "url": "https://ny1.com/nyc/all-boroughs/ap-top-news/2026/08/04/falcons-running-back-bijan-robinson-is-locked-up-through-2030-after-agreeing-to-a-3-year-extension",
+     "date": "2026-08-04"
+    }
+   ]
+  },
+  {
+   "name": "Kenneth Walker III",
+   "pos": "RB",
+   "team": "KC",
+   "age": 26,
+   "contract_through": 2028,
+   "status_2026": "Signed with KC in 2026 free agency after his Super Bowl MVP year; lead back, 22.5 ppg.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "starter"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "His three-year deal worth up to $45M runs through 2028. Rookie Emmett Johnson is taking more snaps but is not a threat to the lead role. Age 29 in 2029 and a possible cut after 2028 pull down his 2029 outlook.",
+   "sources": [
+    {
+     "title": "Chiefs land Super Bowl MVP Kenneth Walker on a 3-year deal worth up to $45M",
+     "url": "https://www.foxsports.com/articles/nfl/chiefs-land-super-bowl-mvp-kenneth-walker-on-a-3year-deal-worth-up-to-45m-ap-source-says",
+     "date": "2026-03-09"
+    }
+   ]
+  },
+  {
+   "name": "Ashton Jeanty",
+   "pos": "RB",
+   "team": "LV",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Lead back (20.3 ppg); missed time with an ankle injury, now back.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was the 2025 No. 6 pick, so his rookie deal runs through 2028 plus a 2029 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's a workhorse, and Mendoza's development should improve the offense around him.",
+   "sources": [
+    {
+     "title": "Raiders' Jeanty returns to practice after two-week absence",
+     "url": "https://abc7.com/post/raiders-jeanty-returns-practice-week-absence/19811963/",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "Bucky Irving",
+   "pos": "RB",
+   "team": "TB",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Lead back (19.1 ppg) after offseason shoulder surgery.",
+   "roles": {
+    "2027": "lead",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "A 2024 fourth-round deal expires after 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). I found no extension. The base case is a second contract with Tampa Bay or a lead role elsewhere in 2028, but his small frame and injuries suggest a committee later on.",
+   "sources": [
+    {
+     "title": "Report: Bucky Irving had offseason shoulder surgery",
+     "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/report-bucky-irving-had-offseason-shoulder-surgery",
+     "date": "2026"
+    },
+    {
+     "title": "Buccaneers' Bucky Irving: Strong showing as lead back",
+     "url": "https://cbssports.com/fantasy/football/news/buccaneers-bucky-irving-strong-showing-as-lead-back",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "De'Von Achane",
+   "pos": "RB",
+   "team": "MIA",
+   "age": 25,
+   "contract_through": 2030,
+   "status_2026": "Tore his ACL in Week 3 (9/27) and is out for the season; signed an extension in May 2026.",
+   "roles": {
+    "2027": "starter",
+    "2028": "lead",
+    "2029": "starter"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "His four-year, $64M extension signed in May 2026 should run through 2030; that end year is inferred from four added years on a deal that expired after 2026. 2027 is his first year back from the ACL tear, and speed backs often lose some explosiveness, so he projects as a starter rather than elite. Ollie Gordon is handling the 2026 work.",
+   "sources": [
+    {
+     "title": "Dolphins RB De'Von Achane to miss rest of season after tearing ACL",
+     "url": "https://www.nfl.com/news/dolphins-rb-devon-achane-miss-2026-season-acl-tear",
+     "date": "2026-09-28"
+    },
+    {
+     "title": "Dolphins, De'Von Achane reach 4-year, $64M extension",
+     "url": "https://www.espn.co.uk/nfl/story/_/id/48763689/dolphins-rb-devon-achane-reach-4-year-extension",
+     "date": "2026-05-14"
+    }
+   ]
+  },
+  {
+   "name": "Jeremiyah Love",
+   "pos": "RB",
+   "team": "ARI",
+   "age": 21,
+   "contract_through": 2029,
+   "status_2026": "No. 3 overall pick; leads the backfield but Allgeier takes goal-line and receiving work (12.95 ppg).",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "His rookie deal runs through 2029 plus a 2030 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Allgeier is signed through 2027 and will keep stealing work for one more year. With top-3 draft capital, the role should grow toward a workhorse load by 2028.",
+   "sources": [
+    {
+     "title": "Love behind Allgeier on Cards depth chart",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-08/love-behind-allgeier-on-cards-depth-chart",
+     "date": "2026-09-08"
+    },
+    {
+     "title": "Jeremiyah Love gets 26 touches in Week 3 loss",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-27/jeremiyah-love-gets-26-touches-in-week-3-loss",
+     "date": "2026-09-27"
+    },
+    {
+     "title": "2026 NFL Draft: Running Back Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-running-back-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Breece Hall",
+   "pos": "RB",
+   "team": "NYJ",
+   "age": 25,
+   "contract_through": 2028,
+   "status_2026": "Jets lead back (17.1 ppg); Allen and Davis are the backups.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was franchise-tagged, then signed a three-year, $45.75M deal in May 2026 that should run through 2028; that end year is my inference, since the articles don't state it. The deal keeps his role secure through 2028. At 28 in 2029 he could be cut, so his outlook drops that year.",
+   "sources": [
+    {
+     "title": "Jets give RB Hall 3-year, $45.75M extension",
+     "url": "https://www.tsn.ca/nfl/article/jets-give-rb-hall-3-year-4575m-extension-n1-48714193/",
+     "date": "2026-05-08"
+    },
+    {
+     "title": "Jets place franchise tag on Breece Hall",
+     "url": "https://www.newyorkjets.com/news/jets-place-franchise-tag-on-breece-hall-03-03-2026?mm-view=app",
+     "date": "2026-03-03"
+    }
+   ]
+  },
+  {
+   "name": "Bhayshul Tuten",
+   "pos": "RB",
+   "team": "JAX",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Took over as the Jaguars' RB1 after Etienne left in free agency; 15.7 ppg with a recent touchdown streak.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "A 2025 fourth-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Etienne's departure opened the lead role, though Jacksonville wants a balanced attack with LeQuint Allen. If he plays well, an extension is a 2028 question.",
+   "sources": [
+    {
+     "title": "Jaguars' Bhayshul Tuten: Could lead Etienne-less RB room",
+     "url": "https://www.cbssports.com/fantasy/football/news/jaguars-bhayshul-tuten-could-lead-etienne-less-rb-room/",
+     "date": "2026-03"
+    },
+    {
+     "title": "Bhayshul Tuten's four-game TD streak fuels another RB1 finish",
+     "url": "https://www.draftsharks.com/fantasy-football-news/84245/bhayshul-tutens-four-game-td-streak-fuels-another-rb1-finish",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Kyren Williams",
+   "pos": "RB",
+   "team": "LAR",
+   "age": 26,
+   "contract_through": 2028,
+   "status_2026": "Lead back (19.5 ppg), but Corum's share is growing toward a 50/50 split.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "His three-year, $33M extension (August 2025) runs through 2028. The Rams want a more even split with Corum, so he projects as a high-end committee back. At 29 in 2029 and with his deal over, he projects as a committee back that year.",
+   "sources": [
+    {
+     "title": "Rams, Williams agree to 3-year, $33M extension",
+     "url": "https://www.thescore.com/news/3320739",
+     "date": "2025-08-06"
+    },
+    {
+     "title": "Rams Running Back Usage Could Shift to 50-50 Split With Blake Corum Emerging",
+     "url": "https://www.si.com/nfl/rams/onsi/rams-running-back-split-williams-corum-2026",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "Javonte Williams",
+   "pos": "RB",
+   "team": "DAL",
+   "age": 26,
+   "contract_through": 2028,
+   "status_2026": "Cowboys lead back (18.8 ppg) after re-signing.",
+   "roles": {
+    "2027": "starter",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "His three-year, $24M deal signed in February 2026 runs through 2028. The deal is modest, so Dallas can easily add a younger back, and his age and injury history point to a committee role by 2028.",
+   "sources": [
+    {
+     "title": "Cowboys, Javonte Williams agree to terms on 3-year, $24 million contract",
+     "url": "https://www.dallascowboys.com/news/cowboys-javonte-williams-agree-to-terms-on-3-year-24-million-contract",
+     "date": "2026-02"
+    }
+   ]
+  },
+  {
+   "name": "Chase Brown",
+   "pos": "RB",
+   "team": "CIN",
+   "age": 26,
+   "contract_through": 2026,
+   "status_2026": "Bengals lead back (19.0 ppg) in the final year of his deal; extension talks went quiet.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "His 2023 fifth-round deal ends after 2026, and as of August 2026 talks had been quiet. I found no extension signed. The likely outcomes are a Cincinnati extension or the tag; if he leaves, he'd be a lead or co-lead back on a mid-market deal. Either way, his age caps the 2029 outlook.",
+   "sources": [
+    {
+     "title": "NFL running back contract market increases for Chase Brown",
+     "url": "https://www.si.com/nfl/bengals/onsi/nfl-running-back-contract-market-increases-for-chase-brown-extension-candidates-01kz6b3g7bta",
+     "date": "2026-08-04"
+    },
+    {
+     "title": "Bengals' Chase Brown in contract extension talks",
+     "url": "https://www.profootballrumors.com/2026/01/bengals-chase-brown-in-contract-extension-talks",
+     "date": "2026-01"
+    }
+   ]
+  },
+  {
+   "name": "Omarion Hampton",
+   "pos": "RB",
+   "team": "LAC",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Nominal starter (14.2 ppg), but his snaps fell in McDaniel's three-back rotation with Vidal and Mitchell.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2025 first-round pick, so his rookie deal runs through 2028 plus a 2029 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). McDaniel's committee caps his 2027 role. His draft capital and youth should eventually win him a larger share.",
+   "sources": [
+    {
+     "title": "Why is Chargers RB Omarion Hampton's snap count decreasing?",
+     "url": "https://abc30.com/post/is-chargers-rb-omarion-hamptons-snap-count-decreasing/19947238/",
+     "date": "2026-10-17"
+    }
+   ]
+  },
+  {
+   "name": "Quinshon Judkins",
+   "pos": "RB",
+   "team": "CLE",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Browns lead back (15.1 ppg); Sampson went on IR in Week 1.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "A 2025 second-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the three-down back with little competition. Cleveland's weak offense caps his ceiling.",
+   "sources": [
+    {
+     "title": "Staley: I think Judkins can play all three downs",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-07-31/staley-i-think-judkins-can-play-all-three-downs",
+     "date": "2026-07-31"
+    }
+   ]
+  },
+  {
+   "name": "Cam Skattebo",
+   "pos": "RB",
+   "team": "NYG",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Reclaimed the Giants' feature-back role after his 2025 ankle injury; 15.0 ppg.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "A 2025 fourth-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). He's the feature back under Harbaugh, with Tracy in a complementary role. His physical style and ankle history are the risks.",
+   "sources": [
+    {
+     "title": "Cam Skattebo reclaims role as Giants' feature back",
+     "url": "https://abc7ny.com/post/cam-skattebo-reclaims-role-giants-feature-back/19849230/",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "Jonah Coleman",
+   "pos": "RB",
+   "team": "DEN",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie, No. 108 pick (fourth round); in a committee with Dobbins and Harvey and getting more work since Harvey went on IR.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "His rookie deal runs through 2029. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Dobbins's two-year deal ends after 2027, so Coleman is set up to lead the backfield from 2028.",
+   "sources": [
+    {
+     "title": "RJ Harvey heads to IR, giving Jonah Coleman a boost",
+     "url": "https://www.draftsharks.com/fantasy-football-news/83843/rj-harvey-heads-to-ir-giving-jonah-coleman-a-boost",
+     "date": "2026"
+    },
+    {
+     "title": "Broncos re-sign RB J.K. Dobbins to 2-year contract",
+     "url": "https://www.denverbroncos.com/news/broncos-re-sign-rb-j-k-dobbins-to-2-year-contract",
+     "date": "2026-03"
+    }
+   ]
+  },
+  {
+   "name": "Jadarian Price",
+   "pos": "RB",
+   "team": "SEA",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "No. 32 pick (end of first round); split work with Charbonnet since Charbonnet returned (Price is the receiving back).",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "His rookie deal runs through 2029 plus a 2030 option. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Charbonnet's deal expires after 2026, so Price should inherit the lead role in 2027, though Seattle could add a veteran committee partner.",
+   "sources": [
+    {
+     "title": "Is Zach Charbonnet taking the backfield lead?",
+     "url": "https://www.draftsharks.com/fantasy-football-news/84110/is-zach-charbonnet-taking-the-backfield-lead",
+     "date": "2026-11-09"
+    },
+    {
+     "title": "Is Zach Charbonnet playing in his final year in Seattle",
+     "url": "https://www.si.com/nfl/seahawks/onsi/is-zach-charbonnet-playing-in-his-final-year-in-seattle",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "Kyle Monangai",
+   "pos": "RB",
+   "team": "CHI",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "No. 2 behind Swift (12.6 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A 2025 seventh-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Swift signed a three-year extension through 2029 in September 2026, which removes the expected 2027 opening, so Monangai stays the complementary back.",
+   "sources": [
+    {
+     "title": "Bears, D'Andre Swift agree to three-year, $33.75 million extension",
+     "url": "https://www.nfl.com/news/bears-d-andre-swift-agree-to-three-year-33-75-million-extension",
+     "date": "2026-09-11"
+    },
+    {
+     "title": "Bears extend D'Andre Swift through 2029",
+     "url": "https://www.draftsharks.com/fantasy-football-news/82565/bears-extend-dandre-swift-through-2029",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Blake Corum",
+   "pos": "RB",
+   "team": "LAR",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Co-back with Kyren Williams, moving toward a 50/50 split (10.6 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A 2024 third-round deal expires after 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Kyren is signed through 2028, so Corum's path to the lead job is free agency in 2028, likely in a committee for a run-first team.",
+   "sources": [
+    {
+     "title": "Rams Running Back Usage Could Shift to 50-50 Split With Blake Corum Emerging",
+     "url": "https://www.si.com/nfl/rams/onsi/rams-running-back-split-williams-corum-2026",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "TreVeyon Henderson",
+   "pos": "RB",
+   "team": "NE",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Roughly 50/50 split with Rhamondre Stevenson (10.5 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "A 2025 second-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Stevenson's four-year deal (2024) runs through 2028 but is easy to cut by 2028, when Henderson should take over the lead role.",
+   "sources": [
+    {
+     "title": "Graff: Pats backfield will be a 50-50 split",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-08-17/graff-pats-backfield-will-be-a-50-50-split",
+     "date": "2026-08-17"
+    },
+    {
+     "title": "Patriots RB Rhamondre Stevenson agrees to four-year, $36 million extension",
+     "url": "https://nfl.com/news/patriots-rb-rhamondre-stevenson-agrees-to-four-year-36-million-extension",
+     "date": "2024-06"
+    }
+   ]
+  },
+  {
+   "name": "Emmett Johnson",
+   "pos": "RB",
+   "team": "KC",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie (No. 161, fifth round); Walker's backup with a growing snap share (9.8 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "His rookie deal runs through 2029. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Walker is signed through 2028, so Johnson is the change-of-pace and receiving back. He could take over in 2029 if KC moves on from Walker.",
+   "sources": [
+    {
+     "title": "Reid: RB Johnson will continue to get more snaps",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-22/reid-rb-johnson-will-continue-to-get-more-snaps",
+     "date": "2026-09-22"
+    }
+   ]
+  },
+  {
+   "name": "Braelon Allen",
+   "pos": "RB",
+   "team": "NYJ",
+   "age": 22,
+   "contract_through": 2027,
+   "status_2026": "Backup behind Hall after his 2025 MCL injury, with Isaiah Davis also involved (10.6 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A 2024 fourth-round deal expires after 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Hall's extension blocks him through 2028, so his path is 2028 free agency at age 24, most likely as a big-back committee partner. He could become a starter if a team commits early carries to him.",
+   "sources": [
+    {
+     "title": "Braelon Allen set for backup role in 2026",
+     "url": "https://www.thefantasyfootballers.com/news/630870/braelon-allen-set-for-backup-role-in-2026/",
+     "date": "2026-05-14"
+    },
+    {
+     "title": "Jets give RB Hall 3-year, $45.75M extension",
+     "url": "https://www.tsn.ca/nfl/article/jets-give-rb-hall-3-year-4575m-extension-n1-48714193/",
+     "date": "2026-05-08"
+    }
+   ]
+  },
+  {
+   "name": "RJ Harvey",
+   "pos": "RB",
+   "team": "DEN",
+   "age": 25,
+   "contract_through": 2028,
+   "status_2026": "In Denver's three-way committee (12.1 ppg); placed on IR.",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "A 2025 second-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Coleman's rise and Harvey's own injuries push him toward a pass-down role. Once Coleman leads the backfield from 2028, Harvey is a backup.",
+   "sources": [
+    {
+     "title": "RJ Harvey heads to IR, giving Jonah Coleman a boost",
+     "url": "https://www.draftsharks.com/fantasy-football-news/83843/rj-harvey-heads-to-ir-giving-jonah-coleman-a-boost",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "Zach Charbonnet",
+   "pos": "RB",
+   "team": "SEA",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Started the year on PUP (knee); returned midseason and is splitting with Price (9.2 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "His 2023 second-round deal expires after 2026, and I found no extension. With Price drafted to lead, Charbonnet most likely leaves in 2027 as a committee or early-down back elsewhere. A starter role is possible on a thin team.",
+   "sources": [
+    {
+     "title": "Is Zach Charbonnet playing in his final year in Seattle",
+     "url": "https://www.si.com/nfl/seahawks/onsi/is-zach-charbonnet-playing-in-his-final-year-in-seattle",
+     "date": "2026"
+    },
+    {
+     "title": "Seahawks place Zach Charbonnet on PUP list",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-07-22/seahawks-place-zach-charbonnet-on-pup-list",
+     "date": "2026-07-22"
+    }
+   ]
+  },
+  {
+   "name": "Jacory Croskey-Merritt",
+   "pos": "RB",
+   "team": "WAS",
+   "age": 25,
+   "contract_through": 2028,
+   "status_2026": "Commanders starter, but on IR (groin) since 10/19; 3.6 ypc (10.3 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A 2025 seventh-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Washington added Rachaad White and drafted Kaytron Allen, and Croskey-Merritt's efficiency has dropped, so he projects as a committee back at best.",
+   "sources": [
+    {
+     "title": "Commanders place starting RB Croskey-Merritt (groin) on IR",
+     "url": "https://www.tsn.ca/nfl/article/commanders-place-starting-rb-croskey-merritt-groin-on-ir-n1-50221053/",
+     "date": "2026-10-19"
+    }
+   ]
+  },
+  {
+   "name": "Ollie Gordon II",
+   "pos": "RB",
+   "team": "MIA",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Leading Miami's backfield since Achane's ACL tear (8.3 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "A 2025 sixth-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Achane is signed through 2030 and returns in 2027, which sends Gordon back to a backup role. If Achane's recovery stalls, Gordon could hold a short-term committee role.",
+   "sources": [
+    {
+     "title": "Gordon takes over Dolphins' backfield in Week 5",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-10-04/gordon-takes-over-dolphins-backfield-in-week-5",
+     "date": "2026-10-04"
+    },
+    {
+     "title": "Dolphins RB De'Von Achane to miss rest of season after tearing ACL",
+     "url": "https://www.nfl.com/news/dolphins-rb-devon-achane-miss-2026-season-acl-tear",
+     "date": "2026-09-28"
+    }
+   ]
+  },
+  {
+   "name": "Woody Marks",
+   "pos": "RB",
+   "team": "HOU",
+   "age": 25,
+   "contract_through": 2028,
+   "status_2026": "Shares carries with David Montgomery, whom Houston acquired from DET (9.3 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "A 2025 fourth-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Montgomery (29 in 2026) handles short-yardage work; I couldn't verify when his contract ends. Marks could become the lead back by 2028 if Houston doesn't add another back.",
+   "sources": [
+    {
+     "title": "Houston Texans backfield plans take an unexpected turn ahead of 2026 season",
+     "url": "https://roundtable.io/sports/nfl/texans/opinion/houston-texans-backfield-plans-take-an-unexpected-turn-ahead-of-2026-season",
+     "date": "2026"
+    },
+    {
+     "title": "Texans' Woody Marks on David Montgomery trade",
+     "url": "https://www.click2houston.com/sports/2026/03/04/texans-woody-marks-on-david-montgomery-trade-love-him-as-a-back-looking-to-have-same-joy-him-and-jahmyr-gibbs-had",
+     "date": "2026-03-04"
+    }
+   ]
+  },
+  {
+   "name": "Kaelon Black",
+   "pos": "RB",
+   "team": "SF",
+   "age": 25,
+   "contract_through": 2029,
+   "status_2026": "Rookie (No. 90, third round); McCaffrey's backup (6.3 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "His rookie deal runs through 2029. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). McCaffrey's 2024 two-year extension runs through 2027, when he turns 31, so Black is positioned as the successor from 2028. Shanahan's scheme makes whoever leads the backfield valuable, but SF could also draft a back. He is old for a rookie.",
+   "sources": [
+    {
+     "title": "49ers draft McCaffrey's replacement 22 months into his $38M extension",
+     "url": "https://www.yardbarker.com/nfl/articles/49ers_draft_mccaffreys_replacement_22_months_into_his_38m_extension/s1_17755_43823412",
+     "date": "2026-04"
+    },
+    {
+     "title": "Sources: 49ers give Christian McCaffrey 2-year, $38M extension",
+     "url": "https://www.espn.com/nfl/story/_/id/40276938/sources-49ers-give-christian-mccaffrey-2-year-38m-extension",
+     "date": "2024-06"
+    }
+   ]
+  },
+  {
+   "name": "Tyler Allgeier",
+   "pos": "RB",
+   "team": "ARI",
+   "age": 26,
+   "contract_through": 2027,
+   "status_2026": "Signed with ARI in free agency; takes early-down and goal-line work next to Love (8.7 ppg).",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "His two-year, $12.25M deal runs through 2027. Love's role should keep growing, and Allgeier becomes a 28-year-old free agent in 2028 with a backup-level market.",
+   "sources": [
+    {
+     "title": "Cardinals agree to a 2-year, $12.25 million deal with Tyler Allgeier",
+     "url": "https://www.foxsports.com/articles/nfl/cardinals-agree-to-a-2year-1225-million-deal-with-running-back-tyler-allgeier-ap-source-says",
+     "date": "2026-03-09"
+    }
+   ]
+  },
+  {
+   "name": "Mike Washington Jr.",
+   "pos": "RB",
+   "team": "LV",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie (No. 122, fourth round); Jeanty's backup (5.3 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "flex",
+   "bust_role": "none",
+   "notes": "His rookie deal runs through 2029. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Jeanty blocks the lead role, so Washington's value is as a handcuff.",
+   "sources": [
+    {
+     "title": "Raiders' Mike Washington: Set to work behind Jeanty",
+     "url": "https://thescore.com/news/3569292/raiders-mike-washington-set-to-work-behind-jeanty",
+     "date": "2026"
+    }
+   ]
+  },
+  {
+   "name": "Jonathon Brooks",
+   "pos": "RB",
+   "team": "CAR",
+   "age": 23,
+   "contract_through": 2027,
+   "status_2026": "Back from his second ACL tear; rotating with Hubbard in a hot-hand approach (6.8 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "A 2024 second-round deal expires after 2027. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Two ACL tears in the same knee and limited production make him a low-cost backup in 2028 free agency. A bigger role would require Hubbard to get hurt.",
+   "sources": [
+    {
+     "title": "Panthers banking on RBs Hubbard, Brooks despite injury histories",
+     "url": "https://abc11.com/post/panthers-banking-rbs-hubbard-brooks-despite-injury-histories/19805323/",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Dylan Sampson",
+   "pos": "RB",
+   "team": "CLE",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Judkins's backup; placed on IR (knee) after Week 1 (7.6 ppg).",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "flex",
+   "bust_role": "none",
+   "notes": "A 2025 fourth-round deal runs through 2028. Standard rookie-scale length for his draft slot (not individually confirmed on a contract site). Judkins is the three-down back, which limits Sampson to change-of-pace work.",
+   "sources": [
+    {
+     "title": "Browns place second-year RB on IR, turn to former Broncos back",
+     "url": "https://www.newsweek.com/sports/nfl/browns-place-second-year-rb-on-ir-turn-to-former-broncos-back-12446924",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Brock Bowers",
+   "pos": "TE",
+   "team": "LV",
+   "age": 23,
+   "contract_through": 2027,
+   "status_2026": "Elite TE1 (22.7 PPG) for LV, but he had a preseason meniscus trim and missed about two games.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "elite"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "He was a 2024 first-round pick (#13), so his rookie deal runs through 2027, and LV holds a 5th-year option for 2028. An extension is very likely, but none has been reported. The only real risk is his knee history, which includes problems in 2025 and the 2026 meniscus trim.",
+   "sources": [
+    {
+     "title": "Raiders TE Brock Bowers undergoes knee procedure",
+     "url": "https://www.nfl.com/news/raiders-te-brock-bowers-knee-procedure-out-week-1",
+     "date": "2026-09"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Dynasty Roundtable: Biggest Midseason Risers and Fallers",
+     "url": "https://www.footballguys.com/article/2026-dynasty-roundtable-week08-biggest-midseason-risers-and-fallers",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "Colston Loveland",
+   "pos": "TE",
+   "team": "CHI",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Bears TE and a core target for Ben Johnson after DJ Moore was traded. He was CHI's leading receiver in 2025.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2025 first-round pick (#10), so his deal runs through 2028 with a 5th-year option for 2029. With Moore gone, CHI's top targets are Odunze, Burden and Loveland, and Cole Kmet still takes some snaps. He's young and highly drafted, and his arc points to a top-8 TE with elite upside.",
+   "sources": [
+    {
+     "title": "Bears need health, production from Odunze (Loveland context)",
+     "url": "https://chicago.suntimes.com/bears/2026/09/03/bears-rome-odunze-luther-burden-health-dynamic-duo-wide-receiver-foot-nfl",
+     "date": "2026-09-03"
+    }
+   ]
+  },
+  {
+   "name": "Harold Fannin Jr.",
+   "pos": "TE",
+   "team": "CLE",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Browns' primary receiving TE (15.3 PPG) after CLE moved on from David Njoku. The QB play is unstable (Watson, Sanders).",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2025 third-round pick on a rookie deal through 2028, with no option. Njoku is gone, so he is the clear TE1, though rookie WRs Concepcion and Boston now compete for targets. The QB situation is the main thing capping him.",
+   "sources": [
+    {
+     "title": "Harold Fannin Jr. poised after Browns move on from David Njoku",
+     "url": "https://www.si.com/onsi/fantasy/rankings/harold-fannin-jr-poised-for-fantasy-football-fireworks-after-browns-move-on-from-david-njoku",
+     "date": null
+    },
+    {
+     "title": "Fannin scores first two TDs of 2026",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-27/harold-fannin-scores-first-two-touchdowns-of-2026",
+     "date": "2026-09-27"
+    }
+   ]
+  },
+  {
+   "name": "Isaiah Likely",
+   "pos": "TE",
+   "team": "NYG",
+   "age": 26,
+   "contract_through": 2028,
+   "status_2026": "He signed with NYG under Harbaugh. Featured target with 83 targets (13th in NFL) and a career-high 7 TDs by Week 10, despite QB churn.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "starter"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He signed a 3-year, $40M deal (up to $47.5M) in March 2026, which runs through 2028. He's now a core piece next to Nabers, and the ceiling rises if NYG settles at QB. He turns 29 in 2029 and will be a free agent then, so that year is projected more conservatively.",
+   "sources": [
+    {
+     "title": "Giants to sign TE Isaiah Likely",
+     "url": "https://www.profootballrumors.com/2026/03/giants-to-sign-te-isaiah-likely",
+     "date": "2026-03"
+    },
+    {
+     "title": "Dynasty Rankings: Jordyn Tyson Rises In November Update",
+     "url": "https://www.fantasylife.com/articles/dynasty/dynasty-fantasy-football-rankings-jordyn-tyson-rises-in-november",
+     "date": "2026-11-17"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Tyler Warren",
+   "pos": "TE",
+   "team": "IND",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Colts TE1 (15.2 PPG). His target share should grow after Josh Downs was traded to KC in November.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2025 first-round pick (#14), so his deal runs through 2028 with a 5th-year option for 2029. Downs' departure leaves Pierce and Warren as the main targets. He has a stable top-8 profile.",
+   "sources": [
+    {
+     "title": "Chiefs part with picks for Colts' Downs",
+     "url": "https://www.newstribune.com/news/2026/nov/10/chiefs-part-with-pair-of-draft-picks-for-colts-downs/",
+     "date": "2026-11-10"
+    }
+   ]
+  },
+  {
+   "name": "Sam LaPorta",
+   "pos": "TE",
+   "team": "DET",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Lions TE (14.9 PPG) in the final year of his rookie deal. Extension talks broke off and he calls them a 'stalemate'.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "starter",
+   "notes": "He was a 2023 second-round pick, his contract runs through 2026, and no extension has been signed. Talks broke off in-season, so expect a franchise tag or a 2027 free-agency move. Free-agent suitors are reportedly lined up, and he should remain a TE1 wherever he plays. The bust case is a worse offense or back problems returning (he had back surgery in 2025).",
+   "sources": [
+    {
+     "title": "Sources: Sam LaPorta, Lions break off contract talks",
+     "url": "https://africa.espn.com/nfl/story/_/id/50094193/sources-sam-laporta-lions-break-contract-talks",
+     "date": null
+    },
+    {
+     "title": "LaPorta says extension talks at 'stalemate'",
+     "url": "https://www.tsn.ca/nfl/article/laporta-says-extension-talks-with-lions-at-stalemate-n1-50127865/",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Tucker Kraft",
+   "pos": "TE",
+   "team": "GB",
+   "age": 26,
+   "contract_through": 2030,
+   "status_2026": "Packers TE1 (14.2 PPG) who signed an extension right before Week 1. He shares targets with Golden and Watson.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "starter",
+   "notes": "He signed a 4-year, $75M extension in September 2026 on top of a rookie deal that ran through 2026, which puts his contract through 2030. His role is secure. He's capped a bit by the target share Golden and Watson take, and he's coming back from a late-2025 knee injury.",
+   "sources": [
+    {
+     "title": "Packers TE Tucker Kraft agrees to 4-year, $75M extension",
+     "url": "https://www.nfl.com/news/tucker-kraft-packers-tight-end-contract-extension",
+     "date": "2026-09"
+    }
+   ]
+  },
+  {
+   "name": "Kyle Pitts Sr.",
+   "pos": "TE",
+   "team": "ATL",
+   "age": 26,
+   "contract_through": 2028,
+   "status_2026": "Falcons TE (12.8 PPG), behind London in the pecking order. He was tagged, then signed long-term in June.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "ATL tagged him and then signed him to a 3-year, $54M deal in June 2026. Assuming that deal covers 2026-28, he's under contract through 2028, but the article didn't state the exact end year. He's a consistent low-end TE1 behind London.",
+   "sources": [
+    {
+     "title": "Falcons TE Kyle Pitts agrees to three-year, $54M contract",
+     "url": "https://www.nfl.com/news/nfl-network-falcons-te-kyle-pitts-agrees-to-three-year-54m-contract",
+     "date": "2026-06"
+    }
+   ]
+  },
+  {
+   "name": "Brenton Strange",
+   "pos": "TE",
+   "team": "JAX",
+   "age": 25,
+   "contract_through": 2029,
+   "status_2026": "Jaguars TE1 (13.0 PPG). He signed an extension in June.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He signed a 3-year extension worth up to $48M ($25M guaranteed) in June 2026, entering the last year of his rookie deal. That makes him under contract through 2029. He's a steady TE1/TE2 who competes with Parker Washington and BTJ for targets.",
+   "sources": [
+    {
+     "title": "Jaguars, Brenton Strange agree to three-year extension",
+     "url": "https://www.nfl.com/news/jaguars-brenton-strange-three-year-extension",
+     "date": "2026-06-24"
+    }
+   ]
+  },
+  {
+   "name": "Kenyon Sadiq",
+   "pos": "TE",
+   "team": "NYJ",
+   "age": 21,
+   "contract_through": 2029,
+   "status_2026": "Rookie TE (8.4 PPG) who shares snaps with Mason Taylor in Frank Reich's TE-heavy Jets offense. He had hernia surgery in OTAs.",
+   "roles": {
+    "2027": "starter",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "He was a 2026 first-round pick (#16), so his deal runs through 2029 with a 5th-year option for 2030. Elite athletes taken in Round 1 usually break out at TE in years 2-3. Taylor's deal runs through 2028, and Sadiq should take over the TE1 snaps. The Jets' QB situation (Geno Smith, 2026) is the main bust risk.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Tight End Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-tight-end-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    },
+    {
+     "title": "Kenyon Sadiq out for OTAs after hernia surgery",
+     "url": "https://www.thefantasyfootballers.com/news/631066/kenyon-sadiq-out-for-otas-after-hernia-surgery/",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Michael Mayer",
+   "pos": "TE",
+   "team": "LV",
+   "age": 25,
+   "contract_through": 2029,
+   "status_2026": "Raiders TE2 behind Bowers with an 80% snap share and a career-best pace (9.9 PPG). He got extended in September.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 3-year, $45M extension in September 2026 on top of a rookie deal that ran through 2026, which puts him under contract through 2029. As long as Bowers is healthy he's a TE2 with weekly standalone value. He becomes a TE1 only if Bowers misses time.",
+   "sources": [
+    {
+     "title": "Raiders sign TE Michael Mayer to 3-year, $45M extension",
+     "url": "https://www.raiders.com/news/raiders-sign-te-michael-mayer-to-multi-year-extension-2026-nfl-transactions",
+     "date": "2026-09-12"
+    },
+    {
+     "title": "Dynasty Roundtable: Biggest Midseason Risers and Fallers",
+     "url": "https://www.footballguys.com/article/2026-dynasty-roundtable-week08-biggest-midseason-risers-and-fallers",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "AJ Barner",
+   "pos": "TE",
+   "team": "SEA",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Seahawks TE1 in a JSN-dominated offense (9.8 PPG). He got 18% of SEA targets in Week 10.",
+   "roles": {
+    "2027": "starter",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2024 fourth-round pick, so his rookie deal runs through 2027 with no option. JSN takes a huge share of the targets, which caps him. In 2028 he's a free agent and his role depends on where he lands.",
+   "sources": [
+    {
+     "title": "The Targets Report: Week 11",
+     "url": "https://www.footballguys.com/article/2026-the-targets-report-week11",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Oronde Gadsden",
+   "pos": "TE",
+   "team": "LAC",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Chargers' receiving TE (8.5 PPG) in McDaniel's new offense. He gained snaps while McConkey was injured early.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2025 fifth-round pick, so his rookie deal runs through 2028. He broke out as a rookie, and in 2026 he's competing with McConkey, Harris and QJ for Herbert's targets. QJ's option ends after 2027, which could free up targets. I couldn't verify his 2026 target share.",
+   "sources": [
+    {
+     "title": "Ladd McConkey's injury exposed a Chargers passing game problem",
+     "url": "https://atozsports.com/?p=492874",
+     "date": "2026-09-14"
+    }
+   ]
+  },
+  {
+   "name": "Terrance Ferguson",
+   "pos": "TE",
+   "team": "LAR",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Rams TE who was placed on IR October 2; McVay said his return 'will take some time'. He scored 7.5 PPG before the injury.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2025 second-round pick, so his rookie deal runs through 2028. Tyler Higbee re-signed for two years (through 2027) to handle blocking, so the path opens fully in 2028. His upside depends on Stafford's successor at QB.",
+   "sources": [
+    {
+     "title": "Rams place TE Terrance Ferguson on IR",
+     "url": "https://roundtable.io/sports/nfl/rams/news/rams-place-terrance-ferguson-on-ir-make-multiple-roster-moves",
+     "date": "2026-10-02"
+    },
+    {
+     "title": "Rams' Higbee extension takeaways",
+     "url": "https://www.si.com/nfl/rams/onsi/los-angeles-three-takeaways-after-tyler-higbee-contract-extension",
+     "date": "2026-03-06"
+    }
+   ]
+  },
+  {
+   "name": "Mason Taylor",
+   "pos": "TE",
+   "team": "NYJ",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Jets TE (9.2 PPG) who now shares the room with first-round rookie Sadiq.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2025 second-round pick, so his rookie deal runs through 2028. Drafting Sadiq at #16 signals that Sadiq is the long-term TE1. Taylor projects as a 12-personnel TE2 and becomes a free agent in 2029.",
+   "sources": [
+    {
+     "title": "Mason Taylor's world flipped by Jets' draft",
+     "url": "https://www.si.com/nfl/jets/onsi/mason-taylor-entire-world-flipped-upside-down-jets-draft-01kqfdxj6cqe",
+     "date": null
+    },
+    {
+     "title": "2026 NFL Draft: Tight End Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-tight-end-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Eli Stowers",
+   "pos": "TE",
+   "team": "PHI",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie TE who spent the first 6 weeks on IR with a quad injury. Since then he's played only 7-13 snaps a game (3 catches, 53 yards).",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2026 second-round pick (#54), so his deal runs through 2029. Goedert and Calcaterra were on 1-year deals for 2026, which leaves a clear path in 2027. He's a receiving-first athlete, but PHI's TE targets are limited behind DeVonta Smith.",
+   "sources": [
+    {
+     "title": "Eagles rookie progress report at midway point",
+     "url": "https://www.nbcsportsphiladelphia.com/nfl/philadelphia-eagles/rookie-progress-report-2026-season-makai-lemon-eli-stowers-markel-bell/765580/",
+     "date": "2026-11-11"
+    },
+    {
+     "title": "2026 NFL Draft: Tight End Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-tight-end-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Gunnar Helm",
+   "pos": "TE",
+   "team": "TEN",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Titans TE (7.8 PPG) in Cam Ward's offense, behind Tate and Wan'Dale Robinson for targets.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2025 fourth-round pick, so his rookie deal runs through 2028. I couldn't verify his 2026 snap or target share. Tate's rise as WR1 limits his ceiling.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Eli Raridon",
+   "pos": "TE",
+   "team": "NE",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie TE (5.5 PPG) behind the aging Hunter Henry in New England.",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "He was a 2026 third-round pick (#95), so his deal runs through 2029. He played 34% of his college snaps in the slot, which gives him receiving upside once Henry moves on. I couldn't verify when Henry's contract ends.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Tight End Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-tight-end-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Jaxon Smith-Njigba",
+   "pos": "WR",
+   "team": "SEA",
+   "age": 24,
+   "contract_through": 2031,
+   "status_2026": "Overall fantasy star: leads the NFL with a 38.5% target share and had 1,207 yards and 10 TDs through 10 games.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "elite"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "He signed a record 4-year, $168.6M extension covering 2028-31, so he's under contract through 2031. Nothing about his role is uncertain.",
+   "sources": [
+    {
+     "title": "Seahawks extend Jaxon Smith-Njigba",
+     "url": "https://www.spotrac.com/news/_/id/3300/seahawks-extend-jaxon-smith-njigba",
+     "date": null
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "The Targets Report: Week 11",
+     "url": "https://www.footballguys.com/article/2026-the-targets-report-week11",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Ja'Marr Chase",
+   "pos": "WR",
+   "team": "CIN",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Bengals WR1 with a 26.9% target share and 96 targets.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "He signed a 4-year, $161M extension in March 2025, which runs through 2029 (from memory; not re-checked this session). He turns 29 in 2029.",
+   "sources": [
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Puka Nacua",
+   "pos": "WR",
+   "team": "LAR",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Rams WR1 with a 36.1% target share, 3rd in the NFL.",
+   "roles": {
+    "2027": "elite",
+    "2028": "elite",
+    "2029": "elite"
+   },
+   "boom_role": "elite",
+   "bust_role": "lead",
+   "notes": "He was a 2023 fifth-round pick whose rookie deal runs through 2026. As of the preseason, no extension had been signed, and reports said one was more likely next offseason. Expect an extension or a tag. He's elite whatever happens, and the main variable is Stafford's successor.",
+   "sources": [
+    {
+     "title": "Nacua more likely to be extended next offseason",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-07-30/nacua-more-likely-to-be-extended-next-offseason",
+     "date": "2026-07-30"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Malik Nabers",
+   "pos": "WR",
+   "team": "NYG",
+   "age": 23,
+   "contract_through": 2027,
+   "status_2026": "Back from his 2025 ACL tear for Week 1. Giants WR1 with a 28.5% target share and 97 targets.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2024 first-round pick (#4), so his deal runs through 2027 with a 5th-year option for 2028, and an extension is likely. Likely now competes for targets but doesn't threaten his alpha role. His 2026 PPG (15.7) is below his rookie pace, and QB instability is the main drag.",
+   "sources": [
+    {
+     "title": "Nabers looked healthy in first game back",
+     "url": "https://empiresportsmedia.com/new-york-giants/ny-giants-wr-malik-nabers-looked-healthy-in-first-game-back-from-knee-injury/",
+     "date": null
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Drake London",
+   "pos": "WR",
+   "team": "ATL",
+   "age": 25,
+   "contract_through": 2030,
+   "status_2026": "Falcons WR1 with a 27.8% target share.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He signed a 4-year, $141M extension in June 2026 on top of his 2026 5th-year option, which puts him under contract through 2030. His role is locked. The Falcons' QB play is the swing factor.",
+   "sources": [
+    {
+     "title": "Falcons, Drake London reach 4-year, $141M extension",
+     "url": "https://www.espn.com/nfl/story/_/id/48951347/falcons-drake-london-reach-4-year-141m-extension-agent-says",
+     "date": "2026-06-02"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Chris Olave",
+   "pos": "WR",
+   "team": "NO",
+   "age": 26,
+   "contract_through": 2030,
+   "status_2026": "Saints WR1 (102 targets, 27.7% share), but Tyson took over the target lead once he debuted.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He signed a 4-year extension worth up to $132M in July 2026 on top of his 2026 5th-year option, which puts him under contract through 2030. Tyson's emergence (13 targets in his first start) probably makes this a 1A/1B split from 2027 on. Concussion history is the bust risk.",
+   "sources": [
+    {
+     "title": "Saints sign Olave to 4-year extension worth up to $132M",
+     "url": "https://www.thescore.com/nfl/news/3572749/saints-sign-olave-to-4-year-extension-worth-up-to-132-m",
+     "date": "2026-07-30"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Dynasty Rankings: Jordyn Tyson Rises In November Update",
+     "url": "https://www.fantasylife.com/articles/dynasty/dynasty-fantasy-football-rankings-jordyn-tyson-rises-in-november",
+     "date": "2026-11-17"
+    }
+   ]
+  },
+  {
+   "name": "Matthew Golden",
+   "pos": "WR",
+   "team": "GB",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Second-year breakout: 101 targets (5th in NFL) and a 28.3% share. He was the fantasy WR9 at midseason.",
+   "roles": {
+    "2027": "lead",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2025 first-round pick (#23), so his deal runs through 2028 with a 5th-year option for 2029. He has moved past Watson and Reed to become Jordan Love's WR1. Drops are a mild red flag.",
+   "sources": [
+    {
+     "title": "Dynasty Roundtable: Biggest Midseason Risers and Fallers",
+     "url": "https://www.footballguys.com/article/2026-dynasty-roundtable-week08-biggest-midseason-risers-and-fallers",
+     "date": "2026-10"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "George Pickens",
+   "pos": "WR",
+   "team": "DAL",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Cowboys WR on a $27.3M franchise tag; a long-term deal didn't happen. He had 90 targets and a 23.6% share.",
+   "roles": {
+    "2027": "lead",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He's playing 2026 on the tag, and Dallas said it wouldn't negotiate an extension, so expect a second tag or free agency in 2027. I'm projecting that a big free-agent deal makes him a WR1 somewhere, though a move could cost him some target share next to Lamb. The 'Cowboys swan song' framing suggests he leaves.",
+   "sources": [
+    {
+     "title": "Cowboys' George Pickens to play on $27.3M tag as deadline passes",
+     "url": "https://africa.espn.com/nfl/story/_/id/49367546/cowboys-george-pickens-play-273m-tag-deadline-passes",
+     "date": null
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Luther Burden III",
+   "pos": "WR",
+   "team": "CHI",
+   "age": 22,
+   "contract_through": 2028,
+   "status_2026": "Bears' co-WR1 after DJ Moore was traded to BUF. He has 69 targets so far.",
+   "roles": {
+    "2027": "starter",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "He was a 2025 second-round pick (#39), so his deal runs through 2028. Moore is gone and Odunze keeps getting hurt, so Burden is set up as the long-term alpha in Ben Johnson's offense, though Loveland is a target competitor.",
+   "sources": [
+    {
+     "title": "Bears need health from Odunze, Burden",
+     "url": "https://chicago.suntimes.com/bears/2026/09/03/bears-rome-odunze-luther-burden-health-dynamic-duo-wide-receiver-foot-nfl",
+     "date": "2026-09-03"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Zay Flowers",
+   "pos": "WR",
+   "team": "BAL",
+   "age": 26,
+   "contract_through": 2031,
+   "status_2026": "Ravens WR1 with a 28.9% target share.",
+   "roles": {
+    "2027": "lead",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was already under contract through 2027 (5th-year option) and signed a 4-year, $140M extension in August 2026. Since it adds four seasons, it should run through 2031, but the article didn't print the end year. He's a high-target WR1 capped by BAL's run-heavy offense.",
+   "sources": [
+    {
+     "title": "Ravens sign Flowers to 4-year, $140M extension",
+     "url": "https://www.thescore.com/nfl/news/3574805/ravens-sign-flowers-to-4-year-140-m-extension",
+     "date": "2026-08-04"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Tetairoa McMillan",
+   "pos": "WR",
+   "team": "CAR",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Panthers WR1 with a 25.6% target share and 87 targets.",
+   "roles": {
+    "2027": "starter",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "starter",
+   "notes": "He was a 2025 first-round pick (#8), so his deal runs through 2028 with a 5th-year option for 2029. Coker was extended and Brazzell was drafted, but McMillan is the alpha. Bryce Young's play is the limiting factor.",
+   "sources": [
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Parker Washington",
+   "pos": "WR",
+   "team": "JAX",
+   "age": 24,
+   "contract_through": 2026,
+   "status_2026": "Breakout Jaguars WR1: 24% target share, 2.58 yards per route run and a 39% air-yards share. He's in the last year of his rookie deal.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2023 sixth-round pick whose contract runs through 2026, and no extension has been signed. He reportedly turned down about $25M a year, talks paused, and the Jaguars are expected to re-sign or tag him. If he leaves, he'd be a WR2 elsewhere. BTJ is the main threat to his share.",
+   "sources": [
+    {
+     "title": "Dynasty Roundtable: Biggest Midseason Risers and Fallers",
+     "url": "https://www.footballguys.com/article/2026-dynasty-roundtable-week08-biggest-midseason-risers-and-fallers",
+     "date": "2026-10"
+    },
+    {
+     "title": "Jags not extending Parker Washington before Week 1",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-13/jags-not-extending-parker-washington-before-week-1",
+     "date": "2026-09-13"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Garrett Wilson",
+   "pos": "WR",
+   "team": "NYJ",
+   "age": 26,
+   "contract_through": 2030,
+   "status_2026": "Jets WR1 with a 28.0% target share and 82 targets. Geno Smith is the QB.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He signed a 4-year, $130M extension in 2025, which runs through 2030. Rookies Cooper and Sadiq add competition over time. Poor QB play has kept him a WR2 despite his volume.",
+   "sources": [
+    {
+     "title": "Jets WR Garrett Wilson agrees to four-year, $130M extension",
+     "url": "https://www.nfl.com/_amp/jets-wr-garrett-wilson-agrees-to-four-year-130-million-contract-extension",
+     "date": "2025-07"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Carnell Tate",
+   "pos": "WR",
+   "team": "TEN",
+   "age": 21,
+   "contract_through": 2029,
+   "status_2026": "Rookie WR1 for TEN with a 25.8% target share. He was Offensive Rookie of the Month for October (21 catches, 290 yards).",
+   "roles": {
+    "2027": "starter",
+    "2028": "lead",
+    "2029": "lead"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "He was a 2026 first-round pick (#4), so his deal runs through 2029 with a 5th-year option for 2030. Calvin Ridley's deal ends after 2026, which leaves Tate as the clear alpha with Cam Ward. Expect top-24 or better WR seasons from 2027 on.",
+   "sources": [
+    {
+     "title": "Titans WR Carnell Tate named Offensive Rookie of the Month",
+     "url": "https://www.tennesseetitans.com/news/titans-wr-carnell-tate-named-nfl-offensive-rookie-of-the-month-for-october",
+     "date": "2026-11-05"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Rashee Rice",
+   "pos": "WR",
+   "team": "KC",
+   "age": 26,
+   "contract_through": 2026,
+   "status_2026": "Chiefs WR (13.0 PPG) who missed 3 games with a hamstring injury. He had knee surgery and served a jail stint for a probation violation in the offseason.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2023 second-round pick in the final year of his rookie deal, so his contract runs through 2026. KC said no extension is on the horizon and is reportedly wary because of his off-field conduct. The likely outcomes are a tag or a move elsewhere as a WR2. Off-field risk drives the bust case.",
+   "sources": [
+    {
+     "title": "Chiefs do not have Rashee Rice extension on horizon",
+     "url": "https://www.profootballrumors.com/2026/05/chiefs-do-not-have-rashee-rice-extension-on-horizon-latest-on-wrs-knee-surgery",
+     "date": "2026-05"
+    },
+    {
+     "title": "Chiefs part with picks for Downs (Rice injury)",
+     "url": "https://www.newstribune.com/news/2026/nov/10/chiefs-part-with-pair-of-draft-picks-for-colts-downs/",
+     "date": "2026-11-10"
+    }
+   ]
+  },
+  {
+   "name": "Jameson Williams",
+   "pos": "WR",
+   "team": "DET",
+   "age": 25,
+   "contract_through": 2028,
+   "status_2026": "Lions WR2 behind St. Brown (13.3 PPG).",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He signed a 3-year extension worth up to $83M in September 2025, which runs through 2028. He's a field-stretching WR2 behind Amon-Ra, and LaPorta's possible exit could add a few targets.",
+   "sources": [
+    {
+     "title": "Lions, Jameson Williams agree to 3-year extension",
+     "url": "https://www.nfl.com/_amp/lions-wr-jameson-williams-agree-to-three-year-extension-worth-up-to-83-million",
+     "date": "2025-09"
+    }
+   ]
+  },
+  {
+   "name": "Emeka Egbuka",
+   "pos": "WR",
+   "team": "TB",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Bucs WR1 with a 23.3% target share (10.9 PPG). A preseason toe injury lingered.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "lead"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2025 first-round pick (#19), so his deal runs through 2028 with a 5th-year option for 2029. Mike Evans left for SF and Godwin is aging, so Egbuka takes over as the alpha as Godwin's role declines.",
+   "sources": [
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Bucs optimistic about Egbuka toe",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-08-14/bucs-very-optimistic-about-egbuka-toe-for-week-1",
+     "date": "2026-08-14"
+    }
+   ]
+  },
+  {
+   "name": "KC Concepcion Jr.",
+   "pos": "WR",
+   "team": "CLE",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie who leads the Browns in catches (30 through 7 games). Monken calls feeding him 'critical'. QB play is in flux.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2026 first-round pick (#24), so his deal runs through 2029 with a 5th-year option for 2030. He's a versatile WR1 candidate, but Boston and Fannin share targets, and the Browns' QB play (Watson, Sanders) is the biggest cap on him.",
+   "sources": [
+    {
+     "title": "Concepcion looks to sustain success in featured role",
+     "url": "https://www.clevelandbrowns.com/news/kc-concepcion-jr-looks-to-sustain-recent-success-in-featured-offensive-role",
+     "date": "2026-10-30"
+    },
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Ladd McConkey",
+   "pos": "WR",
+   "team": "LAC",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Chargers slot WR1 (11.9 PPG). He missed early games with an injury.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2024 second-round pick, so his rookie deal runs through 2027 with no option. Expect an extension in 2027. He's a target hog in McDaniel's offense, but Harris and Gadsden are growing.",
+   "sources": [
+    {
+     "title": "McConkey injury exposed Chargers passing problem",
+     "url": "https://atozsports.com/?p=492874",
+     "date": "2026-09-14"
+    }
+   ]
+  },
+  {
+   "name": "Rome Odunze",
+   "pos": "WR",
+   "team": "CHI",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Bears WR (10.5 PPG) who keeps getting hurt: a foot stress fracture in 2025 and a leg/foot issue in preseason 2026.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2024 first-round pick (#9), so his deal runs through 2027. CHI decides on his 2028 5th-year option in May 2027, and it's undecided. Burden and Loveland have moved ahead of him in the target pecking order. He needs health or a change of scenery to reach WR2.",
+   "sources": [
+    {
+     "title": "Bears need health, production from Odunze",
+     "url": "https://chicago.suntimes.com/bears/2026/09/03/bears-rome-odunze-luther-burden-health-dynamic-duo-wide-receiver-foot-nfl",
+     "date": "2026-09-03"
+    }
+   ]
+  },
+  {
+   "name": "Michael Wilson",
+   "pos": "WR",
+   "team": "ARI",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Cardinals WR1 with a 25.7% target share and 88 targets. Marvin Harrison Jr. was traded to HOU in October.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "flex"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He signed a 3-year extension worth up to $78M in September 2026, which runs through 2029. With MHJ gone, he and McBride are ARI's top two targets. He's 26, and I expect his role to slip by 2029.",
+   "sources": [
+    {
+     "title": "Cardinals agree with Michael Wilson on three-year, $75M extension",
+     "url": "https://www.nfl.com/news/cardinals-michael-wilson-three-year-extension",
+     "date": "2026-09-03"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Denzel Boston",
+   "pos": "WR",
+   "team": "CLE",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie WR2 next to Concepcion in Cleveland (10.2 PPG). He's a contested-catch X receiver.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2026 second-round pick (#39), so his deal runs through 2029. Jeudy and Tillman are veterans who can be moved on from, and he projects as the outside X. The Browns' QB play is the main risk.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    },
+    {
+     "title": "Browns rookie making case for WR1, not Concepcion",
+     "url": "https://www.newsweek.com/browns-rookie-quickly-making-case-for-wr1-and-its-not-kc-concepcion-12321068",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Jordyn Tyson",
+   "pos": "WR",
+   "team": "NO",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie (#8 overall) who missed 8 games on IR with a hamstring injury. He debuted Week 9 and had 11 catches for 80 yards on 13 targets in Week 10, with 50% of snaps in the slot.",
+   "roles": {
+    "2027": "starter",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "elite",
+   "bust_role": "flex",
+   "notes": "He was a 2026 first-round pick (#8), so his deal runs through 2029 with a 5th-year option for 2030. He's the classic boom-or-bust profile: elite separation and an immediate target-hog role, but chronic durability issues (hamstring, plus college injuries), and he shares the ball with Olave, who signed through 2030. Boom: he passes Olave and becomes a top-3 WR. Bust: missed games keep him a WR3.",
+   "sources": [
+    {
+     "title": "Dynasty Rankings: Jordyn Tyson Rises In November Update",
+     "url": "https://www.fantasylife.com/articles/dynasty/dynasty-fantasy-football-rankings-jordyn-tyson-rises-in-november",
+     "date": "2026-11-17"
+    },
+    {
+     "title": "Saints news: Jordyn Tyson big Week 10",
+     "url": "https://clutchpoints.com/nfl/new-orleans-saints/saints-news-jordyn-tyson-big-week-10-reaction-kenny-dillingham",
+     "date": "2026-11"
+    },
+    {
+     "title": "Saints reveal injury timeline for Tyson",
+     "url": "https://www.newsweek.com/sports/nfl/saints-reveal-unfortunate-injury-timeline-for-jordyn-tyson-12334372",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Omar Cooper Jr.",
+   "pos": "WR",
+   "team": "NYJ",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie (9.1 PPG) listed as a second-teamer on the depth chart behind Garrett Wilson. He's in three-WR sets.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 first-round pick (#30), so his deal runs through 2029 with a 5th-year option for 2030. He's a YAC complement to Wilson, with Sadiq also competing for targets. The team expects his role to grow over time.",
+   "sources": [
+    {
+     "title": "Cooper's role should grow over time",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-09-01/coopers-role-should-grow-over-time",
+     "date": "2026-09-01"
+    },
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Josh Downs",
+   "pos": "WR",
+   "team": "KC",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Requested a trade and was dealt from IND to KC on November 10 (33 catches with IND). He now plays slot for Mahomes.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He's in the last year of his rookie deal (4 years, $5.52M), so his contract runs through 2026, and he'll be a free agent in March unless KC extends him. KC was reportedly his preferred destination, and Rice's uncertain status could open a WR2 path. He's mainly a slot receiver.",
+   "sources": [
+    {
+     "title": "Chiefs part with pair of draft picks for Colts' Downs",
+     "url": "https://www.newstribune.com/news/2026/nov/10/chiefs-part-with-pair-of-draft-picks-for-colts-downs/",
+     "date": "2026-11-10"
+    }
+   ]
+  },
+  {
+   "name": "Jalen Coker",
+   "pos": "WR",
+   "team": "CAR",
+   "age": 25,
+   "contract_through": 2029,
+   "status_2026": "Panthers WR2 behind McMillan (33 catches, 453 yards through 5 games). He rose to about WR32.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 3-year, $35M extension in June 2026 after an exclusive-rights tender for 2026, so he's likely under contract through 2029, but the end year wasn't explicitly confirmed. He has a solid floor as WR2 behind McMillan, and Brazzell (2026 3rd round) is a competitor.",
+   "sources": [
+    {
+     "title": "WR Jalen Coker, Panthers reach 3-year, $35M extension",
+     "url": "https://africa.espn.com/nfl/story/_/id/49035006/wr-jalen-coker-panthers-reach-3-year-35m-extension",
+     "date": null
+    },
+    {
+     "title": "Dynasty Roundtable: Biggest Midseason Risers and Fallers",
+     "url": "https://www.footballguys.com/article/2026-dynasty-roundtable-week08-biggest-midseason-risers-and-fallers",
+     "date": "2026-10"
+    }
+   ]
+  },
+  {
+   "name": "Makai Lemon",
+   "pos": "WR",
+   "team": "PHI",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie (#20) with 37 catches for 312 yards on 54 targets through 9 games for the 2-7 Eagles. His best games came while Smith and Wicks were out.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "flex",
+   "notes": "He was a 2026 first-round pick (#20), so his deal runs through 2029 with a 5th-year option for 2030. A.J. Brown is now in NE, so Lemon is the long-term WR2 next to DeVonta Smith (37.3% target share). His efficiency is weak so far, and he needs a better offense.",
+   "sources": [
+    {
+     "title": "Eagles rookie progress report at midway point",
+     "url": "https://www.nbcsportsphiladelphia.com/nfl/philadelphia-eagles/rookie-progress-report-2026-season-makai-lemon-eli-stowers-markel-bell/765580/",
+     "date": "2026-11-11"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Jordan Addison",
+   "pos": "WR",
+   "team": "MIN",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Vikings WR2 behind Jefferson. He suffered a finger injury in Week 10 and is expected to miss multiple weeks.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "MIN picked up his 5th-year option, so he's under contract through 2027 with no extension. He's capped behind Jefferson. I projected a 2028 free-agency move to a WR2 role at best.",
+   "sources": [
+    {
+     "title": "Vikings exercise Jordan Addison's fifth-year option",
+     "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/vikings-exercise-jordan-addisons-fifth-year-option",
+     "date": null
+    },
+    {
+     "title": "The Targets Report: Week 11",
+     "url": "https://www.footballguys.com/article/2026-the-targets-report-week11",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Alec Pierce",
+   "pos": "WR",
+   "team": "IND",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Colts deep threat (10.3 PPG). Downs' trade adds to the target pool.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He re-signed for 4 years and $116M in March 2026, which runs through 2029. He's a big-play WR with a volatile weekly outcome. Warren is the primary target.",
+   "sources": [
+    {
+     "title": "Sources: WR Alec Pierce returning to Colts on 4-year, $116M deal",
+     "url": "https://africa.espn.com/nfl/story/_/id/48153529/sources-wr-alec-pierce-returning-colts-4-year-116m-deal",
+     "date": "2026-03"
+    }
+   ]
+  },
+  {
+   "name": "Wan'Dale Robinson",
+   "pos": "WR",
+   "team": "TEN",
+   "age": 25,
+   "contract_through": 2029,
+   "status_2026": "Titans slot WR2 behind rookie Tate (10.5 PPG). He reunited with Daboll.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 4-year, $78M deal with TEN in March 2026, which runs through 2029. Tate's ascent caps him at WR2 and slot volume.",
+   "sources": [
+    {
+     "title": "Titans agree to four-year deal with Wan'Dale Robinson",
+     "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/titans-agree-to-four-year-deal-with-wandale-robinson",
+     "date": "2026-03"
+    }
+   ]
+  },
+  {
+   "name": "Khalil Shakir",
+   "pos": "WR",
+   "team": "BUF",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Bills slot WR (10.3 PPG). DJ Moore's arrival via trade took over Josh Allen's top-target role.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 4-year extension worth up to $60.2M in 2025, which runs through 2029. With Moore here, his upside is a WR3. A cap cut is possible in 2028-29.",
+   "sources": [
+    {
+     "title": "Bills' Khalil Shakir extension through 2029",
+     "url": "https://www.buffalobills.com/news/buffalo-bills-wr-khalil-shakir-agrees-to-terms-on-four-year-contract-extension-through-2029",
+     "date": null
+    },
+    {
+     "title": "DJ Moore settling in as Allen's top target",
+     "url": "https://www.thefantasyfootballers.com/news/631585/dj-moore-settling-in-as-allens-top-target/",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Brian Thomas Jr.",
+   "pos": "WR",
+   "team": "JAX",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Quiet season (8.7 PPG) as Parker Washington took over as the Jaguars' WR1. He was the subject of trade-deadline rumors, and KC pursued him, but JAX kept him.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2024 first-round pick (#23), so his deal runs through 2027 with a 2028 5th-year option still to be decided. His 2024 rookie breakout shows a high ceiling, and a trade or Washington leaving would restore WR1 volume. If Washington re-signs and stays the WR1, BTJ stays a volatile WR3.",
+   "sources": [
+    {
+     "title": "Why trade deadline rumors are swirling around Thomas Jr.",
+     "url": "https://www.tsn.ca/nfl/article/why-trade-deadline-rumors-are-swirling-around-jaguars-wr-thomas-jr-n1-50366346/",
+     "date": null
+    },
+    {
+     "title": "Chiefs pursued BTJ trade before Downs",
+     "url": "https://clutchpoints.com/nfl/kansas-city-chiefs/chiefs-news-kansas-city-pursued-brian-thomas-jr-trade-before-landing-josh-downs",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Tre Tucker",
+   "pos": "WR",
+   "team": "LV",
+   "age": 25,
+   "contract_through": 2026,
+   "status_2026": "Raiders WR1 by volume (68 targets) in a contract year.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2023 third-round pick in the last year of his rookie deal, so his contract runs through 2026 with no extension reported. He'll be a free agent in 2027. As a speed WR behind Bowers he gets volume by default, and I expect a WR3 role after that.",
+   "sources": [
+    {
+     "title": "Targets Leaders 2026",
+     "url": "https://rosteraudit.com/stats/targets/",
+     "date": "2026-11"
+    },
+    {
+     "title": "Raiders facing 'important' contract decision with Tucker",
+     "url": "https://heavy.com/sports/nfl/las-vegas-raiders/tre-tucker-contract-news/",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Caleb Douglas",
+   "pos": "WR",
+   "team": "MIA",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Third-round rookie who started Week 1 and has a 23.8% target share (19th in NFL). He set the Dolphins' record for receiving yards through four career games.",
+   "roles": {
+    "2027": "flex",
+    "2028": "starter",
+    "2029": "starter"
+   },
+   "boom_role": "lead",
+   "bust_role": "backup",
+   "notes": "He was a 2026 third-round pick (#75), so his deal runs through 2029. Miami's WR room is thin (Atwell, Tolbert, Washington, Bell), so he looks like a real WR1 candidate. Third-round capital and concerns about his play after contact keep me from projecting higher than WR2.",
+   "sources": [
+    {
+     "title": "Dolphins rookie piled onto record-setting start",
+     "url": "https://atozsports.com/?p=509638",
+     "date": "2026-10"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    },
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Jayden Reed",
+   "pos": "WR",
+   "team": "GB",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Packers slot WR (9.5 PPG) who has fallen behind Golden and Watson.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 3-year, $50.25M extension in April 2026 on top of a rookie deal that ran through 2026, which puts him under contract through 2029. Golden's breakout makes him a WR3 or slot specialist.",
+   "sources": [
+    {
+     "title": "Packers sign Reed to 3-year, $50.2M extension",
+     "url": "https://www.thescore.com/nfl/news/3509175/packers-sign-reed-to-3-year-50-2-m-extension",
+     "date": "2026-04-24"
+    }
+   ]
+  },
+  {
+   "name": "Romeo Doubs",
+   "pos": "WR",
+   "team": "NE",
+   "age": 26,
+   "contract_through": 2029,
+   "status_2026": "Patriots WR (9.8 PPG) after signing in free agency. A.J. Brown, acquired by trade, has a 22.3% share but has played only 4 games.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He signed a 4-year deal (reported at $68-80M) with NE in March 2026, which runs through 2029. Brown is aging and often hurt, which keeps a WR2 path open, but Doubs is a WR3 talent.",
+   "sources": [
+    {
+     "title": "Patriots to sign Romeo Doubs to four-year contract",
+     "url": "https://www.nfl.com/news/romeo-doubs-patriots-sign-former-packers-wr-four-year-contract",
+     "date": "2026-03"
+    },
+    {
+     "title": "Dynasty Rankings: Jordyn Tyson Rises In November Update",
+     "url": "https://www.fantasylife.com/articles/dynasty/dynasty-fantasy-football-rankings-jordyn-tyson-rises-in-november",
+     "date": "2026-11-17"
+    }
+   ]
+  },
+  {
+   "name": "Xavier Worthy",
+   "pos": "WR",
+   "team": "KC",
+   "age": 23,
+   "contract_through": 2027,
+   "status_2026": "Chiefs WR (9.0 PPG) with 33 catches but only 8.4 yards per catch, and no 20-plus-yard catch in 4 straight games.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2024 first-round pick (#28), so his deal runs through 2027, and the 2028 5th-year option is undecided. Rice could leave, which opens a WR2 path, but Downs' arrival and an inefficient year 3 cloud it.",
+   "sources": [
+    {
+     "title": "Chiefs part with picks for Downs (Worthy stats)",
+     "url": "https://www.newstribune.com/news/2026/nov/10/chiefs-part-with-pair-of-draft-picks-for-colts-downs/",
+     "date": "2026-11-10"
+    }
+   ]
+  },
+  {
+   "name": "Marvin Harrison Jr.",
+   "pos": "WR",
+   "team": "HOU",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Traded from ARI to HOU on October 11 for a 2nd-round pick (5 catches in 4 ARI games). He's reunited with C.J. Stroud and plays behind Nico Collins.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2024 first-round pick (#4), so his deal runs through 2027. HOU must decide on the 2028 option by May 2027, and I couldn't verify that decision. He's the WR2 behind Collins, and Higgins (ACL) returns in 2027. Stroud chemistry gives him a starter-level boom case.",
+   "sources": [
+    {
+     "title": "Cardinals to trade WR Marvin Harrison Jr. to Texans",
+     "url": "https://nfl.com/news/marvin-harrison-jr-trade-texans-cardinals",
+     "date": "2026-10-12"
+    }
+   ]
+  },
+  {
+   "name": "Malik Washington",
+   "pos": "WR",
+   "team": "MIA",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Dolphins slot WR (9.1 PPG).",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "He was a 2024 sixth-round pick, so his rookie deal runs through 2027. Douglas has passed him, and Bell is coming back from his ACL. I couldn't verify his 2026 target share.",
+   "sources": [
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "Germie Bernard",
+   "pos": "WR",
+   "team": "PIT",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie Steelers WR (7.1 PPG) behind DK Metcalf and Michael Pittman Jr.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 second-round pick (#47), so his deal runs through 2029. His slot/outside versatility fits as WR2 once Pittman or Metcalf leave or decline. PIT's long-term QB is unsettled.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Quentin Johnston",
+   "pos": "WR",
+   "team": "LAC",
+   "age": 25,
+   "contract_through": 2027,
+   "status_2026": "Chargers outside WR (8.9 PPG) in McDaniel's new offense.",
+   "roles": {
+    "2027": "flex",
+    "2028": "backup",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "LAC exercised his 5th-year option, so he's under contract through 2027. Harris and Gadsden are growing, and McConkey is the primary target. He'll likely be a free agent in 2028.",
+   "sources": [
+    {
+     "title": "Chargers exercise fifth-year option on Quentin Johnston",
+     "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/chargers-exercise-the-fifth-year-option-on-quentin-johnstons-contract",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Antonio Williams",
+   "pos": "WR",
+   "team": "WAS",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie slot WR for Washington (6.8 PPG) in an offense that also has Terry McLaurin (31) and Stefon Diggs.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 third-round pick (#71), so his deal runs through 2029. McLaurin and Diggs are aging and will clear out, and he projects as Jayden Daniels' slot. That makes him a WR3 who could become a WR2.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    },
+    {
+     "title": "Target Share Leaders 2026 (WR)",
+     "url": "https://rosteraudit.com/stats/target-share/wr/",
+     "date": "2026-11"
+    }
+   ]
+  },
+  {
+   "name": "De'Zhaun Stribling",
+   "pos": "WR",
+   "team": "SF",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie (6.4 PPG) behind Mike Evans and Keenan Allen. Pearsall is out for the season.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 second-round pick (#33), so his deal runs through 2029. SF's WR room is full of aging veterans (Evans, Allen) and the oft-injured Pearsall, so he should open up a starting role by 2028-29.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    },
+    {
+     "title": "49ers WR Pearsall to have season-ending knee surgery",
+     "url": "https://abc7news.com/post/49ers-wr-pearsall-have-season-ending-knee-surgery/19612056/",
+     "date": "2026-08"
+    }
+   ]
+  },
+  {
+   "name": "Adonai Mitchell",
+   "pos": "WR",
+   "team": "NYJ",
+   "age": 24,
+   "contract_through": 2027,
+   "status_2026": "Jets depth WR (6.8 PPG) who lost the camp battle to Cooper and has missed games.",
+   "roles": {
+    "2027": "backup",
+    "2028": "backup",
+    "2029": "none"
+   },
+   "boom_role": "flex",
+   "bust_role": "none",
+   "notes": "He was a 2024 second-round pick, so his rookie deal runs through 2027. Wilson, Cooper and Sadiq are ahead of him. I'm projecting him as depth through 2027 and then out of the league or a backup in 2028.",
+   "sources": [
+    {
+     "title": "Training camp battle: Omar Cooper Jr. vs Adonai Mitchell",
+     "url": "https://www.si.com/onsi/fantasy/news/fantasy-football-training-camp-battle-omar-cooper-jr-vs-adonai-mitchell",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Chris Bell",
+   "pos": "WR",
+   "team": "MIA",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie (3.9 PPG) coming back from a college ACL tear, so his 2026 is a redshirt-type year.",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "He was a 2026 third-round pick (#94), so his deal runs through 2029. He's a big-bodied deep threat, but Douglas has already claimed WR1 in Miami. His upside depends on how he looks after a full recovery.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Ja'Kobi Lane",
+   "pos": "WR",
+   "team": "BAL",
+   "age": 22,
+   "contract_through": 2029,
+   "status_2026": "Rookie who had wrist surgery after Week 1 and spent time on IR (4.8 PPG).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 third-round pick (#80), so his deal runs through 2029. He's a red-zone X receiver behind Flowers and Bateman, and BAL's low pass volume limits him.",
+   "sources": [
+    {
+     "title": "Ja'Kobi Lane placed on IR",
+     "url": "https://bleacherreport.com/articles/25500032-jakobi-lane-placed-ir-latest-injury-updates-return-timeline-fantasy-outlook-ravens-wr",
+     "date": null
+    },
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    }
+   ]
+  },
+  {
+   "name": "Malachi Fields",
+   "pos": "WR",
+   "team": "NYG",
+   "age": 23,
+   "contract_through": 2029,
+   "status_2026": "Rookie WR2/WR3 opposite Nabers (6.8 PPG).",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2026 third-round pick (#74), so his deal runs through 2029. Nabers and Likely take most of the targets, so his ceiling is a WR3 role.",
+   "sources": [
+    {
+     "title": "2026 NFL Draft: Rookie WR Landing Spots",
+     "url": "https://www.thefantasyfootballers.com/dynasty/2026-nfl-draft-rookie-wr-landing-spots-fantasy-football/",
+     "date": "2026-04"
+    },
+    {
+     "title": "Giants' Malachi Fields could get a bigger workload",
+     "url": "https://www.newsweek.com/sports/nfl/giants-malachi-fields-could-get-a-bigger-workload-12339356",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Pat Bryant",
+   "pos": "WR",
+   "team": "DEN",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Broncos WR3 behind Courtland Sutton (7.3 PPG). He went on IR in October with an ankle sprain.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2025 third-round pick, so his rookie deal runs through 2028. Sutton is aging, and Bryant is being groomed as the X receiver for Bo Nix.",
+   "sources": [
+    {
+     "title": "Broncos place Bryant (ankle) on injured reserve",
+     "url": "https://www.nbcsports.com/fantasy/football/player-news/2026-10-09/broncos-place-bryant-ankle-on-injured-reserve",
+     "date": "2026-10-09"
+    }
+   ]
+  },
+  {
+   "name": "Ricky Pearsall",
+   "pos": "WR",
+   "team": "SF",
+   "age": 26,
+   "contract_through": 2027,
+   "status_2026": "Out for the 2026 season after knee surgery in August (2.1 PPG).",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "backup"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "He was a 2024 first-round pick (#31), so his deal runs through 2027, and the 2028 option is very unlikely given his health. Chronic knee issues and Stribling's arrival point to a depth role.",
+   "sources": [
+    {
+     "title": "49ers WR Ricky Pearsall to have season-ending knee surgery",
+     "url": "https://abc7news.com/post/49ers-wr-pearsall-have-season-ending-knee-surgery/19612056/",
+     "date": "2026-08"
+    }
+   ]
+  },
+  {
+   "name": "Tre' Harris",
+   "pos": "WR",
+   "team": "LAC",
+   "age": 24,
+   "contract_through": 2028,
+   "status_2026": "Chargers WR3 (6.7 PPG) with an expanded role in year 2.",
+   "roles": {
+    "2027": "flex",
+    "2028": "flex",
+    "2029": "starter"
+   },
+   "boom_role": "starter",
+   "bust_role": "backup",
+   "notes": "He was a 2025 second-round pick, so his rookie deal runs through 2028. QJ's option runs out after 2027, which opens the outside-WR2 role next to McConkey for 2028.",
+   "sources": [
+    {
+     "title": "Tre Harris looking at expanded role in 2026",
+     "url": "https://www.thefantasyfootballers.com/news/631034/tre-harris-looking-at-expanded-role-in-2026/",
+     "date": null
+    }
+   ]
+  },
+  {
+   "name": "Jayden Higgins",
+   "pos": "WR",
+   "team": "HOU",
+   "age": 23,
+   "contract_through": 2028,
+   "status_2026": "Out for 2026 after tearing his ACL in August (1.2 PPG).",
+   "roles": {
+    "2027": "backup",
+    "2028": "flex",
+    "2029": "flex"
+   },
+   "boom_role": "starter",
+   "bust_role": "none",
+   "notes": "He was a 2025 second-round pick (#34), so his deal runs through 2028. While he was out, HOU traded for Marvin Harrison Jr., which crowds the WR2 role behind Collins. Expect 2027 to be a recovery year.",
+   "sources": [
+    {
+     "title": "Texans WR Jayden Higgins (torn ACL) out for 2026",
+     "url": "https://www.nfl.com/news/texans-wr-jayden-higgins-torn-acl-out-2026-season",
+     "date": "2026-08-19"
+    }
+   ]
+  }
+ ]
+}
